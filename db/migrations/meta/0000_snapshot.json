@@ -1,0 +1,1674 @@
+{
+  "id": "99f77960-08d9-480d-bec4-1c190b4c8a86",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "app.activity_log": {
+      "name": "activity_log",
+      "schema": "app",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "gym_id": {
+          "name": "gym_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_user_id": {
+          "name": "actor_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_email_snapshot": {
+          "name": "actor_email_snapshot",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_rol_snapshot": {
+          "name": "actor_rol_snapshot",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "accion": {
+          "name": "accion",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entidad": {
+          "name": "entidad",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entidad_id": {
+          "name": "entidad_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resumen": {
+          "name": "resumen",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cambios": {
+          "name": "cambios",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ip": {
+          "name": "ip",
+          "type": "inet",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_agent": {
+          "name": "user_agent",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ocurrido_en": {
+          "name": "ocurrido_en",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "activity_log_gym_fecha_idx": {
+          "name": "activity_log_gym_fecha_idx",
+          "columns": [
+            {
+              "expression": "gym_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "ocurrido_en",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "activity_log_gym_entidad_idx": {
+          "name": "activity_log_gym_entidad_idx",
+          "columns": [
+            {
+              "expression": "gym_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "entidad",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "entidad_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "ocurrido_en",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "activity_log_gym_id_gyms_id_fk": {
+          "name": "activity_log_gym_id_gyms_id_fk",
+          "tableFrom": "activity_log",
+          "tableTo": "gyms",
+          "schemaTo": "app",
+          "columnsFrom": [
+            "gym_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "activity_log_actor_user_id_app_users_id_fk": {
+          "name": "activity_log_actor_user_id_app_users_id_fk",
+          "tableFrom": "activity_log",
+          "tableTo": "app_users",
+          "schemaTo": "app",
+          "columnsFrom": [
+            "actor_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "app.app_users": {
+      "name": "app_users",
+      "schema": "app",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "gym_id": {
+          "name": "gym_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "auth_user_id": {
+          "name": "auth_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nombre": {
+          "name": "nombre",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rol": {
+          "name": "rol",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "activo": {
+          "name": "activo",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "ultimo_acceso": {
+          "name": "ultimo_acceso",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "app_users_auth_user_id_key": {
+          "name": "app_users_auth_user_id_key",
+          "columns": [
+            {
+              "expression": "auth_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "app_users_gym_id_email_key": {
+          "name": "app_users_gym_id_email_key",
+          "columns": [
+            {
+              "expression": "gym_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "app_users_gym_id_gyms_id_fk": {
+          "name": "app_users_gym_id_gyms_id_fk",
+          "tableFrom": "app_users",
+          "tableTo": "gyms",
+          "schemaTo": "app",
+          "columnsFrom": [
+            "gym_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "app_users_rol_check": {
+          "name": "app_users_rol_check",
+          "value": "\"app\".\"app_users\".\"rol\" in ('DUENO','STAFF')"
+        },
+        "app_users_email_lower_check": {
+          "name": "app_users_email_lower_check",
+          "value": "\"app\".\"app_users\".\"email\" = lower(\"app\".\"app_users\".\"email\")"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "app.attention_dismissals": {
+      "name": "attention_dismissals",
+      "schema": "app",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "gym_id": {
+          "name": "gym_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "student_id": {
+          "name": "student_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tipo_senal": {
+          "name": "tipo_senal",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contexto": {
+          "name": "contexto",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "silenciar_hasta": {
+          "name": "silenciar_hasta",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nota": {
+          "name": "nota",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "creado_por": {
+          "name": "creado_por",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "attention_dismissals_unq": {
+          "name": "attention_dismissals_unq",
+          "columns": [
+            {
+              "expression": "gym_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "student_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "tipo_senal",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "contexto",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "attention_dismissals_gym_id_gyms_id_fk": {
+          "name": "attention_dismissals_gym_id_gyms_id_fk",
+          "tableFrom": "attention_dismissals",
+          "tableTo": "gyms",
+          "schemaTo": "app",
+          "columnsFrom": [
+            "gym_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "attention_dismissals_student_id_students_id_fk": {
+          "name": "attention_dismissals_student_id_students_id_fk",
+          "tableFrom": "attention_dismissals",
+          "tableTo": "students",
+          "schemaTo": "app",
+          "columnsFrom": [
+            "student_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "attention_dismissals_creado_por_app_users_id_fk": {
+          "name": "attention_dismissals_creado_por_app_users_id_fk",
+          "tableFrom": "attention_dismissals",
+          "tableTo": "app_users",
+          "schemaTo": "app",
+          "columnsFrom": [
+            "creado_por"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "attention_dismissals_tipo_check": {
+          "name": "attention_dismissals_tipo_check",
+          "value": "\"app\".\"attention_dismissals\".\"tipo_senal\" in ('PAGO_PENDIENTE','NUEVO_SIN_PAGO','PAUSA_VENCIDA','POSIBLE_DUPLICADO','INACTIVIDAD')"
+        },
+        "attention_dismissals_nota_len_check": {
+          "name": "attention_dismissals_nota_len_check",
+          "value": "\"app\".\"attention_dismissals\".\"nota\" is null or length(\"app\".\"attention_dismissals\".\"nota\") <= 200"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "app.gym_settings": {
+      "name": "gym_settings",
+      "schema": "app",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "gym_id": {
+          "name": "gym_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ciclo_modo": {
+          "name": "ciclo_modo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'MES_CALENDARIO'"
+        },
+        "primer_periodo_modo": {
+          "name": "primer_periodo_modo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'MES_DE_INGRESO'"
+        },
+        "ventana_pago_desde": {
+          "name": "ventana_pago_desde",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "ventana_pago_hasta": {
+          "name": "ventana_pago_hasta",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 10
+        },
+        "dias_gracia": {
+          "name": "dias_gracia",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 5
+        },
+        "dias_nuevo_sin_pago": {
+          "name": "dias_nuevo_sin_pago",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 7
+        },
+        "motivos_baja": {
+          "name": "motivos_baja",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[\n        {\"codigo\":\"ECONOMICO\",\"etiqueta\":\"Económico\",\"orden\":1,\"activo\":true},\n        {\"codigo\":\"FALTA_TIEMPO\",\"etiqueta\":\"Falta de tiempo\",\"orden\":2,\"activo\":true},\n        {\"codigo\":\"HORARIOS\",\"etiqueta\":\"Horarios\",\"orden\":3,\"activo\":true},\n        {\"codigo\":\"MUDANZA\",\"etiqueta\":\"Mudanza / distancia\",\"orden\":4,\"activo\":true},\n        {\"codigo\":\"CAMBIO_GIMNASIO\",\"etiqueta\":\"Cambió de gimnasio\",\"orden\":5,\"activo\":true},\n        {\"codigo\":\"DEJO_DE_ASISTIR\",\"etiqueta\":\"Dejó de asistir\",\"orden\":6,\"activo\":true},\n        {\"codigo\":\"AVISO_RETIRO\",\"etiqueta\":\"Avisó que se retira\",\"orden\":7,\"activo\":true},\n        {\"codigo\":\"OTRO\",\"etiqueta\":\"Otro\",\"orden\":8,\"activo\":true}\n      ]'::jsonb"
+        },
+        "alertas_desde": {
+          "name": "alertas_desde",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "inactividad_dias": {
+          "name": "inactividad_dias",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 10
+        },
+        "inactividad_cobertura_min": {
+          "name": "inactividad_cobertura_min",
+          "type": "numeric(3, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0.50'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "gym_settings_gym_id_key": {
+          "name": "gym_settings_gym_id_key",
+          "columns": [
+            {
+              "expression": "gym_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "gym_settings_gym_id_gyms_id_fk": {
+          "name": "gym_settings_gym_id_gyms_id_fk",
+          "tableFrom": "gym_settings",
+          "tableTo": "gyms",
+          "schemaTo": "app",
+          "columnsFrom": [
+            "gym_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "gym_settings_ciclo_modo_check": {
+          "name": "gym_settings_ciclo_modo_check",
+          "value": "\"app\".\"gym_settings\".\"ciclo_modo\" in ('MES_CALENDARIO','DESDE_ALTA')"
+        },
+        "gym_settings_primer_periodo_modo_check": {
+          "name": "gym_settings_primer_periodo_modo_check",
+          "value": "\"app\".\"gym_settings\".\"primer_periodo_modo\" in ('MES_DE_INGRESO','MES_SIGUIENTE')"
+        },
+        "gym_settings_ventana_desde_check": {
+          "name": "gym_settings_ventana_desde_check",
+          "value": "\"app\".\"gym_settings\".\"ventana_pago_desde\" between 1 and 28"
+        },
+        "gym_settings_ventana_hasta_check": {
+          "name": "gym_settings_ventana_hasta_check",
+          "value": "\"app\".\"gym_settings\".\"ventana_pago_hasta\" between 1 and 28"
+        },
+        "gym_settings_gracia_check": {
+          "name": "gym_settings_gracia_check",
+          "value": "\"app\".\"gym_settings\".\"dias_gracia\" between 0 and 20"
+        },
+        "gym_settings_nuevo_sin_pago_check": {
+          "name": "gym_settings_nuevo_sin_pago_check",
+          "value": "\"app\".\"gym_settings\".\"dias_nuevo_sin_pago\" between 1 and 60"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "app.gyms": {
+      "name": "gyms",
+      "schema": "app",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "nombre": {
+          "name": "nombre",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "timezone": {
+          "name": "timezone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'America/Argentina/Buenos_Aires'"
+        },
+        "moneda": {
+          "name": "moneda",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'ARS'"
+        },
+        "activo": {
+          "name": "activo",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "app.payment_periods": {
+      "name": "payment_periods",
+      "schema": "app",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "gym_id": {
+          "name": "gym_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payment_id": {
+          "name": "payment_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "student_id": {
+          "name": "student_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "periodo": {
+          "name": "periodo",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "payment_periods_gym_periodo_idx": {
+          "name": "payment_periods_gym_periodo_idx",
+          "columns": [
+            {
+              "expression": "gym_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "periodo",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payment_periods_gym_student_periodo_idx": {
+          "name": "payment_periods_gym_student_periodo_idx",
+          "columns": [
+            {
+              "expression": "gym_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "student_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "periodo",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "payment_periods_gym_id_gyms_id_fk": {
+          "name": "payment_periods_gym_id_gyms_id_fk",
+          "tableFrom": "payment_periods",
+          "tableTo": "gyms",
+          "schemaTo": "app",
+          "columnsFrom": [
+            "gym_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "payment_periods_payment_id_payments_id_fk": {
+          "name": "payment_periods_payment_id_payments_id_fk",
+          "tableFrom": "payment_periods",
+          "tableTo": "payments",
+          "schemaTo": "app",
+          "columnsFrom": [
+            "payment_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "payment_periods_student_id_students_id_fk": {
+          "name": "payment_periods_student_id_students_id_fk",
+          "tableFrom": "payment_periods",
+          "tableTo": "students",
+          "schemaTo": "app",
+          "columnsFrom": [
+            "student_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "payment_periods_periodo_dia1_check": {
+          "name": "payment_periods_periodo_dia1_check",
+          "value": "extract(day from \"app\".\"payment_periods\".\"periodo\") = 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "app.payments": {
+      "name": "payments",
+      "schema": "app",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "gym_id": {
+          "name": "gym_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "student_id": {
+          "name": "student_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fecha_pago": {
+          "name": "fecha_pago",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "plan_id": {
+          "name": "plan_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "plan_dias_snapshot": {
+          "name": "plan_dias_snapshot",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "plan_nombre_snapshot": {
+          "name": "plan_nombre_snapshot",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "monto": {
+          "name": "monto",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "metodo": {
+          "name": "metodo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'EFECTIVO'"
+        },
+        "nota": {
+          "name": "nota",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "anulado_en": {
+          "name": "anulado_en",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "anulado_por": {
+          "name": "anulado_por",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "anulado_motivo": {
+          "name": "anulado_motivo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "registrado_por": {
+          "name": "registrado_por",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "payments_gym_student_fecha_idx": {
+          "name": "payments_gym_student_fecha_idx",
+          "columns": [
+            {
+              "expression": "gym_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "student_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "fecha_pago",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payments_gym_fecha_idx": {
+          "name": "payments_gym_fecha_idx",
+          "columns": [
+            {
+              "expression": "gym_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "fecha_pago",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payments_gym_idempotency_key": {
+          "name": "payments_gym_idempotency_key",
+          "columns": [
+            {
+              "expression": "gym_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "idempotency_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"app\".\"payments\".\"idempotency_key\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "payments_gym_id_gyms_id_fk": {
+          "name": "payments_gym_id_gyms_id_fk",
+          "tableFrom": "payments",
+          "tableTo": "gyms",
+          "schemaTo": "app",
+          "columnsFrom": [
+            "gym_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "payments_student_id_students_id_fk": {
+          "name": "payments_student_id_students_id_fk",
+          "tableFrom": "payments",
+          "tableTo": "students",
+          "schemaTo": "app",
+          "columnsFrom": [
+            "student_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "payments_plan_id_plans_id_fk": {
+          "name": "payments_plan_id_plans_id_fk",
+          "tableFrom": "payments",
+          "tableTo": "plans",
+          "schemaTo": "app",
+          "columnsFrom": [
+            "plan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "payments_anulado_por_app_users_id_fk": {
+          "name": "payments_anulado_por_app_users_id_fk",
+          "tableFrom": "payments",
+          "tableTo": "app_users",
+          "schemaTo": "app",
+          "columnsFrom": [
+            "anulado_por"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "payments_registrado_por_app_users_id_fk": {
+          "name": "payments_registrado_por_app_users_id_fk",
+          "tableFrom": "payments",
+          "tableTo": "app_users",
+          "schemaTo": "app",
+          "columnsFrom": [
+            "registrado_por"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "payments_monto_check": {
+          "name": "payments_monto_check",
+          "value": "\"app\".\"payments\".\"monto\" >= 0"
+        },
+        "payments_metodo_check": {
+          "name": "payments_metodo_check",
+          "value": "\"app\".\"payments\".\"metodo\" in ('EFECTIVO','TRANSFERENCIA','BILLETERA','OTRO')"
+        },
+        "payments_anulacion_coherencia_check": {
+          "name": "payments_anulacion_coherencia_check",
+          "value": "(\"app\".\"payments\".\"anulado_en\" is null) = (\"app\".\"payments\".\"anulado_motivo\" is null)"
+        },
+        "payments_fecha_no_futura_check": {
+          "name": "payments_fecha_no_futura_check",
+          "value": "\"app\".\"payments\".\"fecha_pago\" <= current_date + 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "app.plans": {
+      "name": "plans",
+      "schema": "app",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "gym_id": {
+          "name": "gym_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nombre": {
+          "name": "nombre",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "dias_semana": {
+          "name": "dias_semana",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "precio_actual": {
+          "name": "precio_actual",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "activo": {
+          "name": "activo",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "orden": {
+          "name": "orden",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "plans_gym_id_nombre_key": {
+          "name": "plans_gym_id_nombre_key",
+          "columns": [
+            {
+              "expression": "gym_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "nombre",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "plans_gym_id_gyms_id_fk": {
+          "name": "plans_gym_id_gyms_id_fk",
+          "tableFrom": "plans",
+          "tableTo": "gyms",
+          "schemaTo": "app",
+          "columnsFrom": [
+            "gym_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "plans_dias_semana_check": {
+          "name": "plans_dias_semana_check",
+          "value": "\"app\".\"plans\".\"dias_semana\" between 1 and 7"
+        },
+        "plans_precio_check": {
+          "name": "plans_precio_check",
+          "value": "\"app\".\"plans\".\"precio_actual\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "app.student_events": {
+      "name": "student_events",
+      "schema": "app",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "gym_id": {
+          "name": "gym_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "student_id": {
+          "name": "student_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tipo": {
+          "name": "tipo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ocurrido_el": {
+          "name": "ocurrido_el",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "datos": {
+          "name": "datos",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "creado_por": {
+          "name": "creado_por",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "student_events_gym_student_fecha_idx": {
+          "name": "student_events_gym_student_fecha_idx",
+          "columns": [
+            {
+              "expression": "gym_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "student_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "ocurrido_el",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "student_events_gym_id_gyms_id_fk": {
+          "name": "student_events_gym_id_gyms_id_fk",
+          "tableFrom": "student_events",
+          "tableTo": "gyms",
+          "schemaTo": "app",
+          "columnsFrom": [
+            "gym_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "student_events_student_id_students_id_fk": {
+          "name": "student_events_student_id_students_id_fk",
+          "tableFrom": "student_events",
+          "tableTo": "students",
+          "schemaTo": "app",
+          "columnsFrom": [
+            "student_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "student_events_creado_por_app_users_id_fk": {
+          "name": "student_events_creado_por_app_users_id_fk",
+          "tableFrom": "student_events",
+          "tableTo": "app_users",
+          "schemaTo": "app",
+          "columnsFrom": [
+            "creado_por"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "student_events_tipo_check": {
+          "name": "student_events_tipo_check",
+          "value": "\"app\".\"student_events\".\"tipo\" in ('ALTA','BAJA','REACTIVACION','PAUSA','REANUDACION','CAMBIO_PLAN','CONTACTO','NOTA')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "app.students": {
+      "name": "students",
+      "schema": "app",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "gym_id": {
+          "name": "gym_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nombre": {
+          "name": "nombre",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "apellido": {
+          "name": "apellido",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nombre_busqueda": {
+          "name": "nombre_busqueda",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "generated": {
+            "as": "public.immutable_unaccent(lower(nombre || ' ' || apellido))",
+            "type": "stored"
+          }
+        },
+        "telefono": {
+          "name": "telefono",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "documento": {
+          "name": "documento",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fecha_nacimiento": {
+          "name": "fecha_nacimiento",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "vinculo": {
+          "name": "vinculo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'ACTIVO'"
+        },
+        "plan_id": {
+          "name": "plan_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fecha_alta_original": {
+          "name": "fecha_alta_original",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "vinculo_desde": {
+          "name": "vinculo_desde",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pausa_hasta": {
+          "name": "pausa_hasta",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pausa_nota": {
+          "name": "pausa_nota",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "baja_fecha": {
+          "name": "baja_fecha",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "baja_motivo_codigo": {
+          "name": "baja_motivo_codigo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "baja_motivo_etiqueta": {
+          "name": "baja_motivo_etiqueta",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "baja_observacion": {
+          "name": "baja_observacion",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notas": {
+          "name": "notas",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "origen": {
+          "name": "origen",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'MANUAL'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "students_gym_id_vinculo_idx": {
+          "name": "students_gym_id_vinculo_idx",
+          "columns": [
+            {
+              "expression": "gym_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "vinculo",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "students_nombre_busqueda_trgm_idx": {
+          "name": "students_nombre_busqueda_trgm_idx",
+          "columns": [
+            {
+              "expression": "\"nombre_busqueda\" gin_trgm_ops",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        },
+        "students_gym_id_documento_key": {
+          "name": "students_gym_id_documento_key",
+          "columns": [
+            {
+              "expression": "gym_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "documento",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"app\".\"students\".\"documento\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "students_gym_id_gyms_id_fk": {
+          "name": "students_gym_id_gyms_id_fk",
+          "tableFrom": "students",
+          "tableTo": "gyms",
+          "schemaTo": "app",
+          "columnsFrom": [
+            "gym_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "students_plan_id_plans_id_fk": {
+          "name": "students_plan_id_plans_id_fk",
+          "tableFrom": "students",
+          "tableTo": "plans",
+          "schemaTo": "app",
+          "columnsFrom": [
+            "plan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "students_telefono_check": {
+          "name": "students_telefono_check",
+          "value": "\"app\".\"students\".\"telefono\" ~ '^\\+[1-9]\\d{7,14}$'"
+        },
+        "students_nombre_len_check": {
+          "name": "students_nombre_len_check",
+          "value": "length(\"app\".\"students\".\"nombre\") between 1 and 80"
+        },
+        "students_apellido_len_check": {
+          "name": "students_apellido_len_check",
+          "value": "length(\"app\".\"students\".\"apellido\") between 1 and 80"
+        },
+        "students_pausa_nota_len_check": {
+          "name": "students_pausa_nota_len_check",
+          "value": "\"app\".\"students\".\"pausa_nota\" is null or length(\"app\".\"students\".\"pausa_nota\") <= 300"
+        },
+        "students_baja_obs_len_check": {
+          "name": "students_baja_obs_len_check",
+          "value": "\"app\".\"students\".\"baja_observacion\" is null or length(\"app\".\"students\".\"baja_observacion\") <= 500"
+        },
+        "students_notas_len_check": {
+          "name": "students_notas_len_check",
+          "value": "\"app\".\"students\".\"notas\" is null or length(\"app\".\"students\".\"notas\") <= 1000"
+        },
+        "students_vinculo_check": {
+          "name": "students_vinculo_check",
+          "value": "\"app\".\"students\".\"vinculo\" in ('ACTIVO','PAUSADO','BAJA')"
+        },
+        "students_origen_check": {
+          "name": "students_origen_check",
+          "value": "\"app\".\"students\".\"origen\" in ('MANUAL','IMPORTACION')"
+        },
+        "students_baja_coherencia_check": {
+          "name": "students_baja_coherencia_check",
+          "value": "\"app\".\"students\".\"vinculo\" <> 'BAJA' or (\"app\".\"students\".\"baja_fecha\" is not null and \"app\".\"students\".\"baja_motivo_codigo\" is not null)"
+        },
+        "students_pausa_coherencia_check": {
+          "name": "students_pausa_coherencia_check",
+          "value": "\"app\".\"students\".\"vinculo\" <> 'PAUSADO' or (\"app\".\"students\".\"pausa_hasta\" is not null or \"app\".\"students\".\"pausa_nota\" is not null)"
+        },
+        "students_vinculo_desde_check": {
+          "name": "students_vinculo_desde_check",
+          "value": "\"app\".\"students\".\"vinculo_desde\" >= \"app\".\"students\".\"fecha_alta_original\""
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {
+    "app": "app"
+  },
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
