@@ -165,3 +165,44 @@ verificar (RLS, CHECKs, triggers).
 No es duplicación: tienen distinto público, distinta retención y distinto
 formato. Un cambio de estado escribe en los dos, dentro de la misma
 transacción.
+
+## El modelo de pagos, y por qué está armado así
+
+Escrito antes de implementar Fase 2, a partir de las reglas confirmadas
+por el dueño (`docs/REGLAS-DE-NEGOCIO.md`). El esquema ya lo soporta;
+falta el caso de uso.
+
+```
+plans                      ← el PLAN HABITUAL del alumno
+  acceso                     DIAS_FIJOS | LIBRE
+  precio_actual              nullable = "todavía no confirmado"
+
+gym_settings
+  precio_medio_mes           el precio de "1/2 MES", nullable
+
+payments                   ← QUÉ se cobró
+  modalidad                  MES_COMPLETO | MEDIO_MES
+  plan_id + plan_*_snapshot  el plan habitual EN ESE MOMENTO
+  monto                      snapshot inmutable
+
+payment_periods            ← QUÉ cubre
+  periodo                    día 1 del mes imputado (WHERE indexado)
+  cubre_desde / cubre_hasta  el rango real
+```
+
+Tres separaciones que no son casuales:
+
+1. **El plan del alumno ≠ lo que pagó.** Un alumno de 5 días puede pagar
+   un medio mes sin que su plan cambie. Por eso `modalidad` vive en
+   `payments` y no toca `students.plan_id`.
+2. **"1/2 MES" no es un plan.** Su precio está en `gym_settings`, no en
+   `plans`, porque `students.plan_id` referencia `plans` — una fila ahí
+   sería asignable como plan habitual de una persona. La regla es
+   estructural, no una convención.
+3. **El período cubierto tiene fechas reales.** `periodo` solo (día 1 del
+   mes) no podía representar 15 días que empiezan cualquier día; se
+   conserva porque hace que "¿quién tiene cubierto septiembre?" siga
+   siendo un WHERE indexado.
+
+Nada de esto es "último pago + 30 días", y ningún cálculo histórico usa
+`plans.precio_actual`.

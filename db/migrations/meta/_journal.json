@@ -15,6 +15,20 @@
       "when": 1788821056621,
       "tag": "0001_telefono_opcional",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788828187309,
+      "tag": "0002_libre_y_medio_mes",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788828231714,
+      "tag": "0003_precio_medio_mes",
+      "breakpoints": true
     }
   ]
 }

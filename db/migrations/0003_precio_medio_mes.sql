@@ -1,0 +1,2 @@
+ALTER TABLE "app"."gym_settings" ADD COLUMN "precio_medio_mes" numeric(12, 2);--> statement-breakpoint
+ALTER TABLE "app"."gym_settings" ADD CONSTRAINT "gym_settings_precio_medio_mes_check" CHECK ("app"."gym_settings"."precio_medio_mes" is null or "app"."gym_settings"."precio_medio_mes" >= 0);

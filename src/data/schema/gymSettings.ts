@@ -42,6 +42,21 @@ export const gymSettings = appSchema.table(
         {"codigo":"OTRO","etiqueta":"Otro","orden":8,"activo":true}
       ]'::jsonb`),
 
+    /**
+     * Precio de la modalidad "1/2 MES" (15 días consecutivos), confirmado
+     * por el dueño en $45.000 — ver docs/REGLAS-DE-NEGOCIO.md §3.
+     *
+     * Vive acá y NO como una fila de `plans` a propósito: `students.planId`
+     * referencia `plans`, así que un "1/2 MES" ahí dentro podría asignarse
+     * como plan HABITUAL de un alumno — exactamente lo que la regla
+     * confirmada prohíbe. Es una modalidad de cobertura del pago, no un
+     * plan de la persona.
+     *
+     * Nullable por la misma razón que `plans.precioActual`: "todavía no
+     * confirmado" es un estado real, y un 0 mentiría.
+     */
+    precioMedioMes: numeric("precio_medio_mes", { precision: 12, scale: 2 }),
+
     // Gracia post-migración: sin alertas para altas anteriores a esta fecha.
     // Default a "hoy" en la migración inicial; el dueño/importador la ajusta.
     alertasDesde: date("alertas_desde").notNull().defaultNow(),
@@ -69,5 +84,9 @@ export const gymSettings = appSchema.table(
     check("gym_settings_ventana_hasta_check", sql`${t.ventanaPagoHasta} between 1 and 28`),
     check("gym_settings_gracia_check", sql`${t.diasGracia} between 0 and 20`),
     check("gym_settings_nuevo_sin_pago_check", sql`${t.diasNuevoSinPago} between 1 and 60`),
+    check(
+      "gym_settings_precio_medio_mes_check",
+      sql`${t.precioMedioMes} is null or ${t.precioMedioMes} >= 0`,
+    ),
   ],
 );

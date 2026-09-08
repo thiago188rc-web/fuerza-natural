@@ -21,6 +21,12 @@ Tres estados de la **relación con el gimnasio** — `ACTIVO`, `PAUSADO`,
 existe como estado guardado y no va a existir: se deriva de los pagos en
 Fase 2. Una BAJA nunca borra al alumno.
 
+Los planes son cinco (2, 3, 4, 5 días y LIBRE) y sus precios son **datos
+del gimnasio**, no constantes del código — un test de arquitectura falla
+si algún importe aparece en `src/`. "1/2 MES" NO es un plan: es una
+modalidad de cobertura de un pago puntual, y por eso ni siquiera existe
+como fila en `plans`. Ver `docs/REGLAS-DE-NEGOCIO.md`.
+
 ## Stack
 
 Next.js 16 (App Router) · TypeScript strict · Tailwind v4 + shadcn/ui ·
@@ -65,6 +71,8 @@ npm run dev
 
 ## Documentación
 
+- `docs/REGLAS-DE-NEGOCIO.md` — **las reglas confirmadas por el dueño**. Fuente de
+  verdad del negocio: si el código y ese archivo discrepan, el que está mal es el código.
 - `docs/ARCHITECTURE.md` — capas, estructura de carpetas, el patrón de un caso de uso.
 - `docs/SECURITY.md` — RLS, roles de Postgres, y los ajustes que la implementación real exigió sobre el diseño.
 - `docs/DECISIONES.md` — registro de decisiones técnicas (ADR).

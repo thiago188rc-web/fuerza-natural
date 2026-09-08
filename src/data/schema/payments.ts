@@ -34,6 +34,13 @@ export const payments = appSchema.table(
     planDiasSnapshot: smallint("plan_dias_snapshot").notNull(),
     planNombreSnapshot: text("plan_nombre_snapshot").notNull(),
 
+    // QUÉ se cobró, que no es lo mismo que el plan del alumno. Un alumno
+    // de 5 días puede pagar un MEDIO_MES sin que su plan cambie (regla
+    // confirmada — docs/REGLAS-DE-NEGOCIO.md §3, §4). `planId` +
+    // `plan*Snapshot` siguen registrando cuál era su plan habitual en ese
+    // momento; `modalidad` registra qué cobertura compró.
+    modalidad: text("modalidad").notNull().default("MES_COMPLETO"),
+
     monto: numeric("monto", { precision: 12, scale: 2 }).notNull(),
     metodo: text("metodo").notNull().default("EFECTIVO"),
     nota: text("nota"),
@@ -57,6 +64,7 @@ export const payments = appSchema.table(
       .where(sql`${t.idempotencyKey} is not null`),
 
     check("payments_monto_check", sql`${t.monto} >= 0`),
+    check("payments_modalidad_check", sql`${t.modalidad} in ('MES_COMPLETO','MEDIO_MES')`),
     check(
       "payments_metodo_check",
       sql`${t.metodo} in ('EFECTIVO','TRANSFERENCIA','BILLETERA','OTRO')`,

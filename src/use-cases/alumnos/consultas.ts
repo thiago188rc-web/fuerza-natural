@@ -69,10 +69,16 @@ export type PlanDisponible = Awaited<ReturnType<typeof listarPlanesActivos>>[num
 
 /**
  * Los planes y sus precios salen SIEMPRE de la base (`app.plans`, que el
- * dueño configura), nunca de una constante en el código o en la UI. Y por
- * eso mismo acá no aparece "LIBRE": el Data Discovery lo encontró en los
- * datos reales, pero si equivale a 5 días o es otra cosa lo decide el
- * dueño en Configuración, no este código.
+ * dueño configura), nunca de una constante en el código o en la UI. Por
+ * eso este código no cambió cuando el dueño confirmó los cinco planes y
+ * sus precios: LIBRE aparece en el desplegable porque existe como fila en
+ * `plans`, no porque alguien lo haya agregado acá.
+ *
+ * LIBRE es un plan propio, NO un alias de "5 días": el dueño lo definió
+ * como "5 días o más por semana, incluye sábados"
+ * (docs/REGLAS-DE-NEGOCIO.md §1). Su precio sigue pendiente de confirmar,
+ * y `precioActual` puede venir en null — Fase 2 no debe autocompletar un
+ * monto que nadie confirmó.
  */
 export const listarPlanesQuery = withAuth<void, PlanDisponible[]>(
   ["DUENO", "STAFF"],

@@ -235,3 +235,100 @@ identidad. Cuando exista Supabase real habrá que reemplazar la función
 recorrido no cambia. El primer bug que encontró esta suite fue real: tras
 un cambio de estado exitoso el formulario quedaba abierto y sin
 confirmación visible.
+
+---
+
+## 2026-09-07 (post-Fase 1) — `plans.acceso` para representar LIBRE
+
+**Decisión:** `app.plans` gana una columna `acceso` (`DIAS_FIJOS` |
+`LIBRE`). Para LIBRE, `dias_semana` se interpreta como el PISO de días.
+
+**Motivo:** el dueño confirmó que LIBRE significa "5 días o más por
+semana, incluye sábados". Un `dias_semana` solo no puede expresarlo:
+guardar 5 afirmaría "exactamente 5" (y la regla dice explícitamente que
+LIBRE no es igual a 5 días), y guardar 6 sería inventar un número que
+nadie confirmó. Con `acceso`, el dato guardado dice exactamente lo que el
+dueño dijo, sin agregarle precisión falsa.
+
+**Alternativa descartada:** dos booleanos (`dias_es_minimo`,
+`incluye_sabado`). Se descartó por agregar dos columnas para expresar un
+único concepto de negocio que hoy tiene exactamente dos valores.
+
+---
+
+## 2026-09-07 (post-Fase 1) — `plans.precio_actual` pasa a ser nullable
+
+**Decisión:** el precio de un plan puede ser NULL, y significa "todavía no
+confirmado". Ídem `gym_settings.precio_medio_mes`.
+
+**Motivo:** el dueño confirmó cuatro precios y dejó el de LIBRE
+explícitamente pendiente. Con `NOT NULL` había que poner algo: 0 diría
+"este plan es gratis" y Fase 2 lo autocompletaría como monto del pago, o
+inventar un valor plausible ($65.000 por analogía con 5 días) — que es
+exactamente lo que la consigna prohíbe. NULL es la única representación
+honesta de un dato que no existe.
+
+**Consecuencia para Fase 2:** el formulario de pago no puede autocompletar
+un monto cuando el precio es NULL; tiene que pedirlo.
+
+---
+
+## 2026-09-07 (post-Fase 1) — "1/2 MES" vive en `gym_settings`, no en `plans`
+
+**Decisión:** el precio de la modalidad "1/2 MES" ($45.000) se guarda en
+`gym_settings.precio_medio_mes`, y la modalidad se registra en
+`payments.modalidad`. NO existe una fila "1/2 MES" en `plans`.
+
+**Motivo:** el dueño fue explícito en que "1/2 MES" no es un plan
+permanente del alumno sino una modalidad temporal de cobertura.
+`students.plan_id` referencia `plans`, así que una fila "1/2 MES" ahí
+dentro sería asignable como plan HABITUAL de una persona — y además
+aparecería en el desplegable del alta de alumnos. Mantenerla fuera de
+`plans` convierte la regla en una imposibilidad estructural, no en una
+convención que alguien puede olvidar.
+
+**Alternativa descartada:** una tabla `modalidades` propia. Se descartó
+por sobreingeniería: hoy hay exactamente una modalidad especial, con
+exactamente un parámetro (su precio).
+
+---
+
+## 2026-09-07 (post-Fase 1) — `payment_periods` gana `cubre_desde` / `cubre_hasta`
+
+**Decisión:** además de `periodo` (día 1 del mes imputado), cada fila
+guarda el rango real cubierto. Un CHECK garantiza
+`periodo = date_trunc('month', cubre_desde)`.
+
+**Motivo — este era el conflicto real de esta tanda.** El modelo de Fase 0
+solo podía decir "este pago cubre el mes M": `periodo date` con un CHECK
+de que fuera día 1. La modalidad "1/2 MES" confirmada (15 días
+consecutivos, que pueden empezar CUALQUIER día) era literalmente
+imposible de representar sin mentir — habría que haber marcado
+"septiembre cubierto" para un pago que cubre medio septiembre, y Fase 2
+habría calculado la situación de pago sobre un dato falso.
+
+Se conserva `periodo` en vez de reemplazarlo por el rango: es lo que hace
+que "¿quién tiene cubierto septiembre?" siga siendo un WHERE indexado en
+vez de aritmética de rangos sobre toda la tabla. El modelo sigue siendo
+"período cubierto", nunca "último pago + 30 días".
+
+Que `date_trunc('month', date)` sea aceptable dentro de un CHECK (exige
+inmutabilidad) se verificó ejecutándolo contra Postgres 17 real antes de
+escribir la migración, no por lectura de documentación — misma disciplina
+que en Fase 0.
+
+---
+
+## 2026-09-07 (post-Fase 1) — El seed pasa a ser re-ejecutable
+
+**Decisión:** `npm run db:seed` reutiliza el gimnasio DEMO si ya existe y
+actualiza planes y precios con `onConflictDoUpdate`, en vez de intentar
+crear todo de cero.
+
+**Motivo:** la versión anterior fallaba la segunda vez
+(`app_users_auth_user_id_key` duplicada) **después** de haber creado un
+gimnasio nuevo — dejando la base a medias: un gimnasio huérfano sin
+usuario, y el usuario demo apuntando al gimnasio viejo con la
+configuración vieja. Se descubrió al aplicar estas reglas, que es
+justamente el caso en que hay que volver a correr el seed: cada vez que
+cambian los planes o los precios.

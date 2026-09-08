@@ -10,9 +10,14 @@ export const metadata = { title: "Nuevo alumno · Fuerza Natural" };
 
 /**
  * Alta manual. Los planes salen de `app.plans` (lo que el dueño configuró),
- * nunca de una lista hardcodeada — y por eso mismo acá no aparece "LIBRE"
- * ni "1/2 MES": el primero es una decisión pendiente del dueño y el
- * segundo pertenece al dominio de pagos, no al plan de un alumno.
+ * nunca de una lista hardcodeada.
+ *
+ * "1/2 MES" NO aparece acá y no debe aparecer nunca: no es un plan de la
+ * persona sino una modalidad de cobertura de un pago puntual
+ * (docs/REGLAS-DE-NEGOCIO.md §3). Un alumno de 5 días que paga medio mes
+ * sigue siendo de 5 días. Por eso su precio vive en `gym_settings` y no
+ * como fila de `plans`: si estuviera en `plans`, este desplegable lo
+ * ofrecería como plan habitual.
  */
 export default async function NuevoAlumnoPage() {
   const [planes, hoy] = await Promise.all([listarPlanesQuery(), obtenerHoyDelGimnasioQuery()]);
