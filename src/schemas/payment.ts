@@ -1,19 +1,23 @@
 import { z } from "zod";
+import { opcional } from "./_helpers";
 
 /**
  * Registro de un pago. Un pago cubre un PERÍODO REAL — nunca "30 días
  * desde el pago". La construcción del período concreto la hace el caso de
- * uso (Fase 2), no este schema.
+ * uso con `coberturaDe()`, no este schema.
  *
- * `monto` es opcional acá porque se autocompleta con el precio vigente de
- * la modalidad elegida y el usuario puede editarlo antes de confirmar; la
- * resolución final vive en el caso de uso. Ese precio sale SIEMPRE de la
- * configuración del gimnasio (`plans.precio_actual` o
- * `gym_settings.precio_medio_mes`), nunca de una constante del código.
+ * Dos campos que ESTE schema no tiene, a propósito:
  *
- * `decisionPlan` es obligatorio solo cuando el plan indicado difiere del
- * plan actual del alumno (SPEC V1 §7): el caso de uso es quien conoce el
- * plan vigente y decide si exige esta confirmación, no este schema.
+ *   · `gymId` — nunca viene del cliente; sale de la sesión.
+ *   · `planId` — el snapshot del plan se lee de la base en el momento de
+ *     registrar. Aceptarlo del formulario permitiría que un cliente
+ *     manipulado guardara un pago con el nombre y los días de otro plan,
+ *     y el snapshot es justamente lo que después nadie puede corregir
+ *     (`payments` es append-only salvo anulación).
+ *
+ * Tampoco existe `decisionPlan`: un pago NUNCA cambia el plan habitual del
+ * alumno (docs/REGLAS-DE-NEGOCIO.md §4). Cambiar de plan es otra
+ * operación, con su propio registro en el historial.
  */
 
 /**
@@ -30,23 +34,50 @@ import { z } from "zod";
 export const MODALIDADES_PAGO = ["MES_COMPLETO", "MEDIO_MES"] as const;
 export type ModalidadPago = (typeof MODALIDADES_PAGO)[number];
 
+export const METODOS_PAGO = ["EFECTIVO", "TRANSFERENCIA", "BILLETERA", "OTRO"] as const;
+
+export const ETIQUETA_METODO: Record<(typeof METODOS_PAGO)[number], string> = {
+  EFECTIVO: "Efectivo",
+  TRANSFERENCIA: "Transferencia",
+  BILLETERA: "Billetera virtual",
+  OTRO: "Otro",
+};
+
 export const registrarPagoSchema = z.object({
-  studentId: z.string().uuid(),
-  fechaPago: z.string().date(),
-  /** El plan HABITUAL del alumno al momento del pago (para el snapshot). */
-  planId: z.string().uuid(),
+  studentId: z.string().uuid("Elegí un alumno."),
+  /** Cuándo se cobró. Puede ser anterior a hoy (se carga un pago de ayer). */
+  fechaPago: z.string().date("Fecha inválida. Usá el formato AAAA-MM-DD."),
   modalidad: z.enum(MODALIDADES_PAGO).default("MES_COMPLETO"),
   /**
-   * Inicio de la cobertura. Obligatorio en MEDIO_MES: el dueño confirmó
-   * que puede arrancar cualquier día, así que no se puede derivar. En
-   * MES_COMPLETO el caso de uso lo deriva del mes elegido.
+   * Desde cuándo corre la cobertura.
+   *
+   * En MEDIO_MES es el primer día de los 15: el dueño confirmó que puede
+   * arrancar CUALQUIER día, así que no se deriva de nada.
+   * En MES_COMPLETO alcanza con cualquier día del mes que se está
+   * pagando — `coberturaDe()` lo normaliza al día 1. Eso permite pagar un
+   * mes atrasado o adelantado sin un campo extra.
    */
-  cubreDesde: z.string().date().optional(),
-  monto: z.coerce.number().min(0).optional(),
-  metodo: z.enum(["EFECTIVO", "TRANSFERENCIA", "BILLETERA", "OTRO"]).default("EFECTIVO"),
-  nota: z.string().trim().max(300).optional(),
+  cubreDesde: z.string().date("Fecha inválida. Usá el formato AAAA-MM-DD."),
+  /**
+   * El importe. Se autocompleta con el precio vigente configurado, y el
+   * dueño puede editarlo (un pago parcial, un ajuste). Nunca sale de una
+   * constante del código.
+   */
+  monto: z.coerce
+    .number({ error: "Ingresá un importe." })
+    .min(0, "El importe no puede ser negativo.")
+    .max(99_999_999, "Importe demasiado alto."),
+  metodo: z.enum(METODOS_PAGO).default("EFECTIVO"),
+  nota: opcional(z.string().trim().max(300, "La nota no puede superar los 300 caracteres.")),
+  /** Evita el pago doble por doble clic o por reenvío del formulario. */
   idempotencyKey: z.string().uuid(),
-  decisionPlan: z.enum(["CONFIRMAR_CAMBIO", "MANTENER_PLAN"]).optional(),
+  /**
+   * El usuario ya vio la advertencia de cobertura superpuesta y decidió
+   * seguir. Sin esto, el caso de uso devuelve CONFIRMACION_REQUERIDA en
+   * vez de escribir.
+   */
+  confirmarSuperposicion: z.coerce.boolean().optional(),
 });
 
 export type RegistrarPagoInput = z.infer<typeof registrarPagoSchema>;
+export type RegistrarPagoRaw = z.input<typeof registrarPagoSchema>;

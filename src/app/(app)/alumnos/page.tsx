@@ -1,31 +1,25 @@
-import Link from "next/link";
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { PlusIcon } from "lucide-react";
+import { Plus, SearchX, Users } from "lucide-react";
+import { padronQuery } from "@/use-cases/alumnos/padron";
+import { ControlesDelPadron } from "@/components/features/alumnos/controles-del-padron";
+import { ListaDelPadron } from "@/components/features/alumnos/lista-del-padron";
+import { Aparece } from "@/components/motion/primitivas";
 import { BotonLink } from "@/components/boton-link";
-import { Card, CardContent } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { EstadoBadge } from "@/components/features/alumnos/estado-badge";
-import { FiltrosAlumnos } from "@/components/features/alumnos/filtros-alumnos";
-import { listarAlumnosQuery } from "@/use-cases/alumnos/consultas";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ESTADO_FILTRO_TODOS, filtrosAlumnosSchema } from "@/schemas/student";
-import { esVinculo, etiquetaVinculo, VINCULOS } from "@/domain/alumnos/vinculo";
 
-export const metadata = { title: "Alumnos · Fuerza Natural" };
+export const metadata: Metadata = { title: "Alumnos" };
 
 type ParametrosBusqueda = Promise<{ [key: string]: string | string[] | undefined }>;
 
 /**
- * EL LISTADO — la pantalla donde el dueño va a pasar la mayor parte del
- * tiempo. Todo el estado de la vista (búsqueda, filtro, página) vive en la
- * URL, no en React: es lo que hace que "volver atrás" funcione y que un
- * link a "los pausados" se pueda compartir o guardar.
+ * EL PADRÓN — la pantalla donde el dueño va a pasar la mayor parte del
+ * tiempo.
+ *
+ * Todo el estado de la vista (búsqueda, filtro, página) vive en la URL, no
+ * en React: es lo que hace que "volver atrás" funcione y que un link a
+ * "los pausados" se pueda compartir o guardar.
  *
  * Los datos NUNCA se consultan desde el navegador: esto es un Server
  * Component, la consulta pasa por `withAuth` + RLS, y al cliente solo
@@ -46,15 +40,23 @@ export default async function AlumnosPage({
     pagina: params.pagina,
   });
 
-  const resultado = await listarAlumnosQuery(filtros);
+  const resultado = await padronQuery(filtros);
   if (!resultado.ok) {
     if (resultado.kind === "FORBIDDEN") redirect("/login");
-    return <ErrorDeCarga />;
+    return (
+      <Alert variant="destructive">
+        <AlertTitle>No pudimos cargar los alumnos</AlertTitle>
+        <AlertDescription>
+          Recargá la página; si sigue fallando, hay un problema con la base de datos.
+        </AlertDescription>
+      </Alert>
+    );
   }
 
-  const { filas, total, pagina, porPagina, conteoPorVinculo } = resultado.data;
-  const totalPaginas = Math.max(1, Math.ceil(total / porPagina));
+  const padron = resultado.data;
+  const totalPaginas = Math.max(1, Math.ceil(padron.total / padron.porPagina));
   const hayFiltros = Boolean(filtros.q) || filtros.estado !== ESTADO_FILTRO_TODOS;
+  const totalDelPadron = Object.values(padron.conteoPorVinculo).reduce((a, b) => a + b, 0);
 
   function href(nuevaPagina: number) {
     const p = new URLSearchParams();
@@ -66,126 +68,115 @@ export default async function AlumnosPage({
   }
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">Alumnos</h1>
-          <p className="text-sm text-muted-foreground">
-            {VINCULOS.map((v) => `${etiquetaVinculo(v)}s ${conteoPorVinculo[v] ?? 0}`).join(" · ")}
-          </p>
+    <div className="space-y-5">
+      <Aparece>
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="t-rotulo">
+              Padrón · cobertura de {padron.etiquetaMes}
+            </p>
+            <h1 className="t-titulo mt-1.5 text-[1.5rem] sm:text-[1.625rem]">
+              Alumnos
+            </h1>
+          </div>
+          <BotonLink href="/alumnos/nuevo" size="lg">
+            <Plus />
+            Nuevo alumno
+          </BotonLink>
         </div>
-        <BotonLink href="/alumnos/nuevo">
-          <PlusIcon data-icon="inline-start" />
-          Nuevo alumno
-        </BotonLink>
-      </div>
+      </Aparece>
 
-      <FiltrosAlumnos q={filtros.q ?? ""} estado={filtros.estado} />
+      <Aparece retraso={0.04}>
+        <ControlesDelPadron
+          q={filtros.q ?? ""}
+          estado={filtros.estado}
+          conteo={padron.conteoPorVinculo}
+          total={totalDelPadron}
+        />
+      </Aparece>
 
-      {filas.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-start gap-3 py-10 text-sm text-muted-foreground">
-            {hayFiltros ? (
-              <>
-                <p>No encontramos alumnos con esos filtros.</p>
-                <BotonLink href="/alumnos" variant="outline" size="sm">
+      <Aparece retraso={0.08}>
+        {padron.filas.length === 0 ? (
+          <section className="superficie flex flex-col items-center px-6 py-16 text-center">
+            <span className="grid size-11 place-items-center rounded-full bg-muted text-muted-foreground">
+              {hayFiltros ? (
+                <SearchX className="size-5" strokeWidth={1.75} />
+              ) : (
+                <Users className="size-5" strokeWidth={1.75} />
+              )}
+            </span>
+            <h2 className="mt-4 t-seccion">
+              {hayFiltros
+                ? filtros.q
+                  ? `Sin resultados para “${filtros.q}”`
+                  : "No hay alumnos en este estado"
+                : "El padrón está vacío"}
+            </h2>
+            <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+              {hayFiltros
+                ? "Probá con otro término o quitá el filtro de estado."
+                : "Todavía no cargaste a nadie. Podés darlos de alta de a uno o importarlos de una planilla."}
+            </p>
+            <div className="mt-5 flex flex-wrap justify-center gap-2">
+              {hayFiltros ? (
+                <BotonLink href="/alumnos" variant="outline">
                   Limpiar filtros
                 </BotonLink>
-              </>
-            ) : (
-              <>
-                <p>No hay alumnos registrados todavía.</p>
-                <BotonLink href="/alumnos/nuevo" size="sm">
-                  Registrar el primero
-                </BotonLink>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      ) : (
-        <>
-          <Card className="overflow-hidden p-0">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Alumno</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead>Plan</TableHead>
-                    <TableHead>Teléfono</TableHead>
-                    <TableHead>Alta</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filas.map((alumno) => (
-                    <TableRow key={alumno.id}>
-                      <TableCell className="font-medium">
-                        <Link
-                          href={`/alumnos/${alumno.id}`}
-                          className="underline-offset-4 hover:underline"
-                        >
-                          {alumno.apellido}, {alumno.nombre}
-                        </Link>
-                      </TableCell>
-                      <TableCell>
-                        {esVinculo(alumno.vinculo) ? (
-                          <EstadoBadge vinculo={alumno.vinculo} />
-                        ) : (
-                          alumno.vinculo
-                        )}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">{alumno.planNombre}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {alumno.telefono ?? "—"}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground tabular-nums">
-                        {alumno.fechaAltaOriginal}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              ) : (
+                <>
+                  <BotonLink href="/alumnos/nuevo">Dar de alta al primero</BotonLink>
+                  <BotonLink href="/importar" variant="outline">
+                    Importar una planilla
+                  </BotonLink>
+                </>
+              )}
             </div>
-          </Card>
+          </section>
+        ) : (
+          <section className="superficie overflow-hidden">
+            <ListaDelPadron
+              filas={padron.filas}
+              posicionDeHoy={padron.posicionDeHoy}
+              hoy={padron.hoy}
+            />
 
-          <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
-            <span>
-              {total} {total === 1 ? "alumno" : "alumnos"}
-              {totalPaginas > 1 ? ` · página ${pagina} de ${totalPaginas}` : ""}
-            </span>
-            {totalPaginas > 1 ? (
-              <div className="flex gap-2">
-                <BotonLink
-                  href={href(pagina - 1)}
-                  variant="outline"
-                  size="sm"
-                  deshabilitado={pagina <= 1}
-                >
-                  Anterior
-                </BotonLink>
-                <BotonLink
-                  href={href(pagina + 1)}
-                  variant="outline"
-                  size="sm"
-                  deshabilitado={pagina >= totalPaginas}
-                >
-                  Siguiente
-                </BotonLink>
-              </div>
-            ) : null}
-          </div>
-        </>
-      )}
+            <div className="flex flex-wrap items-center justify-between gap-3 hundido border-t border-border px-5 py-2.5 text-xs text-muted-foreground">
+              <span>
+                <span className="tabular">{padron.total}</span>{" "}
+                {padron.total === 1 ? "alumno" : "alumnos"}
+                {totalPaginas > 1 ? (
+                  <>
+                    {" · página "}
+                    <span className="tabular">{padron.pagina}</span> de{" "}
+                    <span className="tabular">{totalPaginas}</span>
+                  </>
+                ) : null}
+              </span>
+
+              {totalPaginas > 1 ? (
+                <div className="flex gap-2">
+                  <BotonLink
+                    href={href(padron.pagina - 1)}
+                    variant="outline"
+                    size="sm"
+                    deshabilitado={padron.pagina <= 1}
+                  >
+                    Anterior
+                  </BotonLink>
+                  <BotonLink
+                    href={href(padron.pagina + 1)}
+                    variant="outline"
+                    size="sm"
+                    deshabilitado={padron.pagina >= totalPaginas}
+                  >
+                    Siguiente
+                  </BotonLink>
+                </div>
+              ) : null}
+            </div>
+          </section>
+        )}
+      </Aparece>
     </div>
-  );
-}
-
-function ErrorDeCarga() {
-  return (
-    <Card>
-      <CardContent className="py-10 text-sm text-muted-foreground">
-        No pudimos cargar los alumnos. Recargá la página; si sigue fallando, avisá.
-      </CardContent>
-    </Card>
   );
 }

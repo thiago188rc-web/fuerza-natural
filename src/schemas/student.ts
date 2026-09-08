@@ -104,6 +104,12 @@ export const cambiarVinculoSchema = z.object({
   nota: opcional(
     z.string().transform(normalizarTexto).pipe(z.string().max(300, "La nota no puede superar los 300 caracteres.")),
   ),
+  /**
+   * Código del motivo de baja, del catálogo del gimnasio. Solo el CÓDIGO:
+   * la etiqueta la resuelve el servidor contra su propio catálogo, porque
+   * es lo que queda guardado para siempre en el registro de la baja.
+   */
+  motivoCodigo: opcional(z.string().trim().max(40)),
 });
 
 export type CambiarVinculoInput = z.infer<typeof cambiarVinculoSchema>;

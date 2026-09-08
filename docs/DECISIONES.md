@@ -332,3 +332,36 @@ usuario, y el usuario demo apuntando al gimnasio viejo con la
 configuración vieja. Se descubrió al aplicar estas reglas, que es
 justamente el caso en que hay que volver a correr el seed: cada vez que
 cambian los planes o los precios.
+
+---
+
+## 2026-09-08 (Fase 2, revisión de dirección artística) — Negro + verde: la identidad es la de Fuerza Natural
+
+**Decisión:** el sistema visual pasa de "cobre como acento" a NEGRO + VERDE.
+El verde de marca (`--verde`, hue 156) es a la vez la identidad del cliente
+y la señal semántica de "cubierto"; el negro es el chasis (rail, títulos,
+botones primarios). El cobre desaparece del código. Fuente de verdad de la
+dirección: el encabezado de `src/app/globals.css`.
+
+**Motivo:** el producto se veía como "un dashboard SaaS bien hecho", con
+una paleta que no era la del gimnasio. Fuerza Natural es negro y verde, y
+NEXA tiene una sola pregunta —"¿quién tiene el mes cubierto?"— cuya
+respuesta es verde. Hacer coincidir la marca con la señal de salud no es
+una capa de pintura: cuando el gimnasio está bien, la pantalla está verde.
+
+**Lo que cambia con esto:**
+- El rail muestra al GIMNASIO arriba (sello con sus iniciales, derivadas
+  del nombre configurado) y a NEXA abajo, chico. Otro gimnasio tendrá su
+  sello sin tocar código.
+- Escalera de planos (`hundido` → lienzo → superficie → overlay) en vez
+  de sombras: la profundidad sale de luminancia y hairline.
+- Disciplina numérica: importes con el símbolo más liviano que la cifra
+  (`<Importe>`), tabular siempre, a la derecha en tablas.
+- La pieza firma del panel deja de ser una barra de progreso: es LA BANDA
+  DEL MES, una marca por alumno activo, pintada por estado.
+- La ficha es un espacio de trabajo con banda de datos y pestañas
+  (Resumen / Pagos / Historial), no un formulario de lectura.
+
+**Lo que NO cambia:** reglas de negocio, casos de uso, esquema, RLS,
+auditoría. Ninguna consulta nueva: todo sale de los datos que el panel y
+la ficha ya traían.

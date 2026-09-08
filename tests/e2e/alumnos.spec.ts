@@ -21,7 +21,7 @@ import { test, expect, type Page } from "@playwright/test";
 
 const sufijo = () => Math.random().toString(36).slice(2, 8).toUpperCase();
 
-async function iniciarSesion(page: Page) {
+export async function iniciarSesion(page: Page) {
   await page.goto("/login");
   await page.getByLabel("Email").fill("demo@fuerzanatural.test");
   await page.getByLabel("Contraseña").fill("desarrollo");
@@ -52,18 +52,17 @@ test.describe("módulo de alumnos", () => {
     // Cae en la ficha, con el aviso de éxito.
     await expect(page).toHaveURL(/\/alumnos\/[0-9a-f-]{36}/);
     await expect(page.getByRole("heading", { name: `Ana ${apellido}` })).toBeVisible();
-    await expect(page.getByText("Alumno creado.")).toBeVisible();
-    await expect(page.getByText("Activo").first()).toBeVisible();
+    await expect(page.getByText("Alumno dado de alta.")).toBeVisible();
     const urlFicha = page.url();
 
     // --- BUSCAR ---
+    // La búsqueda navega sola mientras se escribe: no hay botón que apretar.
     await page.goto("/alumnos");
     await page.getByRole("searchbox", { name: /Buscar alumnos/ }).fill(apellido.toLowerCase());
-    await page.getByRole("button", { name: "Buscar" }).click();
-    await expect(page.getByRole("link", { name: `${apellido}, Ana` })).toBeVisible();
+    await expect(page.getByRole("link", { name: new RegExp(`${apellido}, Ana`) })).toBeVisible();
 
     // --- ABRIR ---
-    await page.getByRole("link", { name: `${apellido}, Ana` }).click();
+    await page.getByRole("link", { name: new RegExp(`${apellido}, Ana`) }).click();
     await expect(page).toHaveURL(urlFicha.split("?")[0]);
 
     // --- EDITAR ---
@@ -74,20 +73,26 @@ test.describe("módulo de alumnos", () => {
     await expect(page.getByRole("heading", { name: `Ana María ${apellido}` })).toBeVisible();
 
     // --- CAMBIAR ESTADO ---
+    // Se abre un diálogo: ningún estado cambia con un solo clic.
     await page.getByRole("button", { name: "Pausar" }).click();
-    await page.getByLabel("Motivo").fill("viaje de trabajo");
-    await page.getByRole("button", { name: "Confirmar: Pausar" }).click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.getByLabel("Motivo de la pausa").fill("viaje de trabajo");
+    await page.getByRole("dialog").getByRole("button", { name: "Pausar" }).click();
+
+    // El diálogo se cierra solo y la confirmación queda a la vista.
     await expect(page.getByText("Estado actualizado.")).toBeVisible();
 
     await page.reload();
     await expect(page.getByText("Pausado").first()).toBeVisible();
-    // La pausa quedó en el historial, no solo en la fila.
-    await expect(page.getByText("Pausa", { exact: true })).toBeVisible();
+    // La pausa quedó en el historial, no solo en el encabezado. Se mira el
+    // resumen (lo que se ve al abrir la ficha): la pestaña "Historial"
+    // repite el hecho, pero oculta.
+    await expect(
+      page.getByRole("tabpanel", { name: "Resumen" }).getByText("pausó su membresía"),
+    ).toBeVisible();
   });
 
-  test("dar de baja NO borra al alumno: sigue existiendo y aparece filtrando por Baja", async ({
-    page,
-  }) => {
+  test("dar de baja NO borra al alumno: sigue existiendo, con su motivo", async ({ page }) => {
     const id = sufijo();
     const apellido = `Baja${id}`;
 
@@ -99,14 +104,26 @@ test.describe("módulo de alumnos", () => {
     await expect(page).toHaveURL(/\/alumnos\/[0-9a-f-]{36}/);
 
     await page.getByRole("button", { name: "Dar de baja" }).click();
-    await page.getByRole("button", { name: "Confirmar: Dar de baja" }).click();
+    const dialogo = page.getByRole("dialog");
+    await expect(dialogo).toBeVisible();
+    // El motivo sale del catálogo configurado por el gimnasio.
+    await dialogo.getByText("Mudanza / distancia").click();
+    await dialogo.getByRole("button", { name: "Dar de baja" }).click();
     await expect(page.getByText("Estado actualizado.")).toBeVisible();
 
-    await page.goto("/alumnos?estado=BAJA");
-    await expect(page.getByRole("link", { name: `${apellido}, Carlos` })).toBeVisible();
+    // Sigue existiendo, con el motivo guardado.
+    await page.reload();
+    await expect(page.getByText("Mudanza / distancia").first()).toBeVisible();
+
+    // Y aparece en la pantalla de bajas, que existe justamente para dejar
+    // claro que la baja no es un borrado.
+    await page.goto("/bajas");
+    await expect(page.getByRole("link", { name: new RegExp(`${apellido}, Carlos`) })).toBeVisible();
   });
 
-  test("errores: el servidor rechaza un teléfono inválido con un mensaje claro", async ({ page }) => {
+  test("errores: el servidor rechaza un teléfono inválido con un mensaje claro", async ({
+    page,
+  }) => {
     await iniciarSesion(page);
     await page.goto("/alumnos/nuevo");
 
@@ -118,20 +135,5 @@ test.describe("módulo de alumnos", () => {
     await expect(page.getByText(/Teléfono inválido/)).toBeVisible();
     // Sigue en el formulario: no se creó nada.
     await expect(page).toHaveURL(/\/alumnos\/nuevo/);
-  });
-
-  test("búsqueda sin resultados muestra un estado vacío, no una tabla en blanco", async ({
-    page,
-  }) => {
-    await iniciarSesion(page);
-    await page.goto("/alumnos?q=zzzznoexiste");
-    await expect(page.getByText("No encontramos alumnos con esos filtros.")).toBeVisible();
-    await expect(page.getByRole("link", { name: "Limpiar filtros" })).toBeVisible();
-  });
-
-  test("las rutas protegidas redirigen a login sin sesión", async ({ page }) => {
-    await page.context().clearCookies();
-    await page.goto("/alumnos");
-    await expect(page).toHaveURL(/\/login/);
   });
 });

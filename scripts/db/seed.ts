@@ -34,6 +34,10 @@ if (existsSync(resolve(process.cwd(), ".env.local"))) {
 /** El auth_user_id fijo que usa la sesión simulada de desarrollo. */
 const AUTH_USER_ID_DEMO = "00000000-0000-0000-0000-000000000001";
 
+/** Deja claro en la propia interfaz que este no es el gimnasio real. */
+const NOMBRE_DEMO = "Fuerza Natural · DEMO";
+const NOMBRE_USUARIO_DEMO = "Usuario Demo";
+
 async function main() {
   const url = process.env.DATABASE_URL_OWNER;
   if (!url) {
@@ -62,10 +66,14 @@ async function main() {
     if (esNuevo) {
       await tx.insert(gyms).values({
         id: gymId,
-        nombre: "Fuerza Natural (DEMO — no es el gimnasio real)",
+        nombre: NOMBRE_DEMO,
         timezone: "America/Argentina/Buenos_Aires",
         moneda: "ARS",
       });
+    } else {
+      // Re-ejecutable también para el nombre: si se ajusta acá, la corrida
+      // siguiente lo aplica en vez de dejar el viejo para siempre.
+      await tx.update(gyms).set({ nombre: NOMBRE_DEMO }).where(eq(gyms.id, gymId));
     }
 
     // $45.000 confirmado por el dueño para la modalidad "1/2 MES". Vive en
@@ -123,14 +131,22 @@ async function main() {
     // los tests e2e sin un proyecto Supabase real. Con Supabase real
     // configurado, esta fila no sirve para entrar: ahí hace falta un
     // usuario de verdad en Supabase Auth (docs/RUNBOOK.md).
+    // "Usuario Demo" a secas: el gimnasio ya se muestra al lado en todas
+    // las pantallas, y el nombre del operador aparece en cada linea del
+    // historial. Repetirlo ahi lo unico que hacia era desbordar.
     if (esNuevo) {
       await tx.insert(appUsers).values({
         gymId,
         authUserId: AUTH_USER_ID_DEMO,
         email: "demo@fuerzanatural.test",
-        nombre: "Usuario Demo (Fuerza Natural)",
+        nombre: NOMBRE_USUARIO_DEMO,
         rol: "DUENO",
       });
+    } else {
+      await tx
+        .update(appUsers)
+        .set({ nombre: NOMBRE_USUARIO_DEMO })
+        .where(eq(appUsers.authUserId, AUTH_USER_ID_DEMO));
     }
   });
 

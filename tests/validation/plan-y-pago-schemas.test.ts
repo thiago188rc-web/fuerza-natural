@@ -61,7 +61,8 @@ describe("registrarPagoSchema — §3 modalidad 1/2 MES", () => {
   const base = {
     studentId: UUID,
     fechaPago: "2026-01-15",
-    planId: UUID,
+    cubreDesde: "2026-01-01",
+    monto: 65000,
     idempotencyKey: UUID,
   };
 
@@ -89,12 +90,15 @@ describe("registrarPagoSchema — §3 modalidad 1/2 MES", () => {
     expect(registrarPagoSchema.safeParse({ ...base, modalidad: "TRIMESTRE" }).success).toBe(false);
   });
 
-  it("el pago lleva el plan HABITUAL del alumno, no la modalidad como plan", () => {
-    const r = registrarPagoSchema.safeParse({ ...base, modalidad: "MEDIO_MES" });
+  it("el plan del pago NO se acepta del cliente: es un snapshot del servidor", () => {
+    // El snapshot (`plan_id`, `plan_nombre_snapshot`, `plan_dias_snapshot`)
+    // lo lee el caso de uso de la base en el momento de registrar. Si
+    // viniera del formulario, un cliente manipulado podría guardar el pago
+    // con el nombre y los días de otro plan — y ese snapshot es
+    // justamente lo que después ya nadie puede corregir.
+    const r = registrarPagoSchema.safeParse({ ...base, planId: UUID });
     expect(r.success).toBe(true);
-    // `planId` sigue siendo obligatorio y separado de `modalidad`: es el
-    // snapshot de qué plan tenía la persona, no lo que compró.
-    if (r.success) expect(r.data.planId).toBe(UUID);
+    if (r.success) expect(r.data).not.toHaveProperty("planId");
   });
 
   it("NO acepta un cambio de plan encubierto: no existe campo para eso", () => {

@@ -38,7 +38,7 @@ export default async function NuevoAlumnoPage() {
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h1 className="text-xl font-semibold text-foreground">Nuevo alumno</h1>
+        <h1 className="t-titulo text-[1.5rem]">Nuevo alumno</h1>
         <p className="text-sm text-muted-foreground">
           Solo los datos necesarios. El estado inicial es Activo.
         </p>

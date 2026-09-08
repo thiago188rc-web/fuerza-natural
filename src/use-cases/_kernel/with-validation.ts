@@ -1,5 +1,5 @@
 import type { ZodType } from "zod";
-import { validationError, type Result, type ValidationIssue } from "./result";
+import { type Result, type ValidationIssue } from "./result";
 
 /**
  * Parsea `raw` contra `schema`. Cualquier caso de uso de escritura empieza
@@ -10,7 +10,7 @@ import { validationError, type Result, type ValidationIssue } from "./result";
 export function parseInput<T>(
   schema: ZodType<T>,
   raw: unknown,
-): { ok: true; data: T } | { ok: false; result: Result<never> } {
+): { ok: true; data: T } | { ok: false; result: Result<never, never> } {
   const parsed = schema.safeParse(raw);
   if (parsed.success) return { ok: true, data: parsed.data };
 
@@ -18,5 +18,5 @@ export function parseInput<T>(
     path: issue.path.join("."),
     message: issue.message,
   }));
-  return { ok: false, result: validationError(issues) };
+  return { ok: false, result: { ok: false, kind: "VALIDATION", issues } };
 }

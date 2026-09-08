@@ -25,11 +25,26 @@ export interface EstadoActualDelVinculo {
   fechaAltaOriginal: string;
 }
 
+export interface MotivoDeBaja {
+  codigo: string;
+  etiqueta: string;
+}
+
 export interface DatosDelCambio {
   /** Solo se usa al pausar. Fecha civil ISO (YYYY-MM-DD). */
   pausaHasta?: string | null;
   /** Nota corta y opcional. Al pausar cubre el CHECK de coherencia. */
   nota?: string | null;
+  /**
+   * Motivo elegido del catálogo del gimnasio, solo al dar de baja.
+   *
+   * Llega ya resuelto (código + etiqueta) porque el catálogo vive en
+   * `gym_settings` y el dominio no lee la base. Quien lo resuelve es el
+   * caso de uso, y lo hace contra el catálogo del servidor: la etiqueta
+   * NUNCA se acepta del formulario, porque quedaría congelada en el
+   * registro de la baja y nadie podría corregirla después.
+   */
+  motivo?: MotivoDeBaja | null;
 }
 
 /** Las columnas de estado de `students`, completas. */
@@ -127,23 +142,27 @@ export function resolverCambioDeVinculo(
   }
 
   if (destino === "BAJA") {
-    // Fase 1 registra el HECHO de la baja con lo mínimo que la base exige
-    // (fecha + código de motivo). El workflow completo — catálogo de
-    // motivos del gimnasio, fecha efectiva distinta de hoy, métricas — es
-    // Fase 3. El código SIN_ESPECIFICAR es deliberadamente distinto de
-    // "OTRO": deja a Fase 3 poder encontrar exactamente estas bajas y
-    // pedirle al dueño el motivo real, en vez de fingir que ya lo eligió.
+    // El motivo sale del catálogo que configuró el gimnasio. Si no se
+    // eligió ninguno, se registra SIN_ESPECIFICAR — un código
+    // deliberadamente distinto de "OTRO", para poder encontrar más
+    // adelante exactamente estas bajas y pedirle al dueño el motivo real,
+    // en vez de fingir que ya lo eligió.
+    const motivo = datos.motivo ?? {
+      codigo: MOTIVO_BAJA_SIN_ESPECIFICAR,
+      etiqueta: ETIQUETA_BAJA_SIN_ESPECIFICAR,
+    };
+
     return {
       ok: true,
       evento: "BAJA",
-      resumen: "Baja registrada",
+      resumen: `Baja registrada — ${motivo.etiqueta}`,
       cambio: {
         vinculo: "BAJA",
         vinculoDesde: hoy,
         ...SIN_PAUSA,
         bajaFecha: hoy,
-        bajaMotivoCodigo: MOTIVO_BAJA_SIN_ESPECIFICAR,
-        bajaMotivoEtiqueta: ETIQUETA_BAJA_SIN_ESPECIFICAR,
+        bajaMotivoCodigo: motivo.codigo,
+        bajaMotivoEtiqueta: motivo.etiqueta,
         bajaObservacion: nota,
       },
     };

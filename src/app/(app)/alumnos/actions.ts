@@ -108,11 +108,15 @@ export async function cambiarVinculoFormAction(
     vinculo: texto(formData, "vinculo"),
     pausaHasta: texto(formData, "pausaHasta"),
     nota: texto(formData, "nota"),
+    motivoCodigo: texto(formData, "motivoCodigo"),
   });
 
   if (!resultado.ok) return aEstadoFormulario(resultado);
 
   revalidatePath("/alumnos");
+  revalidatePath("/bajas");
+  revalidatePath("/actividad");
+  revalidatePath("/dashboard");
   revalidatePath(`/alumnos/${id}`);
   return { ok: true, mensaje: "Estado actualizado.", vinculoAplicado: resultado.data.vinculo };
 }

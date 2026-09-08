@@ -1,16 +1,9 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getAuthContext } from "@/lib/auth/context";
-import { Button } from "@/components/ui/button";
+import { contextoDelGimnasio } from "@/use-cases/gimnasio/contexto";
+import { BarraMovil } from "@/components/shell/barra-movil";
+import { BotonCerrarSesion, Rail } from "@/components/shell/rail";
 import { logout } from "./actions";
-
-const NAV_LINKS = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/alumnos", label: "Alumnos" },
-  { href: "/pagos", label: "Pagos" },
-  { href: "/importar", label: "Importar" },
-  { href: "/configuracion", label: "Configuración" },
-] as const;
 
 /**
  * Layout de toda ruta protegida. Este es EL lugar (además de cada Server
@@ -21,38 +14,48 @@ const NAV_LINKS = [
  *
  * Cache-Control de la respuesta ya lo pone src/proxy.ts globalmente, no
  * hace falta repetirlo acá.
+ *
+ * La forma del marco: rail fijo a la izquierda en desktop, cajón en
+ * pantalla chica. El rail NO hace scroll con el contenido — es lo que
+ * hace que la aplicación se sienta una herramienta y no una web.
  */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await getAuthContext();
   if (!ctx) redirect("/login");
 
+  // Si la configuración no se puede leer, el marco igual tiene que
+  // dibujarse: el usuario está autenticado y merece ver la interfaz con
+  // el error adentro, no una pantalla en blanco.
+  const contexto = await contextoDelGimnasio();
+  const gimnasio = contexto.ok ? contexto.data.nombre : "Gimnasio";
+
+  const cerrarSesion = (
+    <form action={logout}>
+      <BotonCerrarSesion />
+    </form>
+  );
+
   return (
-    <div className="flex min-h-full flex-1 flex-col">
-      <header className="border-b border-border bg-card">
-        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-4 px-4 py-3">
-          <div className="flex flex-wrap items-center gap-6">
-            <span className="text-sm font-semibold tracking-wide text-foreground">
-              FUERZA NATURAL
-            </span>
-            <nav className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-              {NAV_LINKS.map((link) => (
-                <Link key={link.href} href={link.href} className="hover:text-foreground">
-                  {link.label}
-                </Link>
-              ))}
-            </nav>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-muted-foreground">{ctx.nombre}</span>
-            <form action={logout}>
-              <Button type="submit" variant="outline" size="sm">
-                Cerrar sesión
-              </Button>
-            </form>
-          </div>
+    <div className="min-h-svh">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[16.5rem] border-r border-rail-border lg:block">
+        <Rail nombre={ctx.nombre} rol={ctx.rol} gimnasio={gimnasio} cerrarSesion={cerrarSesion} />
+      </aside>
+
+      <BarraMovil
+        nombre={ctx.nombre}
+        rol={ctx.rol}
+        gimnasio={gimnasio}
+        cerrarSesion={cerrarSesion}
+      />
+
+      {/* El ancho máximo es generoso a propósito: el dueño trabaja en una
+          PC y una tabla de alumnos apretada a 1024px desperdicia la
+          pantalla que ya tiene. */}
+      <main className="lg:pl-[16.5rem]">
+        <div className="mx-auto w-full max-w-[92rem] px-4 py-6 sm:px-6 lg:px-10 lg:py-9">
+          {children}
         </div>
-      </header>
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">{children}</main>
+      </main>
     </div>
   );
 }

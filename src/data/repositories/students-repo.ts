@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { appUsers, plans, students, studentEvents } from "@/data/schema";
 import type { AuthContext } from "@/lib/auth/context";
 import type { TxClient } from "@/use-cases/_kernel/with-tenant-tx";
@@ -301,4 +301,128 @@ export async function listarEventosDeAlumno(
     .where(and(eq(studentEvents.gymId, ctx.gymId), eq(studentEvents.studentId, studentId)))
     .orderBy(desc(studentEvents.createdAt))
     .limit(limite);
+}
+
+
+/**
+ * Los alumnos ACTIVOS con lo mínimo para derivar su situación de pago.
+ *
+ * No trae la situación: la situación no existe en la base. Trae los datos
+ * con los que `situacionDeCobertura()` la calcula (SPEC V1 §5) — el
+ * vínculo y la fecha de alta, que es lo que decide si a un alumno nuevo
+ * todavía no se le reclama nada.
+ */
+export async function listarAlumnosActivosParaCobertura(tx: TxClient, ctx: AuthContext) {
+  return tx
+    .select({
+      id: students.id,
+      nombre: students.nombre,
+      apellido: students.apellido,
+      telefono: students.telefono,
+      vinculo: students.vinculo,
+      fechaAltaOriginal: students.fechaAltaOriginal,
+      planNombre: plans.nombre,
+    })
+    .from(students)
+    .innerJoin(plans, eq(plans.id, students.planId))
+    .where(and(eq(students.gymId, ctx.gymId), eq(students.vinculo, "ACTIVO")))
+    .orderBy(asc(students.apellido), asc(students.nombre));
+}
+
+/**
+ * El movimiento del padrón en un rango: cuántos entraron, cuántos
+ * volvieron y cuántos se fueron.
+ *
+ * Sale de `student_events` y no de contar filas de `students` por una
+ * razón que importa: una BAJA no borra al alumno ni pisa su fecha de alta,
+ * así que la única forma de saber QUÉ PASÓ EN ESTE MES es mirar los
+ * hechos, no el estado actual.
+ */
+export async function contarMovimientoDelPadron(
+  tx: TxClient,
+  ctx: AuthContext,
+  rango: { desde: string; hasta: string },
+) {
+  const filas = await tx
+    .select({ tipo: studentEvents.tipo, total: count() })
+    .from(studentEvents)
+    .where(
+      and(
+        eq(studentEvents.gymId, ctx.gymId),
+        gte(studentEvents.ocurridoEl, rango.desde),
+        lte(studentEvents.ocurridoEl, rango.hasta),
+      ),
+    )
+    .groupBy(studentEvents.tipo);
+
+  const conteo: Record<string, number> = {};
+  for (const fila of filas) conteo[fila.tipo] = fila.total;
+  return {
+    nuevos: conteo.ALTA ?? 0,
+    volvieron: conteo.REACTIVACION ?? 0,
+    dejaron: conteo.BAJA ?? 0,
+    pausaron: conteo.PAUSA ?? 0,
+  };
+}
+
+/** Los últimos hechos de negocio del gimnasio entero, para el panel. */
+export async function listarEventosRecientes(tx: TxClient, ctx: AuthContext, limite = 8) {
+  return tx
+    .select({
+      id: studentEvents.id,
+      tipo: studentEvents.tipo,
+      ocurridoEl: studentEvents.ocurridoEl,
+      datos: studentEvents.datos,
+      createdAt: studentEvents.createdAt,
+      studentId: students.id,
+      nombre: students.nombre,
+      apellido: students.apellido,
+      actorNombre: appUsers.nombre,
+    })
+    .from(studentEvents)
+    .innerJoin(students, eq(students.id, studentEvents.studentId))
+    .innerJoin(appUsers, eq(appUsers.id, studentEvents.creadoPor))
+    .where(eq(studentEvents.gymId, ctx.gymId))
+    // Por la fecha en que OCURRIÓ el hecho, no por cuándo se insertó la
+    // fila. Un alta cargada hoy con fecha del mes pasado es una noticia
+    // vieja: ordenar por `created_at` la pondría arriba de todo.
+    .orderBy(desc(studentEvents.ocurridoEl), desc(studentEvents.createdAt))
+    .limit(limite);
+}
+
+/** Las bajas, con su motivo, para la pantalla de bajas. */
+export async function listarBajas(tx: TxClient, ctx: AuthContext, limite = 100) {
+  return tx
+    .select({
+      id: students.id,
+      nombre: students.nombre,
+      apellido: students.apellido,
+      telefono: students.telefono,
+      planNombre: plans.nombre,
+      fechaAltaOriginal: students.fechaAltaOriginal,
+      bajaFecha: students.bajaFecha,
+      bajaMotivoCodigo: students.bajaMotivoCodigo,
+      bajaMotivoEtiqueta: students.bajaMotivoEtiqueta,
+      bajaObservacion: students.bajaObservacion,
+    })
+    .from(students)
+    .innerJoin(plans, eq(plans.id, students.planId))
+    .where(and(eq(students.gymId, ctx.gymId), eq(students.vinculo, "BAJA")))
+    .orderBy(desc(students.bajaFecha))
+    .limit(limite);
+}
+
+/**
+ * Solo los nombres, para detectar duplicados al importar una planilla.
+ *
+ * Incluye a los dados de baja a propósito: alguien que se fue y vuelve NO
+ * es un alumno nuevo — importarlo otra vez crearía una persona duplicada y
+ * le partiría el historial de pagos en dos.
+ */
+export async function listarNombresDeAlumnos(tx: TxClient, ctx: AuthContext) {
+  return tx
+    .select({ id: students.id, nombre: students.nombre, apellido: students.apellido })
+    .from(students)
+    .where(eq(students.gymId, ctx.gymId))
+    .orderBy(asc(students.apellido));
 }

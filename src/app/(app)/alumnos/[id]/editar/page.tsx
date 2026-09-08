@@ -61,7 +61,7 @@ export default async function EditarAlumnoPage({ params }: { params: Promise<{ i
         >
           ← {nombreCompleto(alumno.nombre, alumno.apellido)}
         </Link>
-        <h1 className="text-xl font-semibold text-foreground">Editar datos</h1>
+        <h1 className="t-titulo text-[1.5rem]">Editar datos</h1>
         <p className="text-sm text-muted-foreground">
           El estado del alumno se cambia desde la ficha, no desde acá.
         </p>

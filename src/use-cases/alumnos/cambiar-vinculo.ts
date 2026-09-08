@@ -9,12 +9,13 @@ import {
   buscarAlumnoPorId,
   registrarEventoDeAlumno,
 } from "@/data/repositories/students-repo";
-import { obtenerGimnasio } from "@/data/repositories/gym-repo";
+import { obtenerConfiguracion, obtenerGimnasio } from "@/data/repositories/gym-repo";
 import { esVinculo, type Vinculo } from "@/domain/alumnos/vinculo";
 import {
   mensajeDeRechazo,
   resolverCambioDeVinculo,
   resumenDeCambio,
+  type MotivoDeBaja,
 } from "@/domain/alumnos/cambio-de-vinculo";
 import { nombreCompleto } from "@/domain/alumnos/identidad";
 import { hoyISO } from "@/domain/fechas/hoy";
@@ -59,12 +60,31 @@ export const cambiarVinculoAction = withAuth<CambiarVinculoRaw, VinculoCambiado>
         return conflict("El alumno tiene un estado que este sistema no reconoce.");
       }
 
+      // El motivo de baja se resuelve contra el catálogo del GIMNASIO. Del
+      // formulario llega solo el código; la etiqueta la pone el servidor.
+      // Aceptarla del cliente permitiría guardar "Se fue contento" bajo el
+      // código ECONOMICO, y esa etiqueta queda congelada en la fila.
+      let motivo: MotivoDeBaja | null = null;
+      if (input.vinculo === "BAJA" && input.motivoCodigo) {
+        const config = await obtenerConfiguracion(tx, ctx);
+        const catalogo = Array.isArray(config?.motivosBaja)
+          ? (config.motivosBaja as { codigo?: string; etiqueta?: string; activo?: boolean }[])
+          : [];
+        const elegido = catalogo.find((m) => m.codigo === input.motivoCodigo && m.activo !== false);
+        if (!elegido?.codigo || !elegido.etiqueta) {
+          return validationError([
+            { path: "motivoCodigo", message: "Elegí un motivo de la lista." },
+          ]);
+        }
+        motivo = { codigo: elegido.codigo, etiqueta: elegido.etiqueta };
+      }
+
       const hoy = hoyISO(gym.timezone);
       const resultado = resolverCambioDeVinculo(
         { vinculo: actual.vinculo, fechaAltaOriginal: actual.fechaAltaOriginal },
         input.vinculo,
         hoy,
-        { pausaHasta: input.pausaHasta, nota: input.nota },
+        { pausaHasta: input.pausaHasta, nota: input.nota, motivo },
       );
 
       if (!resultado.ok) {
@@ -92,6 +112,9 @@ export const cambiarVinculoAction = withAuth<CambiarVinculoRaw, VinculoCambiado>
           desde: actual.vinculo,
           hacia: resultado.cambio.vinculo,
           pausaHasta: resultado.cambio.pausaHasta,
+          nota: resultado.cambio.pausaNota,
+          motivoEtiqueta: resultado.cambio.bajaMotivoEtiqueta,
+          observacion: resultado.cambio.bajaObservacion,
         },
       });
 
