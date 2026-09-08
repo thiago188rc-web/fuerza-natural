@@ -1,0 +1,1250 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Propuesta · Sistema de gestión para Fuerza Natural · NEXA Digital Solutions</title>
+<meta name="description" content="Propuesta comercial de NEXA Digital Solutions para el desarrollo e implementación del sistema de gestión de Fuerza Natural.">
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+  /* =====================================================================
+     NEXA Digital Solutions · Propuesta comercial
+     Documento independiente: no depende de la aplicación ni de rutas.
+     Identidad tomada del producto: carbón con traza verde, verde hue 156,
+     Archivo / Geist / Geist Mono. Un solo tema, pensado para pantalla y
+     para papel.
+     ===================================================================== */
+  :root {
+    --carbon: #131916;
+    --carbon-2: #1b2320;
+    --carbon-linea: #2a3430;
+    --carbon-texto: #eef2ef;
+    --carbon-muted: #9aa59f;
+    --papel: #f6f8f7;
+    --superficie: #ffffff;
+    --hundido: #eff3f0;
+    --tinta: #1b2320;
+    --tinta-2: #626d67;
+    --tinta-3: #8f9994;
+    --linea: #dfe5e1;
+    --linea-fuerte: #c9d1cc;
+    --verde: #2e8b5b;
+    --verde-fuerte: #24734a;
+    --verde-suave: #e4f3ea;
+    --verde-claro: #5fc98f;
+    --revisar: #cfd7d2;
+    --descubierto: #c2493b;
+    --display: "Archivo", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --texto: "Geist", "Segoe UI", Roboto, system-ui, -apple-system, sans-serif;
+    --mono: "Geist Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    --ancho: 1120px;
+    --margen: clamp(20px, 5vw, 64px);
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--papel);
+    color: var(--tinta);
+    font-family: var(--texto);
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  h1, h2, h3 { margin: 0; text-wrap: balance; }
+  p { margin: 0; }
+  ul, ol { margin: 0; padding: 0; list-style: none; }
+
+  .rotulo {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--tinta-2);
+  }
+  .rotulo.verde { color: var(--verde); }
+  .tabular { font-variant-numeric: tabular-nums; }
+
+  /* ---------- Marca ---------- */
+  .marca {
+    display: inline-grid;
+    gap: 3px;
+    text-decoration: none;
+    color: inherit;
+  }
+  .marca .nombre {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 1.05rem;
+    letter-spacing: 0.1em;
+    line-height: 1;
+  }
+  .marca .descriptor {
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--carbon-muted);
+  }
+  .sello {
+    display: inline-grid;
+    place-items: center;
+    width: 32px; height: 32px;
+    border-radius: 7px;
+    background: var(--verde-claro);
+    color: var(--carbon);
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 0.8rem;
+    letter-spacing: -0.02em;
+  }
+
+  /* ---------- Portada ---------- */
+  .portada {
+    position: relative;
+    overflow: hidden;
+    background: var(--carbon);
+    color: var(--carbon-texto);
+    min-height: 92svh;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    padding: 36px var(--margen) 40px;
+  }
+  .portada .reticula {
+    position: absolute; inset: 0;
+    pointer-events: none;
+    opacity: 0.07;
+    background-image:
+      linear-gradient(to right, #ffffff 1px, transparent 1px),
+      linear-gradient(to bottom, #ffffff 1px, transparent 1px);
+    background-size: 28px 28px;
+    -webkit-mask-image: radial-gradient(ellipse 80% 70% at 22% 18%, #000 10%, transparent 70%);
+    mask-image: radial-gradient(ellipse 80% 70% at 22% 18%, #000 10%, transparent 70%);
+  }
+  .portada > * { position: relative; }
+  .portada .arriba {
+    max-width: var(--ancho);
+    width: 100%;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 24px;
+  }
+  .portada .arriba .rotulo { color: var(--carbon-muted); text-align: right; }
+  .portada .centro {
+    max-width: var(--ancho);
+    width: 100%;
+    margin: 0 auto;
+    align-self: center;
+    padding: 64px 0;
+  }
+  .portada .centro .rotulo { color: var(--verde-claro); }
+  .portada h1 {
+    margin-top: 18px;
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: clamp(2.5rem, 7.2vw, 5.4rem);
+    line-height: 0.98;
+    letter-spacing: -0.035em;
+    max-width: 14ch;
+  }
+  .portada .frase {
+    margin-top: 28px;
+    font-size: clamp(1.05rem, 1.6vw, 1.3rem);
+    line-height: 1.45;
+    color: var(--carbon-muted);
+    max-width: 34ch;
+  }
+  .portada .frase b { color: var(--carbon-texto); font-weight: 500; }
+  .portada .abajo {
+    max-width: var(--ancho);
+    width: 100%;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 24px;
+    border-top: 1px solid var(--carbon-linea);
+    padding-top: 22px;
+  }
+  .cliente {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .cliente .nombre {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 0.95rem;
+    line-height: 1.15;
+  }
+  .cliente .lema {
+    font-size: 0.8rem;
+    color: var(--carbon-muted);
+  }
+  .portada .abajo .rotulo { color: var(--carbon-muted); text-align: right; }
+
+  /* ---------- Secciones ---------- */
+  .seccion {
+    padding: clamp(64px, 9vw, 120px) var(--margen);
+  }
+  .seccion + .seccion { border-top: 1px solid var(--linea); }
+  .interior {
+    max-width: var(--ancho);
+    margin: 0 auto;
+  }
+  .encabezado {
+    display: grid;
+    grid-template-columns: minmax(0, 15rem) minmax(0, 1fr);
+    gap: 24px 48px;
+    align-items: start;
+  }
+  .encabezado .rotulo { padding-top: 0.55rem; }
+  h2 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: clamp(1.55rem, 2.8vw, 2.25rem);
+    line-height: 1.15;
+    letter-spacing: -0.025em;
+    max-width: 26ch;
+  }
+  .parrafo {
+    margin-top: 20px;
+    font-size: 1.05rem;
+    line-height: 1.6;
+    color: var(--tinta-2);
+    max-width: 62ch;
+  }
+  .parrafo b { color: var(--tinta); font-weight: 500; }
+  .contenido { grid-column: 2; }
+  @media (max-width: 760px) {
+    .encabezado { grid-template-columns: 1fr; gap: 14px; }
+    .encabezado .rotulo { padding-top: 0; }
+    .contenido { grid-column: 1; }
+  }
+
+  /* La propuesta */
+  .conceptos {
+    margin-top: 40px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 40px;
+    border-top: 1px solid var(--linea);
+  }
+  .conceptos li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 13px 0;
+    border-bottom: 1px solid var(--linea);
+    font-size: 0.98rem;
+    font-weight: 500;
+  }
+  .conceptos li::before {
+    content: "";
+    width: 6px; height: 6px;
+    border-radius: 2px;
+    background: var(--verde);
+    flex: none;
+  }
+  @media (max-width: 640px) { .conceptos { grid-template-columns: 1fr; } }
+
+  .figura {
+    margin: 48px 0 0;
+    border: 1px solid var(--linea);
+    border-radius: 12px;
+    background: var(--superficie);
+    padding: 22px 24px 20px;
+  }
+  .figura .cabecera-figura {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 6px 16px;
+  }
+  .figura .cabecera-figura .rotulo { white-space: nowrap; }
+  .figura .cabecera-figura .valor {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--tinta-2);
+  }
+  .banda {
+    margin-top: 16px;
+    display: grid;
+    grid-template-columns: repeat(39, minmax(0, 1fr));
+    gap: 3px;
+    height: 34px;
+  }
+  .banda i {
+    display: block;
+    border-radius: 2px;
+    background: var(--verde);
+    transition: opacity 150ms ease;
+  }
+  .banda i.revisar { background: var(--revisar); }
+  .banda i.descubierto { background: var(--descubierto); }
+  .figura:hover .banda i:not(:hover) { opacity: 0.9; }
+  .leyenda {
+    margin-top: 14px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 22px;
+    font-size: 0.82rem;
+    color: var(--tinta-2);
+  }
+  .leyenda span { display: inline-flex; align-items: center; gap: 8px; }
+  .leyenda i {
+    width: 9px; height: 9px;
+    border-radius: 2px;
+    background: var(--verde);
+  }
+  .leyenda i.revisar { background: var(--revisar); }
+  .leyenda i.descubierto { background: var(--descubierto); }
+  .figura .pie {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--linea);
+    font-size: 0.88rem;
+    line-height: 1.5;
+    color: var(--tinta-2);
+    max-width: 70ch;
+  }
+
+  /* Qué incluye */
+  .modulos {
+    margin-top: 40px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+  .modulo {
+    background: var(--superficie);
+    border: 1px solid var(--linea);
+    border-radius: 12px;
+    padding: 20px 22px 22px;
+    display: grid;
+    grid-template-columns: 2.6rem minmax(0, 1fr);
+    gap: 6px 14px;
+    transition: border-color 160ms ease, transform 160ms ease;
+  }
+  .modulo:hover { border-color: var(--linea-fuerte); }
+  .modulo .numero {
+    grid-row: span 2;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--tinta-3);
+    padding-top: 0.2rem;
+    transition: color 160ms ease;
+  }
+  .modulo:hover .numero { color: var(--verde); }
+  .modulo h3 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 1.05rem;
+    letter-spacing: -0.015em;
+  }
+  .modulo p {
+    font-size: 0.92rem;
+    line-height: 1.5;
+    color: var(--tinta-2);
+  }
+  @media (max-width: 720px) { .modulos { grid-template-columns: 1fr; } }
+
+  /* Qué cambia */
+  .comparacion {
+    margin-top: 44px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+  .columna {
+    border-radius: 12px;
+    padding: 24px 26px 26px;
+    border: 1px solid var(--linea);
+    background: var(--superficie);
+  }
+  .columna.hoy { background: var(--hundido); border-color: transparent; }
+  .columna.sistema { border-color: var(--verde); }
+  .columna .rotulo { display: block; }
+  .columna.sistema .rotulo { color: var(--verde); }
+  .columna ul { margin-top: 18px; display: grid; gap: 10px; }
+  .columna li {
+    display: flex;
+    gap: 12px;
+    align-items: baseline;
+    font-size: 1rem;
+  }
+  .columna.hoy li { color: var(--tinta-2); }
+  .columna.hoy li::before {
+    content: "";
+    width: 12px; height: 1px;
+    background: var(--tinta-3);
+    flex: none;
+    transform: translateY(-0.3em);
+  }
+  .columna.sistema li { font-weight: 500; }
+  .columna.sistema li::before {
+    content: "";
+    width: 7px; height: 7px;
+    border-radius: 2px;
+    background: var(--verde);
+    flex: none;
+    transform: translateY(-0.15em);
+  }
+  @media (max-width: 680px) { .comparacion { grid-template-columns: 1fr; } }
+
+  .tesis-marco {
+    margin-top: 48px;
+    padding: 34px 0;
+    border-top: 1px solid var(--linea);
+    border-bottom: 1px solid var(--linea);
+  }
+  .tesis {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: clamp(1.35rem, 2.6vw, 1.9rem);
+    line-height: 1.25;
+    letter-spacing: -0.02em;
+    max-width: 30ch;
+  }
+  .tesis span { color: var(--tinta-2); font-weight: 500; }
+
+  .cuatro {
+    margin-top: 0;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .cuatro div {
+    padding: 22px 0 0;
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 0.95rem;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    line-height: 1.25;
+  }
+  .cuatro div small {
+    display: block;
+    font-family: var(--mono);
+    font-weight: 400;
+    font-size: 0.62rem;
+    letter-spacing: 0.18em;
+    color: var(--tinta-3);
+    margin-bottom: 8px;
+  }
+  .cuatro div.mas { color: var(--verde); }
+  @media (max-width: 680px) {
+    .cuatro { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 20px; }
+  }
+
+  /* Inversión */
+  .inversion {
+    background: var(--carbon);
+    color: var(--carbon-texto);
+    border-top: 0;
+  }
+  .inversion .rotulo { color: var(--carbon-muted); }
+  .inversion .encabezado .rotulo { color: var(--verde-claro); }
+  .precio {
+    display: flex;
+    align-items: baseline;
+    gap: 0.22em;
+    font-family: var(--display);
+    font-weight: 700;
+    letter-spacing: -0.045em;
+    line-height: 0.9;
+    font-size: clamp(5.5rem, 17vw, 11.5rem);
+  }
+  .precio .moneda {
+    font-size: 0.24em;
+    letter-spacing: 0.02em;
+    color: var(--carbon-muted);
+    font-weight: 500;
+  }
+  .precio-detalle {
+    margin-top: 22px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px 18px;
+  }
+  .precio-detalle .que {
+    font-size: 1.1rem;
+    color: var(--carbon-texto);
+  }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border: 1px solid var(--verde-claro);
+    border-radius: 999px;
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--verde-claro);
+  }
+  .pill::before {
+    content: "";
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--verde-claro);
+  }
+  .pagos {
+    margin-top: 48px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+  .pago {
+    border: 1px solid var(--carbon-linea);
+    border-radius: 12px;
+    padding: 24px 26px 24px;
+    background: var(--carbon-2);
+    display: grid;
+    gap: 6px;
+  }
+  .pago .monto {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: clamp(2rem, 4vw, 2.8rem);
+    letter-spacing: -0.035em;
+    line-height: 1;
+  }
+  .pago .monto small {
+    font-size: 0.42em;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--carbon-muted);
+    margin-right: 0.35em;
+  }
+  .pago .cuando {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--carbon-muted);
+    margin-top: 6px;
+  }
+  .pago .cuando b { color: var(--verde-claro); font-weight: 500; }
+  .pagos-nota {
+    margin-top: 22px;
+    color: var(--carbon-muted);
+    font-size: 0.95rem;
+    max-width: 62ch;
+  }
+  .comprende {
+    margin-top: 52px;
+    padding-top: 24px;
+    border-top: 1px solid var(--carbon-linea);
+    display: grid;
+    grid-template-columns: minmax(0, 15rem) minmax(0, 1fr);
+    gap: 16px 48px;
+  }
+  .comprende ul {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px 24px;
+  }
+  .comprende li {
+    font-size: 0.92rem;
+    color: var(--carbon-texto);
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+  }
+  .comprende li::before {
+    content: "";
+    width: 12px; height: 1px;
+    background: var(--verde-claro);
+    flex: none;
+    transform: translateY(-0.3em);
+  }
+  @media (max-width: 760px) {
+    .pagos { grid-template-columns: 1fr; }
+    .comprende { grid-template-columns: 1fr; }
+    .comprende ul { grid-template-columns: 1fr; }
+  }
+
+  /* Hosting */
+  .hosting {
+    margin-top: 0;
+    border: 1px solid var(--linea);
+    border-radius: 14px;
+    background: var(--superficie);
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    overflow: hidden;
+  }
+  .hosting .lado {
+    padding: 32px 34px 34px;
+  }
+  .hosting .lado.izq {
+    background: var(--verde-suave);
+    border-right: 1px solid var(--linea);
+  }
+  .hosting .etiqueta {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: var(--verde);
+    color: #fff;
+    border-radius: 999px;
+    font-family: var(--mono);
+    font-size: 0.64rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  .hosting h3 {
+    margin-top: 22px;
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: clamp(2rem, 4vw, 2.8rem);
+    letter-spacing: -0.03em;
+    line-height: 1;
+  }
+  .hosting .referencia {
+    margin-top: 10px;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--verde-fuerte);
+  }
+  .hosting .lado.der {
+    display: grid;
+    align-content: center;
+    gap: 18px;
+  }
+  .hosting .lado.der p {
+    font-size: 1rem;
+    line-height: 1.55;
+    color: var(--tinta-2);
+  }
+  .hosting .lado.der p b { color: var(--tinta); font-weight: 500; }
+  .hosting .lado.der p + p {
+    padding-top: 18px;
+    border-top: 1px solid var(--linea);
+  }
+  @media (max-width: 760px) {
+    .hosting { grid-template-columns: 1fr; }
+    .hosting .lado.izq { border-right: 0; border-bottom: 1px solid var(--linea); }
+  }
+
+  /* Implementación */
+  .pasos {
+    margin-top: 40px;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0 20px;
+    position: relative;
+  }
+  .paso {
+    position: relative;
+    padding-top: 22px;
+    border-top: 1px solid var(--linea-fuerte);
+  }
+  .paso::before {
+    content: "";
+    position: absolute;
+    top: -1px; left: 0;
+    width: 36px; height: 1px;
+    background: var(--verde);
+  }
+  .paso .numero {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    color: var(--verde);
+  }
+  .paso h3 {
+    margin-top: 10px;
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 1.1rem;
+    letter-spacing: -0.015em;
+  }
+  .paso p {
+    margin-top: 8px;
+    font-size: 0.92rem;
+    line-height: 1.5;
+    color: var(--tinta-2);
+  }
+  @media (max-width: 760px) {
+    .pasos { grid-template-columns: 1fr; gap: 26px; }
+  }
+
+  /* Cierre */
+  .cierre .texto {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: clamp(1.4rem, 2.8vw, 2rem);
+    line-height: 1.28;
+    letter-spacing: -0.02em;
+    max-width: 30ch;
+  }
+  .cierre .texto span { color: var(--tinta-2); font-weight: 500; }
+  .firma-nexa {
+    margin-top: 56px;
+    padding-top: 28px;
+    border-top: 1px solid var(--linea);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 20px 40px;
+  }
+  .firma-nexa .marca .nombre { font-size: 1.6rem; letter-spacing: 0.12em; }
+  .firma-nexa .marca .descriptor { color: var(--tinta-2); }
+  .firma-nexa .lema {
+    font-size: 1rem;
+    color: var(--tinta-2);
+    max-width: 34ch;
+  }
+
+  /* Alcance y aceptación */
+  .alcance { background: var(--hundido); }
+  .nota-alcance {
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: var(--tinta-2);
+    max-width: 66ch;
+  }
+  .nota-alcance b { color: var(--tinta); font-weight: 500; }
+  .vigencia {
+    margin-top: 18px;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    color: var(--tinta);
+  }
+  .aceptacion {
+    margin-top: 40px;
+    background: var(--superficie);
+    border: 1px solid var(--linea);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .aceptacion > header {
+    padding: 18px 26px;
+    border-bottom: 1px solid var(--linea);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .aceptacion > header h3 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 1.05rem;
+    letter-spacing: -0.01em;
+  }
+  .aceptacion dl {
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1px;
+    background: var(--linea);
+    border-bottom: 1px solid var(--linea);
+  }
+  .aceptacion dl div {
+    background: var(--superficie);
+    padding: 16px 22px 18px;
+  }
+  .aceptacion dt {
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--tinta-3);
+  }
+  .aceptacion dd {
+    margin: 8px 0 0;
+    font-weight: 500;
+    font-size: 0.98rem;
+  }
+  .firmas {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 28px;
+    padding: 34px 26px 28px;
+  }
+  .firmas div {
+    padding-top: 52px;
+    border-bottom: 1px solid var(--tinta);
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--tinta-2);
+    padding-bottom: 8px;
+  }
+  @media (max-width: 760px) {
+    .aceptacion dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .firmas { grid-template-columns: 1fr; gap: 10px; }
+    .firmas div { padding-top: 40px; }
+  }
+
+  .pie-documento {
+    padding: 22px var(--margen);
+    border-top: 1px solid var(--linea);
+    background: var(--hundido);
+  }
+  .pie-documento .interior {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 24px;
+  }
+
+  /* Botón de descarga (solo pantalla) */
+  .descargar {
+    position: fixed;
+    right: 20px; bottom: 20px;
+    z-index: 10;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 16px 11px 14px;
+    border: 1px solid var(--carbon-linea);
+    border-radius: 10px;
+    background: var(--carbon);
+    color: var(--carbon-texto);
+    font-family: var(--texto);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 150ms ease, transform 150ms ease;
+  }
+  .descargar:hover { background: var(--carbon-2); }
+  .descargar:active { transform: translateY(1px); }
+  .descargar:focus-visible { outline: 2px solid var(--verde-claro); outline-offset: 2px; }
+  .descargar svg { width: 15px; height: 15px; stroke: var(--verde-claro); flex: none; }
+  @media (max-width: 720px) {
+    /* En el teléfono, solo el ícono: el botón no tapa el texto que hay debajo. */
+    .descargar { right: 14px; bottom: 14px; padding: 13px; border-radius: 999px; }
+    .descargar span { display: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition: none !important; }
+  }
+
+  /* =====================================================================
+     Impresión / PDF. A4, sin márgenes del navegador: cada bloque lleva su
+     propio margen, así la portada y la inversión salen a sangre.
+     ===================================================================== */
+  @page { size: A4; margin: 0; }
+  @media print {
+    html { font-size: 11.5px; }
+    body { background: #fff; }
+    *, *::before, *::after {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .descargar { display: none !important; }
+    .portada {
+      min-height: 0;
+      height: 297mm;
+      padding: 16mm 18mm 18mm;
+      break-after: page;
+    }
+    .portada .centro { padding: 0; }
+    .seccion { padding: 16mm 18mm; }
+    .seccion + .seccion { border-top: 0; }
+    /* Paginado: 1 portada · 2 propuesta · 3 qué incluye · 4 qué cambia ·
+       5 inversión · 6 hosting + implementación · 7 cierre + aceptación. */
+    .incluye, .cambia, .inversion { break-before: page; }
+    .inversion { min-height: 297mm; break-after: page; }
+    .cierre, .alcance, .pie-documento,
+    .figura, .modulo, .columna, .pago, .hosting, .paso, .aceptacion, .tesis-marco, .cuatro, .comprende {
+      break-inside: avoid;
+    }
+    .modulos { gap: 10px; }
+    .modulo { padding: 14px 16px 15px; }
+    .modulo:hover, .banda i { transition: none; }
+    .precio { font-size: 9rem; }
+    .pie-documento { padding: 10mm 18mm; }
+    a { color: inherit; text-decoration: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ========================== PORTADA ========================== -->
+<header class="portada">
+  <div class="reticula" aria-hidden="true"></div>
+
+  <div class="arriba">
+    <span class="marca" aria-label="NEXA Digital Solutions">
+      <span class="nombre">NEXA</span>
+      <span class="descriptor">Digital Solutions</span>
+    </span>
+    <span class="rotulo">Propuesta comercial<br>Septiembre 2026</span>
+  </div>
+
+  <div class="centro">
+    <p class="rotulo">Propuesta</p>
+    <h1>Sistema de gestión para Fuerza Natural</h1>
+    <p class="frase"><b>Una operación más simple.</b> Una visión más clara del gimnasio.</p>
+  </div>
+
+  <div class="abajo">
+    <div class="cliente">
+      <span class="sello" aria-hidden="true">FN</span>
+      <span>
+        <span class="nombre">Fuerza Natural</span><br>
+        <span class="lema">La máquina sos vos.</span>
+      </span>
+    </div>
+    <span class="rotulo">Vigencia<br>15 días</span>
+  </div>
+</header>
+
+<!-- ========================== LA PROPUESTA ========================== -->
+<section class="seccion propuesta">
+  <div class="interior">
+    <div class="encabezado">
+      <p class="rotulo">La propuesta</p>
+      <div>
+        <h2>Desarrollamos un sistema de gestión personalizado para Fuerza Natural, diseñado alrededor de la operación real del gimnasio.</h2>
+        <p class="parrafo">El objetivo es que la información del gimnasio viva en un solo lugar, y que saber qué está pasando no dependa de revisar planillas, chats y cuadernos. <b>Cada alumno, cada pago y cada cambio de estado se registran una vez</b>, y el sistema muestra la situación del día sin trabajo adicional.</p>
+      </div>
+    </div>
+
+    <div class="encabezado">
+      <span></span>
+      <div class="contenido">
+        <ul class="conceptos">
+          <li>Una única fuente de información</li>
+          <li>Gestión centralizada de alumnos</li>
+          <li>Control de pagos y períodos cubiertos</li>
+          <li>Registro de bajas con motivo</li>
+          <li>Historial de actividad</li>
+          <li>Panel operativo del día</li>
+          <li>Configuración de planes y reglas</li>
+          <li>Base preparada para futuras ampliaciones</li>
+        </ul>
+
+        <figure class="figura">
+          <div class="cabecera-figura">
+            <span class="rotulo">El mes, de un vistazo</span>
+            <span class="valor tabular">una marca por alumno activo</span>
+          </div>
+          <div class="banda" aria-hidden="true">
+            <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+            <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+            <i></i><i></i>
+            <i class="revisar"></i><i class="revisar"></i><i class="revisar"></i><i class="revisar"></i><i class="revisar"></i><i class="revisar"></i><i class="revisar"></i><i class="revisar"></i><i class="revisar"></i><i class="revisar"></i><i class="revisar"></i>
+            <i class="descubierto"></i><i class="descubierto"></i><i class="descubierto"></i><i class="descubierto"></i><i class="descubierto"></i><i class="descubierto"></i>
+          </div>
+          <div class="leyenda" aria-hidden="true">
+            <span><i></i>Con el mes cubierto</span>
+            <span><i class="revisar"></i>Para revisar</span>
+            <span><i class="descubierto"></i>Sin cubrir</span>
+          </div>
+          <figcaption class="pie">El panel muestra el mes en curso con una marca por alumno activo: quién tiene el mes cubierto, a quién hay que revisar y quién no cubrió. La situación se calcula cada día a partir de los pagos registrados y de las reglas de cobro que el gimnasio configura. No hay que marcar a nadie a mano.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================== QUÉ INCLUYE ========================== -->
+<section class="seccion incluye">
+  <div class="interior">
+    <div class="encabezado">
+      <p class="rotulo">Qué incluye</p>
+      <div>
+        <h2>Todo lo que se entrega con esta propuesta.</h2>
+        <p class="parrafo">Diez módulos que cubren la operación diaria del gimnasio, desde el alta de un alumno hasta el registro de cada pago y de cada baja.</p>
+      </div>
+    </div>
+
+    <div class="modulos">
+      <article class="modulo">
+        <span class="numero">01</span>
+        <h3>Panel de control</h3>
+        <p>Vista general del estado del gimnasio y de las situaciones que requieren atención.</p>
+      </article>
+      <article class="modulo">
+        <span class="numero">02</span>
+        <h3>Gestión de alumnos</h3>
+        <p>Alta, consulta y seguimiento de la información de cada alumno desde un único lugar.</p>
+      </article>
+      <article class="modulo">
+        <span class="numero">03</span>
+        <h3>Gestión de pagos</h3>
+        <p>Registro de pagos con modalidad, período cubierto, importe y método.</p>
+      </article>
+      <article class="modulo">
+        <span class="numero">04</span>
+        <h3>Historial</h3>
+        <p>Historial de pagos y de actividad asociado a cada alumno.</p>
+      </article>
+      <article class="modulo">
+        <span class="numero">05</span>
+        <h3>Gestión de bajas</h3>
+        <p>Registro formal de bajas con fecha, motivo y observaciones. Ningún alumno se elimina: su historial se conserva.</p>
+      </article>
+      <article class="modulo">
+        <span class="numero">06</span>
+        <h3>Actividad</h3>
+        <p>Registro de las acciones realizadas dentro del sistema, con quién y cuándo, para mantener trazabilidad.</p>
+      </article>
+      <article class="modulo">
+        <span class="numero">07</span>
+        <h3>Configuración</h3>
+        <p>Planes, precios y reglas operativas configurables por el gimnasio, sin intervención técnica.</p>
+      </article>
+      <article class="modulo">
+        <span class="numero">08</span>
+        <h3>Importación de información</h3>
+        <p>Base preparada para incorporar la información histórica existente y realizar la transición desde los registros actuales.</p>
+      </article>
+      <article class="modulo">
+        <span class="numero">09</span>
+        <h3>Diseño responsive</h3>
+        <p>Acceso cómodo desde la computadora y desde el celular, con la misma información en los dos.</p>
+      </article>
+      <article class="modulo">
+        <span class="numero">10</span>
+        <h3>Base tecnológica escalable</h3>
+        <p>Arquitectura preparada para incorporar nuevas funciones y automatizaciones en etapas futuras.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ========================== QUÉ CAMBIA ========================== -->
+<section class="seccion cambia">
+  <div class="interior">
+    <div class="encabezado">
+      <p class="rotulo">Qué cambia</p>
+      <div>
+        <h2>Menos trabajo para saber qué está pasando.</h2>
+        <p class="parrafo">Hoy la información del gimnasio existe, pero está repartida. Con el sistema, se carga una sola vez y queda disponible para todo lo demás.</p>
+      </div>
+    </div>
+
+    <div class="comparacion">
+      <div class="columna hoy">
+        <span class="rotulo">Hoy</span>
+        <ul>
+          <li>Información distribuida en distintos lugares.</li>
+          <li>Carga manual, repetida en cada registro.</li>
+          <li>Revisión constante para saber quién está al día.</li>
+          <li>Mayor posibilidad de errores y omisiones.</li>
+          <li>Dependencia de actualizar varios registros a la vez.</li>
+        </ul>
+      </div>
+      <div class="columna sistema">
+        <span class="rotulo">Con el sistema</span>
+        <ul>
+          <li>Información centralizada.</li>
+          <li>Carga una sola vez.</li>
+          <li>Visión inmediata de la situación del día.</li>
+          <li>Historial organizado por alumno.</li>
+          <li>Menos trabajo operativo.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="tesis-marco">
+      <p class="tesis">El objetivo no es digitalizar una planilla. <span>Es reducir la cantidad de trabajo necesario para saber qué está pasando.</span></p>
+    </div>
+
+    <div class="cuatro">
+      <div><small>01</small>Menos carga manual</div>
+      <div><small>02</small>Menos duplicación</div>
+      <div><small>03</small>Menos errores</div>
+      <div class="mas"><small>04</small>Más control</div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================== INVERSIÓN ========================== -->
+<section class="seccion inversion">
+  <div class="interior">
+    <div class="encabezado">
+      <p class="rotulo">Inversión</p>
+      <div>
+        <p class="precio tabular"><span class="moneda">USD</span><span>300</span></p>
+        <div class="precio-detalle">
+          <span class="que">Desarrollo e implementación inicial</span>
+          <span class="pill">Pago único</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="encabezado">
+      <span></span>
+      <div class="contenido">
+        <div class="pagos">
+          <div class="pago">
+            <span class="monto tabular"><small>USD</small>150</span>
+            <span class="cuando"><b>50 %</b> · Inicio del proyecto</span>
+          </div>
+          <div class="pago">
+            <span class="monto tabular"><small>USD</small>150</span>
+            <span class="cuando"><b>50 %</b> · Finalización y entrega</span>
+          </div>
+        </div>
+        <p class="pagos-nota">El primer pago permite iniciar el desarrollo y la configuración del proyecto. El saldo se abona contra la finalización y entrega del sistema.</p>
+      </div>
+    </div>
+
+    <div class="comprende">
+      <p class="rotulo">Qué comprende</p>
+      <ul>
+        <li>Desarrollo personalizado</li>
+        <li>Arquitectura y base de datos</li>
+        <li>Implementación y configuración</li>
+        <li>Puesta en funcionamiento</li>
+        <li>Hosting del primer año</li>
+        <li>Base para futuras ampliaciones</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ========================== HOSTING ========================== -->
+<section class="seccion hosting-seccion">
+  <div class="interior">
+    <div class="encabezado">
+      <p class="rotulo">Hosting</p>
+      <div>
+        <h2>El primer año de hosting está incluido.</h2>
+        <p class="parrafo">El sistema queda publicado y accesible desde cualquier dispositivo. Durante el primer año, ese servicio forma parte de esta propuesta.</p>
+      </div>
+    </div>
+
+    <div class="encabezado" style="margin-top:40px;">
+      <span></span>
+      <div class="contenido">
+        <div class="hosting">
+          <div class="lado izq">
+            <span class="etiqueta">Primer año incluido</span>
+            <h3>Hosting</h3>
+            <p class="referencia tabular">USD 50 / año · valor de referencia</p>
+          </div>
+          <div class="lado der">
+            <p><b>El primer año de hosting está incluido dentro de esta propuesta</b>, sin costo adicional para Fuerza Natural.</p>
+            <p>Desde el segundo año, la renovación del hosting tendrá un valor de USD 50 por año, sujeto a las condiciones del proveedor.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================== IMPLEMENTACIÓN ========================== -->
+<section class="seccion implementacion">
+  <div class="interior">
+    <div class="encabezado">
+      <p class="rotulo">Implementación</p>
+      <div>
+        <h2>Cuatro pasos, de la confirmación a la puesta en marcha.</h2>
+      </div>
+    </div>
+
+    <ol class="pasos">
+      <li class="paso">
+        <span class="numero">01</span>
+        <h3>Inicio</h3>
+        <p>Confirmación de la propuesta y pago inicial.</p>
+      </li>
+      <li class="paso">
+        <span class="numero">02</span>
+        <h3>Implementación</h3>
+        <p>Configuración y desarrollo del sistema según la operación definida para Fuerza Natural.</p>
+      </li>
+      <li class="paso">
+        <span class="numero">03</span>
+        <h3>Validación</h3>
+        <p>Revisión del funcionamiento junto al gimnasio y ajustes finales.</p>
+      </li>
+      <li class="paso">
+        <span class="numero">04</span>
+        <h3>Entrega</h3>
+        <p>Entrega del sistema y puesta en funcionamiento.</p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ========================== CIERRE ========================== -->
+<section class="seccion cierre">
+  <div class="interior">
+    <div class="encabezado">
+      <p class="rotulo">Para cerrar</p>
+      <div>
+        <p class="texto">Fuerza Natural ya tiene una forma de trabajar. <span>El objetivo de NEXA es convertir esa operación en un sistema que acompañe al gimnasio, reduzca el trabajo manual y permita crecer sobre una base tecnológica propia.</span></p>
+      </div>
+    </div>
+
+    <div class="firma-nexa">
+      <span class="marca" aria-label="NEXA Digital Solutions">
+        <span class="nombre">NEXA</span>
+        <span class="descriptor">Digital Solutions</span>
+      </span>
+      <p class="lema">Construimos sistemas que hacen que los negocios funcionen mejor.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ========================== ALCANCE Y ACEPTACIÓN ========================== -->
+<section class="seccion alcance">
+  <div class="interior">
+    <div class="encabezado">
+      <p class="rotulo">Alcance</p>
+      <div>
+        <p class="nota-alcance">Esta propuesta contempla el desarrollo e implementación inicial del sistema descrito en este documento. <b>Funcionalidades, integraciones o módulos adicionales</b> que se incorporen posteriormente podrán presupuestarse por separado.</p>
+        <p class="vigencia">Vigencia de la propuesta: 15 días.</p>
+      </div>
+    </div>
+
+    <div class="aceptacion">
+      <header>
+        <h3>Aceptación de la propuesta</h3>
+        <span class="rotulo">NEXA Digital Solutions · Septiembre 2026</span>
+      </header>
+      <dl>
+        <div><dt>Cliente</dt><dd>Fuerza Natural</dd></div>
+        <div><dt>Proyecto</dt><dd>Sistema de gestión personalizado</dd></div>
+        <div><dt>Inversión</dt><dd class="tabular">USD 300 · pago único</dd></div>
+        <div><dt>Forma de pago</dt><dd>50 % inicio · 50 % finalización</dd></div>
+      </dl>
+      <div class="firmas">
+        <div>Nombre</div>
+        <div>Firma</div>
+        <div>Fecha</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="pie-documento">
+  <div class="interior">
+    <span class="rotulo">NEXA Digital Solutions</span>
+    <span class="rotulo">Propuesta comercial · Fuerza Natural · Septiembre 2026</span>
+  </div>
+</footer>
+
+<button class="descargar" type="button" onclick="window.print()" aria-label="Descargar PDF">
+  <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>
+  </svg>
+  <span>Descargar PDF</span>
+</button>
+
+</body>
+</html>
