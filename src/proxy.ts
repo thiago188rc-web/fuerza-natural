@@ -57,11 +57,18 @@ export async function proxy(request: NextRequest) {
   });
 
   // Dispara el refresh solo si Supabase está configurado realmente.
+  // El timeout es necesario además del catch: un fetch que nunca resuelve
+  // ni rechaza (Supabase caído a medias, red cortada) no lo agarra un
+  // try/catch — sin esto, TODA página (el middleware corre en cada
+  // request) se queda cargando hasta que Vercel corte la función.
   if (isSupabaseConfigured()) {
     try {
-      await supabase.auth.getUser();
+      await Promise.race([
+        supabase.auth.getUser(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000)),
+      ]);
     } catch {
-      // Ignorar si Supabase falla o no responde
+      // Ignorar si Supabase falla, no responde, o tarda demasiado.
     }
   }
 

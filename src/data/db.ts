@@ -32,7 +32,11 @@ function createClient() {
       onnotice: () => {},
     });
   }
-  return postgres(url, { prepare: false, max: 1 });
+  // `connect_timeout` en segundos — sin esto, el default de la librería es
+  // 30s: si la conexión no llega (DNS, pooler caído, credencial mala), el
+  // login se queda "cargando" en silencio en vez de fallar con un mensaje.
+  // 8s alcanza de sobra para un handshake real contra el pooler de Supabase.
+  return postgres(url, { prepare: false, max: 1, connect_timeout: 8 });
 }
 
 let _sql: ReturnType<typeof postgres> | undefined;
