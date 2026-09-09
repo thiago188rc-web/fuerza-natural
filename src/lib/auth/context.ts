@@ -27,6 +27,28 @@ export interface AuthContext {
 }
 
 /**
+ * Marca un error como "no sabemos si hay sesión" (red lenta, Supabase no
+ * respondió a tiempo), a diferencia de "sabemos que no hay sesión" (sin
+ * cookie, token inválido). La diferencia importa: la primera NUNCA debe
+ * tratarse como "no hay sesión" — eso es lo que hacía que una demora de
+ * red momentánea expulsara a un usuario con una sesión perfectamente
+ * válida de vuelta a /login o /mfa, sistemáticamente, cada vez que
+ * Supabase tardaba un poco más de la cuenta.
+ */
+class ErrorDeInfraestructura extends Error {}
+
+/** `ms` en vez de esperar para siempre — pero un timeout ACÁ significa
+ *  "no lo sabemos", nunca "no hay sesión": ver `ErrorDeInfraestructura`. */
+function conTimeout<T>(promesa: Promise<T>, ms: number, etiqueta: string): Promise<T> {
+  return Promise.race([
+    promesa,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new ErrorDeInfraestructura(`timeout: ${etiqueta}`)), ms),
+    ),
+  ]);
+}
+
+/**
  * Lee la cookie de sesión simulada, PERO solo si el entorno la habilita
  * (ver `isDevMockAuthEnabled()` — nunca en producción, nunca con Supabase
  * real configurado). Sin esa puerta, esta cookie era un bypass completo de
@@ -71,20 +93,19 @@ export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
     let isDevMock = false;
 
     if (isSupabaseConfigured()) {
-      try {
-        const supabase = await createSupabaseServerClient();
-        const { data: userData, error: userError } = await Promise.race([
-          supabase.auth.getUser(),
-          new Promise<{ data: { user: null }; error: Error }>((_, reject) =>
-            setTimeout(() => reject(new Error("timeout")), 4000),
-          ),
-        ]).catch(() => ({ data: null, error: new Error("timeout") }));
+      const supabase = await createSupabaseServerClient();
+      // Sin catch acá: si esto tira, es porque conTimeout() venció o la red
+      // falló de verdad — un ErrorDeInfraestructura, no una ausencia de
+      // sesión. Lo atrapa el catch de más abajo, que sabe distinguir los
+      // dos casos (ver su comentario).
+      const { data: userData, error: userError } = await conTimeout(
+        supabase.auth.getUser(),
+        8000,
+        "getUser",
+      );
 
-        if (!userError && userData?.user) {
-          authUserId = userData.user.id;
-        }
-      } catch {
-        // Supabase no configurado o inalcanzable: se resuelve abajo.
+      if (!userError && userData?.user) {
+        authUserId = userData.user.id;
       }
     }
 
@@ -108,12 +129,17 @@ export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
           aal = "aal2";
         } else {
           const supabase = await createSupabaseServerClient();
-          const { data: aalData } = await Promise.race([
+          // Tampoco acá un .catch() que devuelva "sin dato": un timeout de
+          // ESTA llamada puntual no puede degradar en silencio a un DUENO
+          // ya verificado de vuelta a aal1 — eso lo mandaría a /mfa a
+          // repetir el código de la app, cada vez que Supabase tardara un
+          // poco. Que se propague como ErrorDeInfraestructura, igual que
+          // arriba.
+          const { data: aalData } = await conTimeout(
             supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
-            new Promise<{ data: null }>((_, reject) =>
-              setTimeout(() => reject(new Error("timeout")), 3000),
-            ),
-          ]).catch(() => ({ data: null }));
+            8000,
+            "getAuthenticatorAssuranceLevel",
+          );
 
           aal = aalData?.currentLevel === "aal2" ? "aal2" : "aal1";
         }
@@ -138,8 +164,10 @@ export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
           nombre: "Usuario Demo",
         };
       }
-      // Si la DB falló con un error de infraestructura, no tragarlo como "sin sesión"
-      // para evitar que el usuario caiga en un bucle infinito de redirección a /login.
+      // Si la DB (o la verificación de AAL) falló con un error de
+      // infraestructura, no tragarlo como "sin sesión" — eso es lo que
+      // causaba que el usuario cayera en un bucle de redirección a
+      // /login o /mfa cada vez que algo tardaba de más.
       throw dbErr;
     }
 
@@ -156,8 +184,12 @@ export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
 
     return null;
   } catch (err) {
-    // Si la excepción proviene de una falla de DB en producción, relanzarla
-    // para que el Error Boundary muestre la pantalla de error en vez de rebotar a /login.
+    // Relanzar los errores de infraestructura (DB, o un timeout de
+    // getUser()/getAuthenticatorAssuranceLevel() marcado como tal) para
+    // que el Error Boundary muestre una pantalla de error — nunca
+    // silenciarlos como "sin sesión": eso es lo que rebotaba a un usuario
+    // ya logueado de vuelta a /login o /mfa cada vez que algo tardaba.
+    if (err instanceof ErrorDeInfraestructura) throw err;
     if (err && typeof err === "object" && ("code" in err || "severity" in err || err.constructor?.name === "PostgresError")) {
       throw err;
     }
