@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { cookies } from "next/headers";
 import { createSupabaseServerClient } from "./supabase-server";
-import { DEV_MOCK_AUTH_COOKIE, isDevMockAuthEnabled } from "./config";
+import { DEV_MOCK_AUTH_COOKIE, isDevMockAuthEnabled, isSupabaseConfigured } from "./config";
 import { getSql } from "@/data/db";
 
 export type Rol = "DUENO" | "STAFF";
@@ -65,14 +65,16 @@ export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
     let authUserId: string | null = null;
     let isDevMock = false;
 
-    try {
-      const supabase = await createSupabaseServerClient();
-      const { data: userData, error: userError } = await supabase.auth.getUser();
-      if (!userError && userData?.user) {
-        authUserId = userData.user.id;
+    if (isSupabaseConfigured()) {
+      try {
+        const supabase = await createSupabaseServerClient();
+        const { data: userData, error: userError } = await supabase.auth.getUser();
+        if (!userError && userData?.user) {
+          authUserId = userData.user.id;
+        }
+      } catch {
+        // Supabase no configurado o inalcanzable: se resuelve abajo.
       }
-    } catch {
-      // Supabase no configurado o inalcanzable: se resuelve abajo.
     }
 
     if (!authUserId) {
