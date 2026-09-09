@@ -51,7 +51,7 @@ export async function login(_prevState: LoginState, formData: FormData): Promise
         httpOnly: true,
         sameSite: "lax",
         maxAge: 60 * 60 * 24 * 30, // 30 días
-        secure: process.env.NODE_ENV === "production",
+        secure: false,
       });
       return { redirectTo: "/dashboard" };
     }
@@ -63,10 +63,15 @@ export async function login(_prevState: LoginState, formData: FormData): Promise
       return { error: MENSAJES_LOGIN.credenciales };
     }
 
-    const { data: sesion, error: errorDeIngreso } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    }).catch(() => ({ data: null, error: true }));
+    const { data: sesion, error: errorDeIngreso } = await Promise.race([
+      supabase.auth.signInWithPassword({
+        email,
+        password,
+      }),
+      new Promise<{ data: null; error: boolean }>((_, reject) =>
+        setTimeout(() => reject(new Error("timeout")), 6000),
+      ),
+    ]).catch(() => ({ data: null, error: true }));
 
     if (errorDeIngreso || !sesion?.user) {
       return { error: MENSAJES_LOGIN.credenciales };

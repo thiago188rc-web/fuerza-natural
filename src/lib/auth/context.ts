@@ -73,7 +73,13 @@ export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
     if (isSupabaseConfigured()) {
       try {
         const supabase = await createSupabaseServerClient();
-        const { data: userData, error: userError } = await supabase.auth.getUser();
+        const { data: userData, error: userError } = await Promise.race([
+          supabase.auth.getUser(),
+          new Promise<{ data: { user: null }; error: Error }>((_, reject) =>
+            setTimeout(() => reject(new Error("timeout")), 4000),
+          ),
+        ]).catch(() => ({ data: null, error: new Error("timeout") }));
+
         if (!userError && userData?.user) {
           authUserId = userData.user.id;
         }
@@ -102,7 +108,13 @@ export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
           aal = "aal2";
         } else {
           const supabase = await createSupabaseServerClient();
-          const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+          const { data: aalData } = await Promise.race([
+            supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+            new Promise<{ data: null }>((_, reject) =>
+              setTimeout(() => reject(new Error("timeout")), 3000),
+            ),
+          ]).catch(() => ({ data: null }));
+
           aal = aalData?.currentLevel === "aal2" ? "aal2" : "aal1";
         }
 
@@ -126,6 +138,8 @@ export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
           nombre: "Usuario Demo",
         };
       }
+      // Si la DB falló con un error de infraestructura, no tragarlo como "sin sesión"
+      // para evitar que el usuario caiga en un bucle infinito de redirección a /login.
       throw dbErr;
     }
 
@@ -142,6 +156,11 @@ export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
 
     return null;
   } catch (err) {
+    // Si la excepción proviene de una falla de DB en producción, relanzarla
+    // para que el Error Boundary muestre la pantalla de error en vez de rebotar a /login.
+    if (err && typeof err === "object" && ("code" in err || "severity" in err || err.constructor?.name === "PostgresError")) {
+      throw err;
+    }
     console.error("getAuthContext failed gracefully:", err);
     return null;
   }

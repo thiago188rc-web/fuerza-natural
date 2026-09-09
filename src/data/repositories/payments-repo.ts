@@ -264,10 +264,14 @@ export async function totalCobrado(
 
 export type GranularidadFacturacion = "dia" | "semana" | "mes";
 
+// Comillas incluidas a propósito: se inyecta con `sql.raw`, no como
+// parámetro bindeado (ver el porqué en `totalesPorPeriodo`). Es seguro
+// porque las tres claves son fijas en este archivo, nunca un valor que
+// llegue de afuera.
 const TRUNC_SQL: Record<GranularidadFacturacion, string> = {
-  dia: "day",
-  semana: "week",
-  mes: "month",
+  dia: "'day'",
+  semana: "'week'",
+  mes: "'month'",
 };
 
 /**
@@ -285,10 +289,17 @@ export async function totalesPorPeriodo(
   rango: { desde: string; hasta: string },
   granularidad: GranularidadFacturacion,
 ) {
-  const trunc = TRUNC_SQL[granularidad];
+  // `sql.raw`, no `${trunc}`: un valor pasado como parámetro bindeado
+  // ($1) se vuelve un placeholder de ejecución distinto cada vez que
+  // aparece en la query — el SELECT y el GROUP BY terminan con $1 y $5
+  // respectivamente, y aunque valgan lo mismo en runtime, Postgres no
+  // puede asumir eso al validar el GROUP BY y lo rechaza (42803). Con
+  // `sql.raw` el literal queda inline en el texto de la query en las dos
+  // apariciones, así que son la misma expresión de verdad.
+  const truncado = sql`date_trunc(${sql.raw(TRUNC_SQL[granularidad])}, ${payments.fechaPago})`;
   const filas = await tx
     .select({
-      periodo: sql<string>`to_char(date_trunc(${trunc}, ${payments.fechaPago}), 'YYYY-MM-DD')`,
+      periodo: sql<string>`to_char(${truncado}, 'YYYY-MM-DD')`,
       total: sql<string>`coalesce(sum(${payments.monto}), 0)`,
     })
     .from(payments)
@@ -300,7 +311,7 @@ export async function totalesPorPeriodo(
         lte(payments.fechaPago, rango.hasta),
       ),
     )
-    .groupBy(sql`date_trunc(${trunc}, ${payments.fechaPago})`);
+    .groupBy(truncado);
 
   return filas.map((f) => ({ periodo: f.periodo, total: Number(f.total) }));
 }
