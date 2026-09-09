@@ -1,6 +1,17 @@
+import { redirect } from "next/navigation";
+import { getAuthContext } from "@/lib/auth/context";
+
 /**
- * Layout de las rutas públicas de autenticación (login, mfa). Sin nav:
- * todavía no hay sesión, no hay nada que navegar.
+ * Layout de las rutas públicas de autenticación (hoy, solo login). Sin
+ * nav: todavía no hay sesión, no hay nada que navegar.
+ *
+ * Si YA hay sesión válida, manda directo al dashboard en vez de mostrar
+ * el formulario — sin esto, volver acá con el botón "atrás" del
+ * navegador (la entrada de /login queda en el historial) o escribir la
+ * URL a mano mostraba el formulario de nuevo aunque la sesión siguiera
+ * abierta: se sentía como un cierre de sesión que nunca pasó. La sesión
+ * solo se cierra de verdad con el botón "Cerrar sesión" (`(app)/actions.ts`
+ * → `logout`), que hace `supabase.auth.signOut()`.
  *
  * Es la primera pantalla que se ve, y por eso lleva la identidad entera:
  * el panel negro con el sello verde a la izquierda es el mismo rail que
@@ -12,7 +23,10 @@
  * única pantalla del producto con la marca escrita en el código; cuando
  * haya más de un gimnasio, esto se resuelve por dominio o por invitación.
  */
-export default function AuthLayout({ children }: { children: React.ReactNode }) {
+export default async function AuthLayout({ children }: { children: React.ReactNode }) {
+  const ctx = await getAuthContext();
+  if (ctx) redirect("/dashboard");
+
   return (
     <div className="grid min-h-svh grid-rows-[auto_1fr] lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:grid-rows-1">
       <aside className="relative flex flex-col justify-between overflow-hidden bg-rail px-6 py-6 text-rail-foreground sm:px-10 lg:px-12 lg:py-10">
