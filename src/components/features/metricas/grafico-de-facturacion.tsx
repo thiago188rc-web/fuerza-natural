@@ -18,7 +18,19 @@ import { cn } from "@/lib/utils";
  * barras): sin él, los flex-item se niegan a encoger más allá del ancho
  * de su propio contenido (`white-space: nowrap` en las etiquetas), y el
  * riel termina más ancho que su caja igual, sin que se note por qué.
+ *
+ * Color = información (ver globals.css): cada barra usa el mismo semáforo
+ * verde/ámbar/rojo que el resto del producto, según qué tan alto facturó
+ * ese período contra el mejor de los que se están mostrando — no es
+ * decoración, es "este período estuvo bien / regular / flojo" de un
+ * vistazo.
  */
+function colorDeBarra(proporcion: number): string {
+  if (proporcion >= 2 / 3) return "bg-cubierto";
+  if (proporcion >= 1 / 3) return "bg-revisar";
+  return "bg-descubierto";
+}
+
 export function GraficoDeFacturacion({
   puntos,
   moneda,
@@ -53,12 +65,20 @@ export function GraficoDeFacturacion({
                     delay: quieto ? 0 : i * 0.04,
                   }}
                   className={cn(
-                    "w-full origin-bottom rounded-t-[3px]",
-                    i === puntos.length - 1 ? "bg-foreground" : "bg-muted-foreground/30",
+                    "h-full w-full origin-bottom rounded-t-[3px]",
+                    colorDeBarra(proporcion),
+                    i === puntos.length - 1 && "ring-2 ring-foreground/30 ring-offset-1",
                   )}
                 />
               </div>
-              <span className="text-[0.7rem] whitespace-nowrap text-muted-foreground capitalize">
+              <span
+                className={cn(
+                  "text-[0.7rem] whitespace-nowrap capitalize",
+                  i === puntos.length - 1
+                    ? "font-semibold text-foreground"
+                    : "text-muted-foreground",
+                )}
+              >
                 {punto.etiqueta}
               </span>
             </div>

@@ -1,15 +1,21 @@
 import type { SegmentoImporte } from "@/domain/metricas/facturacion";
 import { importe } from "@/lib/formato";
+import { cn } from "@/lib/utils";
 
 const TAMANO = 104;
 const GROSOR = 14;
 const RADIO = (TAMANO - GROSOR) / 2;
 const CIRCUNFERENCIA = 2 * Math.PI * RADIO;
 
-/** Tonos monocromos (mismo `foreground`, distinta opacidad) — no se inventa
- *  una paleta de colores nueva para categorías que no tienen un significado
- *  semántico fijo (a diferencia de "cubierto"/"revisar", que sí lo tienen). */
-const OPACIDADES = [1, 0.6, 0.35, 0.18, 0.1];
+/** Mismo semáforo verde/ámbar/rojo del resto del producto (globals.css),
+ *  no colores inventados — se cicla en el orden fijo de cada categoría
+ *  (`METODOS_PAGO`/`MODALIDADES_PAGO`), así que un método de pago siempre
+ *  cae en el mismo color entre una carga y la siguiente. */
+const PALETA = [
+  { stroke: "stroke-cubierto", bg: "bg-cubierto" },
+  { stroke: "stroke-revisar", bg: "bg-revisar" },
+  { stroke: "stroke-descubierto", bg: "bg-descubierto" },
+];
 
 /**
  * Una "ruedita": distribución de un total en dinero como anillo
@@ -36,12 +42,12 @@ export function Rueda({
   }
 
   const arcos = segmentos.reduce<
-    Array<SegmentoImporte & { offset: number; largo: number; opacidad: number }>
+    Array<SegmentoImporte & { offset: number; largo: number; color: (typeof PALETA)[number] }>
   >((acc, s, i) => {
     const anterior = acc.at(-1);
     const offset = anterior ? anterior.offset + anterior.largo : 0;
     const largo = (s.porcentaje / 100) * CIRCUNFERENCIA;
-    acc.push({ ...s, offset, largo, opacidad: OPACIDADES[i % OPACIDADES.length] });
+    acc.push({ ...s, offset, largo, color: PALETA[i % PALETA.length] });
     return acc;
   }, []);
 
@@ -75,8 +81,7 @@ export function Rueda({
               strokeWidth={GROSOR}
               strokeDasharray={`${a.largo} ${CIRCUNFERENCIA - a.largo}`}
               strokeDashoffset={-a.offset}
-              className="stroke-foreground transition-[stroke-dasharray] duration-500"
-              style={{ opacity: a.opacidad }}
+              className={cn(a.color.stroke, "transition-[stroke-dasharray] duration-500")}
             />
           ))}
         </svg>
@@ -85,11 +90,7 @@ export function Rueda({
           {arcos.map((a) => (
             <li key={a.clave} className="flex min-w-0 items-center justify-between gap-2">
               <span className="flex min-w-0 items-center gap-1.5">
-                <span
-                  aria-hidden
-                  className="size-2.5 shrink-0 rounded-[2px] bg-foreground"
-                  style={{ opacity: a.opacidad }}
-                />
+                <span aria-hidden className={cn("size-2.5 shrink-0 rounded-[2px]", a.color.bg)} />
                 <span className="truncate">{a.etiqueta}</span>
               </span>
               <span className="tabular shrink-0 text-xs text-muted-foreground">
