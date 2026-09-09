@@ -44,6 +44,8 @@ export interface PagoRegistrado {
   id: string;
   studentId: string;
   alumno: string;
+  telefono: string | null;
+  planNombre: string;
   monto: number;
   cubreDesde: string;
   cubreHasta: string;
@@ -147,6 +149,8 @@ export const registrarPagoAction = withAuth<
       id: fila.id,
       studentId: alumno.id,
       alumno: nombre,
+      telefono: alumno.telefono,
+      planNombre: alumno.planNombre,
       monto: input.monto,
       cubreDesde: cobertura.desde,
       cubreHasta: cobertura.hasta,

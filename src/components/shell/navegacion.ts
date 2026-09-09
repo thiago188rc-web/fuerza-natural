@@ -1,4 +1,6 @@
 import {
+  CalendarCheck,
+  ChartColumn,
   Gauge,
   History,
   LogOut,
@@ -49,11 +51,13 @@ export const GRUPOS_NAV: GrupoNav[] = [
     items: [
       { href: "/actividad", etiqueta: "Actividad", icono: History },
       { href: "/bajas", etiqueta: "Bajas", icono: LogOut },
+      { href: "/asistencias", etiqueta: "Asistencias", icono: CalendarCheck },
     ],
   },
   {
     titulo: "Sistema",
     items: [
+      { href: "/metricas", etiqueta: "Métricas", icono: ChartColumn },
       { href: "/importar", etiqueta: "Importar", icono: Upload },
       { href: "/configuracion", etiqueta: "Configuración", icono: SlidersHorizontal },
     ],

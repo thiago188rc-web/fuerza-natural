@@ -9,6 +9,7 @@ import { eq, sql } from "drizzle-orm";
 import {
   activityLog,
   appUsers,
+  attendance,
   gyms,
   payments,
   paymentPeriods,
@@ -140,6 +141,7 @@ interface AlumnoDemo {
   nombre: string;
   apellido: string;
   telefono: string | null;
+  genero: string | null;
   vinculo: "ACTIVO" | "PAUSADO" | "BAJA";
   planIdx: number;
   fechaAlta: string;
@@ -260,6 +262,16 @@ async function main() {
       return `+5491${entre(10, 99)}${String(entre(100000, 999999)).padStart(6, "0")}`;
     }
 
+    /** Género ficticio — campo opcional, no todos lo completan. */
+    function generoFicticio(): string | null {
+      if (azar() < 0.2) return null;
+      const r = azar();
+      if (r < 0.48) return "FEMENINO";
+      if (r < 0.94) return "MASCULINO";
+      if (r < 0.98) return "OTRO";
+      return "PREFIERO_NO_DECIR";
+    }
+
     for (let i = 0; i < CANTIDAD_ACTIVOS; i++) {
       const perfil = REPARTO_DE_PERFILES[i];
       const { nombre, apellido } = personaNueva();
@@ -273,6 +285,7 @@ async function main() {
         nombre,
         apellido,
         telefono: telefonoFicticio(),
+        genero: generoFicticio(),
         vinculo: "ACTIVO",
         planIdx: entre(0, catalogo.length - 1),
         fechaAlta,
@@ -290,6 +303,7 @@ async function main() {
         nombre,
         apellido,
         telefono: telefonoFicticio(),
+        genero: generoFicticio(),
         vinculo: "PAUSADO",
         planIdx: entre(0, catalogo.length - 1),
         fechaAlta,
@@ -314,6 +328,7 @@ async function main() {
         nombre,
         apellido,
         telefono: telefonoFicticio(),
+        genero: generoFicticio(),
         vinculo: "BAJA",
         planIdx: entre(0, catalogo.length - 1),
         fechaAlta,
@@ -339,6 +354,7 @@ async function main() {
         nombre: a.nombre,
         apellido: a.apellido,
         telefono: a.telefono,
+        genero: a.genero,
         planId: catalogo[a.planIdx].id,
         vinculo: a.vinculo,
         fechaAltaOriginal: a.fechaAlta,
@@ -580,7 +596,34 @@ async function main() {
     await tx.insert(paymentPeriods).values(filasPeriodo);
 
     // ---------------------------------------------------------------
-    // 4. El registro de actividad
+    // 4. Asistencia de los últimos 30 días (solo activos)
+    // ---------------------------------------------------------------
+    // La probabilidad de venir un día cualquiera sale de los días por
+    // semana del plan — no es una regla de negocio, es solo lo que hace
+    // que la demo de Métricas se vea como un gimnasio real y no como un
+    // volcado al azar.
+    const DIAS_DE_ASISTENCIA = 30;
+    const filasAsistencia: (typeof attendance.$inferInsert)[] = [];
+    for (const alumno of alumnos) {
+      if (alumno.vinculo !== "ACTIVO") continue;
+      const plan = catalogo[alumno.planIdx];
+      const diasEsperados = plan.acceso === "LIBRE" ? 5 : plan.diasSemana;
+      const probabilidad = Math.min(0.95, diasEsperados / 6);
+
+      for (let d = 0; d < DIAS_DE_ASISTENCIA; d++) {
+        const fecha = sumarDias(hoy, -d);
+        if (fecha < alumno.fechaAlta) continue;
+        if (azar() < probabilidad) {
+          filasAsistencia.push({ gymId, studentId: alumno.id, fecha, registradoPor: usuarioId });
+        }
+      }
+    }
+    if (filasAsistencia.length > 0) {
+      await tx.insert(attendance).values(filasAsistencia).onConflictDoNothing();
+    }
+
+    // ---------------------------------------------------------------
+    // 5. El registro de actividad
     // ---------------------------------------------------------------
     // Sin esto la pantalla de Actividad de la demo sale vacía, aunque
     // detrás haya un año de historia: `activity_log` es append-only y
@@ -662,7 +705,9 @@ async function main() {
     if (escribirActividad) await tx.insert(activityLog).values(filasActividad);
 
     console.log("✓ Padrón de demostración creado (nombres e historia ficticios).");
-    console.log(`  ${alumnos.length} alumnos · ${filasPago.length} pagos · ${filasPeriodo.length} tramos de cobertura`);
+    console.log(
+      `  ${alumnos.length} alumnos · ${filasPago.length} pagos · ${filasPeriodo.length} tramos de cobertura · ${filasAsistencia.length} marcas de asistencia`,
+    );
     console.log(
       escribirActividad
         ? `  ${filasActividad.length} líneas de actividad`

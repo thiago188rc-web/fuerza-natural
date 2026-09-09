@@ -29,6 +29,13 @@
       "when": 1788828231714,
       "tag": "0003_precio_medio_mes",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788918428335,
+      "tag": "0004_short_lord_hawal",
+      "breakpoints": true
     }
   ]
 }

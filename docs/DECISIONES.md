@@ -365,3 +365,38 @@ una capa de pintura: cuando el gimnasio está bien, la pantalla está verde.
 **Lo que NO cambia:** reglas de negocio, casos de uso, esquema, RLS,
 auditoría. Ninguna consulta nueva: todo sale de los datos que el panel y
 la ficha ya traían.
+
+---
+
+## 2026-09-08 — Campo `genero` en `students`: opcional, editable, sin inferencia
+
+**Decisión:** se agrega `students.genero` (nullable, `FEMENINO` |
+`MASCULINO` | `OTRO` | `PREFIERO_NO_DECIR`), a pedido para poder mostrar
+distribución por género en Métricas. Sigue el mismo patrón que
+`telefono`: opcional en alta y edición, sin valor por defecto.
+
+**Motivo:** no estaba en el brief original de Fase 1 ni en el Data
+Discovery — es un dato nuevo, no uno que faltaba cargar. "Sin dato" es un
+estado real y se muestra como tal en Métricas, nunca se reparte entre los
+demás segmentos ni se infiere del nombre.
+
+**Alternativa descartada:** inferir género del nombre de pila. Se
+descartó por la misma razón que el sistema no usa nombre+apellido como
+identificador (`docs/ARCHITECTURE.md` — Data Discovery): un nombre no es
+un dato confiable de la persona.
+
+---
+
+## 2026-09-08 — Asistencia: tabla `attendance`, sin DELETE, sin fórmula de "esperada"
+
+**Decisión:** nueva tabla `app.attendance` (un check-in por alumno por
+día), con RLS `tenant_isolation` idéntica a las demás tablas. Deshacer una
+marca es un `UPDATE activo = false`, nunca un `DELETE` — `fn_app` no tiene
+privilegio DELETE en ninguna tabla del esquema, y esto no es la excepción.
+
+**Motivo:** no existía ningún registro de asistencia en el sistema. Se
+construyó el mínimo verificable (el hecho de que alguien vino) en vez de
+una fórmula de "% de asistencia esperada según el plan", que nadie
+confirmó como regla de negocio (`docs/REGLAS-DE-NEGOCIO.md`). La métrica
+de Métricas ("asistió al menos una vez en 30 días") es deliberadamente
+simple por la misma razón.

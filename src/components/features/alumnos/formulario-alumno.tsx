@@ -17,6 +17,7 @@ import {
   ESTADO_FORMULARIO_INICIAL,
   type EstadoFormulario,
 } from "@/app/(app)/alumnos/estado-formulario";
+import { GENEROS, etiquetaGenero, type Genero } from "@/domain/alumnos/genero";
 
 export interface PlanOpcion {
   id: string;
@@ -32,6 +33,7 @@ export interface ValoresAlumno {
   planId: string;
   fechaAltaOriginal: string;
   notas: string;
+  genero: string;
 }
 
 interface Props {
@@ -154,6 +156,25 @@ export function FormularioAlumno({
             required
             aria-invalid={Boolean(errores.fechaAltaOriginal)}
           />
+        </Campo>
+
+        <Campo id="genero" etiqueta="Género" error={errores.genero} ayuda="Opcional.">
+          <Select
+            name="genero"
+            defaultValue={valores.genero || undefined}
+            items={GENEROS.map((g) => ({ value: g, label: etiquetaGenero(g) }))}
+          >
+            <SelectTrigger id="genero" className="w-full" aria-invalid={Boolean(errores.genero)}>
+              <SelectValue placeholder="Sin especificar" />
+            </SelectTrigger>
+            <SelectContent>
+              {GENEROS.map((g: Genero) => (
+                <SelectItem key={g} value={g}>
+                  {etiquetaGenero(g)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </Campo>
       </div>
 

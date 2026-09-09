@@ -12,6 +12,8 @@ import { etiquetaDeMes, primerDiaDelMes, sumarMeses } from "@/domain/fechas/cale
 import { Segmentado } from "@/components/segmentado";
 import { VistaPreviaDeCobertura } from "./vista-previa-de-cobertura";
 import { Senal, TEXTO_DE_ESTADO } from "@/components/features/cobertura/senal";
+import { BotonWhatsapp } from "@/components/boton-whatsapp";
+import { mensajeConfirmacionDePago } from "@/lib/mensajes-whatsapp";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -515,6 +517,18 @@ function Comprobante({
       </dl>
 
       <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
+        <BotonWhatsapp
+          telefono={registrado.telefono}
+          mensaje={mensajeConfirmacionDePago({
+            nombre: registrado.alumno.split(" ")[0] ?? registrado.alumno,
+            monto: registrado.monto,
+            moneda,
+            modalidad: registrado.modalidad,
+            planNombre: registrado.planNombre,
+            cubreHasta: registrado.cubreHasta,
+          })}
+          size="lg"
+        />
         <Link
           href="/pagos/nuevo"
           className="inline-flex h-9 items-center justify-center rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors duration-150 hover:bg-primary/85 focus-visible:ring-2 focus-visible:ring-verde focus-visible:outline-none"

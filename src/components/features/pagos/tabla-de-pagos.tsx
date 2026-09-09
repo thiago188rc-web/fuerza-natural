@@ -9,6 +9,8 @@ import { etiquetaCorta } from "@/domain/fechas/calendario";
 import { ETIQUETA_METODO } from "@/schemas/payment";
 import { DURACION, SALIDA } from "@/components/motion/tokens";
 import { BotonLink } from "@/components/boton-link";
+import { BotonWhatsapp } from "@/components/boton-whatsapp";
+import { mensajeConfirmacionDePago } from "@/lib/mensajes-whatsapp";
 import { Importe } from "@/components/importe";
 import { cn } from "@/lib/utils";
 
@@ -77,7 +79,10 @@ export function TablaDePagos({
               <Encabezado className="hidden w-[7.5rem] sm:table-cell">Modalidad</Encabezado>
               <Encabezado className="hidden w-[9.5rem] sm:table-cell">Cubre</Encabezado>
               <Encabezado className="hidden w-[9rem] sm:table-cell">Método</Encabezado>
-              <Encabezado className="w-[7.5rem] pr-5 text-right">Importe</Encabezado>
+              <Encabezado className="w-[7.5rem] pr-3 text-right">Importe</Encabezado>
+              <Encabezado className="w-9 pr-5">
+                <span className="sr-only">WhatsApp</span>
+              </Encabezado>
             </tr>
           </thead>
           <tbody>
@@ -159,11 +164,32 @@ export function TablaDePagos({
 
                 <td
                   className={cn(
-                    "py-3 pr-5 text-right align-top font-mono text-[0.9375rem] whitespace-nowrap",
+                    "py-3 pr-3 text-right align-top font-mono text-[0.9375rem] whitespace-nowrap",
                     pago.anulado && "line-through",
                   )}
                 >
                   <Importe valor={pago.monto} moneda={moneda} simboloClassName="text-xs" />
+                </td>
+
+                <td className="py-3 pr-5 align-top">
+                  {!pago.anulado && pago.cubreHasta ? (
+                    <BotonWhatsapp
+                      telefono={pago.telefono}
+                      mensaje={mensajeConfirmacionDePago({
+                        nombre: pago.nombre,
+                        monto: pago.monto,
+                        moneda,
+                        modalidad: pago.modalidad,
+                        planNombre: pago.planNombreSnapshot,
+                        cubreHasta: pago.cubreHasta,
+                      })}
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Enviar WhatsApp a ${pago.nombre} ${pago.apellido}`}
+                    >
+                      <span className="sr-only">Enviar WhatsApp</span>
+                    </BotonWhatsapp>
+                  ) : null}
                 </td>
               </motion.tr>
             ))}

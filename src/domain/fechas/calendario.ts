@@ -124,3 +124,12 @@ export function distanciaRelativa(desde: string, hasta: string): string {
 export function diaDeLaSemana(iso: string): number {
   return new Date(aUTC(iso)).getUTCDay();
 }
+
+/** Edad en años cumplidos a la fecha `hoy`. Aritmética civil, sin reloj. */
+export function edadEnAnios(nacimiento: string, hoy: string): number {
+  const n = aPartes(nacimiento);
+  const h = aPartes(hoy);
+  let edad = h.anio - n.anio;
+  if (h.mes < n.mes || (h.mes === n.mes && h.dia < n.dia)) edad -= 1;
+  return edad;
+}

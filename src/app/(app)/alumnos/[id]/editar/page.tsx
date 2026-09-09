@@ -83,6 +83,7 @@ export default async function EditarAlumnoPage({ params }: { params: Promise<{ i
               planId: alumno.planId,
               fechaAltaOriginal: alumno.fechaAltaOriginal,
               notas: alumno.notas ?? "",
+              genero: alumno.genero ?? "",
             }}
           />
         </CardContent>

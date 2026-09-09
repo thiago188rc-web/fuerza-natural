@@ -42,6 +42,10 @@ export const students = appSchema.table(
     email: text("email"),
     documento: text("documento"),
     fechaNacimiento: date("fecha_nacimiento"),
+    // Opcional, cargado a mano. Nadie lo pidió como obligatorio (Data
+    // Discovery no lo relevó) — un alumno sin dato queda "sin especificar",
+    // nunca se infiere. Ver docs/DECISIONES.md.
+    genero: text("genero"),
 
     // El único estado persistido. Ninguna transición ocurre automáticamente
     // — cambia solo por una acción humana explícita (alta/pausa/baja/reactivación).
@@ -88,6 +92,10 @@ export const students = appSchema.table(
 
     check("students_vinculo_check", sql`${t.vinculo} in ('ACTIVO','PAUSADO','BAJA')`),
     check("students_origen_check", sql`${t.origen} in ('MANUAL','IMPORTACION')`),
+    check(
+      "students_genero_check",
+      sql`${t.genero} is null or ${t.genero} in ('FEMENINO','MASCULINO','OTRO','PREFIERO_NO_DECIR')`,
+    ),
 
     // Reglas de integridad exigidas por SPEC V1 §4.5 — se verifican en la
     // base, no solo en la app.

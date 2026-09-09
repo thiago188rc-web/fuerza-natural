@@ -21,6 +21,8 @@ export interface EstadoPago {
   registrado?: {
     alumno: string;
     studentId: string;
+    telefono: string | null;
+    planNombre: string;
     monto: number;
     cubreDesde: string;
     cubreHasta: string;

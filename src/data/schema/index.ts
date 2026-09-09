@@ -9,3 +9,4 @@ export { paymentPeriods } from "./paymentPeriods";
 export { studentEvents } from "./studentEvents";
 export { attentionDismissals } from "./attentionDismissals";
 export { activityLog } from "./activityLog";
+export { attendance } from "./attendance";

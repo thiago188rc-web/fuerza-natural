@@ -152,6 +152,13 @@ CREATE POLICY tenant_isolation ON app.attention_dismissals FOR ALL
   USING (gym_id = nullif(current_setting('app.gym_id', true), '')::uuid)
   WITH CHECK (gym_id = nullif(current_setting('app.gym_id', true), '')::uuid);
 
+ALTER TABLE app.attendance ENABLE ROW LEVEL SECURITY;
+ALTER TABLE app.attendance FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON app.attendance;
+CREATE POLICY tenant_isolation ON app.attendance FOR ALL
+  USING (gym_id = nullif(current_setting('app.gym_id', true), '')::uuid)
+  WITH CHECK (gym_id = nullif(current_setting('app.gym_id', true), '')::uuid);
+
 -- activity_log: RLS + FORCE también, pero solo con policies de SELECT e
 -- INSERT. NO existe policy de UPDATE ni de DELETE — sin policy, la
 -- operación queda denegada por defecto (capa 2 de las 4 de SPEC V1 §3.6).

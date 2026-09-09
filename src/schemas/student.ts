@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { normalizarTelefono, normalizarTexto } from "@/domain/alumnos/identidad";
 import { VINCULOS } from "@/domain/alumnos/vinculo";
+import { GENEROS } from "@/domain/alumnos/genero";
 import { opcional } from "./_helpers";
 
 /**
@@ -53,6 +54,7 @@ const notas = z
 
 const planId = z.string().uuid("Elegí un plan.");
 const fechaCivil = z.string().date("Fecha inválida. Usá el formato AAAA-MM-DD.");
+const genero = z.string({ error: "Género inválido." }).pipe(z.enum(GENEROS, { error: "Género inválido." }));
 
 /** Alta. Estado inicial ACTIVO — no se pide ni se acepta del cliente. */
 export const crearAlumnoSchema = z.object({
@@ -66,6 +68,7 @@ export const crearAlumnoSchema = z.object({
   email: opcional(z.string().trim().email("Email inválido.")),
   documento: opcional(z.string().trim().min(1).max(30)),
   fechaNacimiento: opcional(fechaCivil),
+  genero: opcional(genero),
 });
 
 /** Lo que sale de validar (normalizado). Lo consume el caso de uso. */
@@ -87,6 +90,7 @@ export const editarAlumnoSchema = z.object({
   planId,
   fechaAltaOriginal: fechaCivil,
   notas: opcional(notas),
+  genero: opcional(genero),
 });
 
 export type EditarAlumnoInput = z.infer<typeof editarAlumnoSchema>;

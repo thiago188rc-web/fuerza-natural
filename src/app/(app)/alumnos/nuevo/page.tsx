@@ -59,6 +59,7 @@ export default async function NuevoAlumnoPage() {
               planId: planes.data[0]?.id ?? "",
               fechaAltaOriginal: hoy.data,
               notas: "",
+              genero: "",
             }}
           />
         </CardContent>

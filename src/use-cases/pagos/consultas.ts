@@ -107,6 +107,7 @@ export interface ContextoDeCobro {
     id: string;
     nombre: string;
     apellido: string;
+    telefono: string | null;
     vinculo: string;
     planId: string;
     planNombre: string;
@@ -171,6 +172,7 @@ export const contextoDeCobroQuery = withAuth<string, ContextoDeCobro>(
           id: alumno.id,
           nombre: alumno.nombre,
           apellido: alumno.apellido,
+          telefono: alumno.telefono,
           vinculo: alumno.vinculo,
           planId: alumno.planId,
           planNombre: alumno.planNombre,
@@ -202,6 +204,7 @@ export interface PagoDelHistorial {
   studentId: string;
   nombre: string;
   apellido: string;
+  telefono: string | null;
   registradoPorNombre: string;
   cubreDesde: string | null;
   cubreHasta: string | null;
@@ -252,6 +255,7 @@ export const historialDePagosQuery = withAuth<Partial<FiltrosDePagos>, Historial
           studentId: f.studentId,
           nombre: f.nombre,
           apellido: f.apellido,
+          telefono: f.telefono,
           registradoPorNombre: f.registradoPorNombre,
           cubreDesde: f.cubreDesde,
           cubreHasta: f.cubreHasta,

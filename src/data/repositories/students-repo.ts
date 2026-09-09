@@ -36,6 +36,7 @@ export interface NuevoAlumno {
   email?: string | null;
   documento?: string | null;
   fechaNacimiento?: string | null;
+  genero?: string | null;
   notas?: string | null;
   origen?: "MANUAL" | "IMPORTACION";
 }
@@ -54,6 +55,7 @@ export async function crearAlumno(tx: TxClient, ctx: AuthContext, input: NuevoAl
       email: input.email ?? null,
       documento: input.documento ?? null,
       fechaNacimiento: input.fechaNacimiento ?? null,
+      genero: input.genero ?? null,
       notas: input.notas ?? null,
       origen: input.origen ?? "MANUAL",
     })
@@ -78,6 +80,7 @@ export async function obtenerFichaAlumno(tx: TxClient, ctx: AuthContext, id: str
       apellido: students.apellido,
       telefono: students.telefono,
       email: students.email,
+      genero: students.genero,
       vinculo: students.vinculo,
       planId: students.planId,
       planNombre: plans.nombre,
@@ -186,6 +189,7 @@ export interface DatosEditablesAlumno {
   fechaAltaOriginal: string;
   vinculoDesde: string;
   notas: string | null;
+  genero: string | null;
 }
 
 export async function actualizarDatosAlumno(
@@ -327,6 +331,19 @@ export async function listarAlumnosActivosParaCobertura(tx: TxClient, ctx: AuthC
     .innerJoin(plans, eq(plans.id, students.planId))
     .where(and(eq(students.gymId, ctx.gymId), eq(students.vinculo, "ACTIVO")))
     .orderBy(asc(students.apellido), asc(students.nombre));
+}
+
+/**
+ * Fecha de nacimiento y género de los alumnos ACTIVOS, para Métricas.
+ * Trae la lista cruda (no agregada en SQL) a propósito: el gimnasio tiene
+ * cientos de alumnos, no millones, y buckear en el dominio deja esa regla
+ * en un solo lugar, testeada sin base (ver `src/domain/metricas/`).
+ */
+export async function datosDemograficosDeActivos(tx: TxClient, ctx: AuthContext) {
+  return tx
+    .select({ fechaNacimiento: students.fechaNacimiento, genero: students.genero })
+    .from(students)
+    .where(and(eq(students.gymId, ctx.gymId), eq(students.vinculo, "ACTIVO")));
 }
 
 /**

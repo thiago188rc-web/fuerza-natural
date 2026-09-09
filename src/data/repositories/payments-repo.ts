@@ -208,6 +208,7 @@ export async function listarPagos(tx: TxClient, ctx: AuthContext, filtros: Filtr
         studentId: students.id,
         nombre: students.nombre,
         apellido: students.apellido,
+        telefono: students.telefono,
         registradoPorNombre: appUsers.nombre,
         cubreDesde: sql<string | null>`(
           select min(pp.cubre_desde)
@@ -261,6 +262,35 @@ export async function totalCobrado(
   return { total: Number(fila?.total ?? 0), cantidad: fila?.cantidad ?? 0 };
 }
 
+/**
+ * Total cobrado por mes calendario, para el gráfico de facturación de
+ * Métricas. Agrupa por `fecha_pago`, no por período cubierto: es "cuánto
+ * entró en caja ese mes", la misma lógica que `totalCobrado`.
+ */
+export async function totalesMensuales(
+  tx: TxClient,
+  ctx: AuthContext,
+  rango: { desde: string; hasta: string },
+) {
+  const filas = await tx
+    .select({
+      mes: sql<string>`to_char(${payments.fechaPago}, 'YYYY-MM')`,
+      total: sql<string>`coalesce(sum(${payments.monto}), 0)`,
+    })
+    .from(payments)
+    .where(
+      and(
+        eq(payments.gymId, ctx.gymId),
+        isNull(payments.anuladoEn),
+        gte(payments.fechaPago, rango.desde),
+        lte(payments.fechaPago, rango.hasta),
+      ),
+    )
+    .groupBy(sql`to_char(${payments.fechaPago}, 'YYYY-MM')`);
+
+  return filas.map((f) => ({ mes: f.mes, total: Number(f.total) }));
+}
+
 /** El plan habitual y el estado de un alumno, para el flujo de cobro. */
 export async function obtenerAlumnoParaCobro(tx: TxClient, ctx: AuthContext, studentId: string) {
   const [row] = await tx
@@ -268,6 +298,7 @@ export async function obtenerAlumnoParaCobro(tx: TxClient, ctx: AuthContext, stu
       id: students.id,
       nombre: students.nombre,
       apellido: students.apellido,
+      telefono: students.telefono,
       vinculo: students.vinculo,
       fechaAltaOriginal: students.fechaAltaOriginal,
       planId: plans.id,
