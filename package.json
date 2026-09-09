@@ -17,6 +17,7 @@
     "db:seed": "tsx scripts/db/seed.ts",
     "db:seed:demo": "tsx scripts/db/seed-demo.ts",
     "db:provision-owner": "tsx scripts/db/provision-owner.ts",
+    "db:diagnostico": "tsx scripts/db/diagnostico.ts",
     "verify": "npm run typecheck && npm run lint && npm run test && npm run build"
   },
   "dependencies": {

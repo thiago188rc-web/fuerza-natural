@@ -158,17 +158,65 @@ el bootstrap local (que sí se ejecutó y verificó).
 6. Auth: Settings → Authentication → habilitar MFA (TOTP), configurar
    Cloudflare Turnstile como CAPTCHA del login (Settings → Auth →
    Bot and Abuse Protection).
-7. Crear el primer usuario `DUENO` real: Authentication → Users → Add
-   user (con email/password reales del dueño), copiar el `auth_user_id`
-   generado, e insertar la fila correspondiente en `app.app_users` con
-   ese `auth_user_id` y `rol = 'DUENO'` — a mano, una sola vez, vía el SQL
-   Editor (no hay todavía una pantalla de alta de usuarios administrativos
-   en Fase 0).
+7. Crear el primer usuario `DUENO` real — ver "Dar de alta a una persona
+   real" más abajo. Ya no se hace con SQL a mano: hay un script
+   (`npm run db:provision-owner`).
 8. **Segunda cuenta `DUENO` de emergencia** (SPEC V1 §3.11) — crear
    ANTES de darle al dueño real su primer acceso, con su propio TOTP
-   enrolado y credenciales impresas guardadas físicamente. No implementado
-   como automatización — es un paso manual, documentado explícitamente
-   para no olvidarlo.
+   enrolado y credenciales impresas guardadas físicamente. Es el mismo
+   procedimiento de abajo, con otro email. Sigue siendo un paso manual,
+   documentado explícitamente para no olvidarlo.
+
+## Dar de alta a una persona real (Supabase Auth → app_users)
+
+Un usuario de Supabase Auth por sí solo NO entra al sistema: hace falta la
+fila en `app.app_users` que dice a qué gimnasio pertenece y con qué rol.
+Sin esa fila, `getAuthContext()` devuelve `null` y la pantalla de login
+responde "Tu usuario todavía no está habilitado en este gimnasio".
+
+Vincularlas es un acto administrativo, nunca una pantalla de la aplicación:
+si la app pudiera crear usuarios con rol, cualquiera que llegue a esa
+pantalla podría asignarse `DUENO`. El script pide `DATABASE_URL_OWNER`, que
+la aplicación en runtime no tiene y que nunca se configura en Vercel.
+
+```bash
+# 1. En Supabase: Authentication → Users → Add user → Create new user.
+#    Email y contraseña reales, y "Auto Confirm User" ACTIVADO (sin
+#    confirmar, signInWithPassword rechaza y se ve "Email o contraseña
+#    incorrectos"). Copiar el UID de la fila creada.
+
+# 2. Ver a qué gimnasio vincularlo (no escribe nada):
+npm run db:provision-owner
+
+# 3. Vincular:
+npm run db:provision-owner -- \
+  --gym-id <uuid del gimnasio> \
+  --auth-id <UID de Supabase> \
+  --email persona@gimnasio.com \
+  --nombre "Nombre Apellido"
+```
+
+`--rol STAFF` crea un usuario de mostrador en vez de un dueño. El script es
+idempotente: correrlo dos veces actualiza los datos en vez de duplicar.
+Se niega a usar el `auth_user_id` de la sesión simulada, y se niega a mover
+un usuario ya vinculado a otro gimnasio.
+
+`DATABASE_URL_OWNER` tiene que apuntar al proyecto Supabase mientras se
+corre el script. Al terminar, devolvelo a la base local: es la credencial
+con DDL y no conviene dejarla apuntando a producción.
+
+### El segundo factor del dueño
+
+`DUENO` exige `aal2` en cada operación (SPEC V1 §3.10): con la contraseña
+sola no lee ni un dato. La primera vez que entra, `/login` lo manda a
+`/mfa`, que le muestra un QR para escanear con Google Authenticator, Authy
+o 1Password (o la clave en texto, si no puede escanear). Ingresa el código
+de 6 dígitos, el factor queda verificado y la sesión pasa a `aal2`.
+
+De ahí en adelante, cada ingreso pide contraseña y después el código. No
+hay que hacer nada en el SQL Editor: el enrolamiento es parte del producto
+(`src/app/(auth)/mfa/`). `STAFF` no tiene esta exigencia todavía, pero si
+enrola un factor, se le pide igual.
 
 ## Correr los tests end-to-end
 

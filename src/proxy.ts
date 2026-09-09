@@ -1,13 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { buildCsp, SECURITY_HEADERS } from "@/lib/security/headers";
-import {
-  DEV_MOCK_AUTH_COOKIE,
-  isDevMockAuthEnabled,
-  isSupabaseConfigured,
-  supabaseAnonKey,
-  supabaseUrl,
-} from "@/lib/auth/config";
+import { isSupabaseConfigured, supabaseAnonKey, supabaseUrl } from "@/lib/auth/config";
 
 /**
  * DOS responsabilidades, y ninguna de las dos es autorizar (SPEC V1 §3.15):
@@ -39,16 +33,13 @@ export async function proxy(request: NextRequest) {
 
   let response = NextResponse.next({ request: { headers: requestHeaders } });
 
-  if (isDevMockAuthEnabled()) {
-    if (!request.cookies.get(DEV_MOCK_AUTH_COOKIE)?.value) {
-      response.cookies.set(DEV_MOCK_AUTH_COOKIE, "00000000-0000-0000-0000-000000000001", {
-        path: "/",
-        httpOnly: true,
-        sameSite: "lax",
-        maxAge: 60 * 60 * 24 * 30,
-      });
-    }
-  }
+  // Acá NO se entrega ninguna identidad. Hubo una versión de este archivo
+  // que, cuando no había Supabase configurado, le seteaba la cookie de
+  // sesión simulada a cualquier visitante: eso convertía a todo el que
+  // abriera la URL en DUENO con aal2, sin contraseña y sin pasar por
+  // /login. La sesión simulada la entrega únicamente el formulario de
+  // login (src/app/(auth)/login/actions.ts), y solo cuando el entorno la
+  // habilita.
 
   const supabase = createServerClient(url, anonKey, {
     cookies: {

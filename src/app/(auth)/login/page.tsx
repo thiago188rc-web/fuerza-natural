@@ -17,6 +17,14 @@ const initialState: LoginState = {};
 export default function LoginPage() {
   const [state, formAction, pending] = useActionState(login, initialState);
 
+  useEffect(() => {
+    if (state.redirectTo) {
+      window.location.href = state.redirectTo;
+    }
+  }, [state.redirectTo]);
+
+  const isSubmitting = pending || Boolean(state.redirectTo);
+
   return (
     <div>
       <p className="t-rotulo">Ingresar</p>
@@ -57,8 +65,8 @@ export default function LoginPage() {
           </p>
         ) : null}
 
-        <Button type="submit" size="lg" disabled={pending} className="mt-1 h-10 w-full">
-          {pending ? (
+        <Button type="submit" size="lg" disabled={isSubmitting} className="mt-1 h-10 w-full">
+          {isSubmitting ? (
             <>
               <Loader2 className="animate-spin" />
               Ingresando…

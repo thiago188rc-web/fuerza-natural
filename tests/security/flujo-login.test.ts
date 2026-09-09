@@ -203,3 +203,42 @@ describe("el segundo factor se verifica de verdad", () => {
     expect(fuente).toContain('return rol === "DUENO"');
   });
 });
+
+/**
+ * REGRESIÓN DE UN BYPASS REAL (encontrado al implementar la autenticación
+ * de producción). Hubo una versión en la que, con la sesión simulada
+ * habilitada:
+ *
+ *   - el middleware le seteaba la cookie `dev_mock_auth_id` a CUALQUIER
+ *     visitante, y
+ *   - getAuthContext() devolvía el usuario demo aunque no hubiera cookie.
+ *
+ * Cualquiera de las dos cosas, sola, convierte a un visitante anónimo en
+ * DUENO con aal2 sin escribir una contraseña. La identidad simulada la
+ * entrega SOLO el formulario de login.
+ */
+describe("nadie recibe una identidad sin pasar por el formulario de login", () => {
+  const raiz = process.cwd();
+
+  it("el middleware no escribe la cookie de sesión simulada", () => {
+    const fuente = readFileSync(join(raiz, "src", "proxy.ts"), "utf-8");
+    expect(fuente).not.toMatch(/cookies\s*\.\s*set\s*\(\s*DEV_MOCK_AUTH_COOKIE/);
+    expect(fuente).not.toContain("00000000-0000-0000-0000-000000000001");
+  });
+
+  it("sin cookie, getAuthContext no inventa una identidad", () => {
+    const fuente = readFileSync(join(raiz, "src", "lib", "auth", "context.ts"), "utf-8");
+    const lectura = fuente.slice(
+      fuente.indexOf("async function leerMockAuthIdDeDesarrollo"),
+      fuente.indexOf("export const getAuthContext"),
+    );
+    expect(lectura).toContain("?? null");
+    expect(lectura).not.toContain("00000000-0000-0000-0000-000000000001");
+  });
+
+  it("solo el formulario de login entrega la identidad simulada", () => {
+    const fuente = readFileSync(join(raiz, "src", "app", "(auth)", "login", "actions.ts"), "utf-8");
+    expect(fuente).toContain("isDevMockAuthEnabled()");
+    expect(fuente).toContain("cookieStore.set(DEV_MOCK_AUTH_COOKIE");
+  });
+});

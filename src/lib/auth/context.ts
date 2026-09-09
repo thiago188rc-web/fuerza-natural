@@ -35,7 +35,11 @@ export interface AuthContext {
 async function leerMockAuthIdDeDesarrollo(): Promise<string | null> {
   if (!isDevMockAuthEnabled()) return null;
   const cookieStore = await cookies();
-  return cookieStore.get(DEV_MOCK_AUTH_COOKIE)?.value ?? "00000000-0000-0000-0000-000000000001";
+  // Sin cookie no hay identidad. El valor por defecto acá era el UUID del
+  // usuario demo, y eso hacía que "no hay sesión" se leyera como "soy el
+  // dueño": un visitante anónimo entraba con aal2 en cualquier despliegue
+  // sin Supabase configurado.
+  return cookieStore.get(DEV_MOCK_AUTH_COOKIE)?.value ?? null;
 }
 
 /**

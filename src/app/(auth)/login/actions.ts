@@ -9,6 +9,7 @@ import { MENSAJES_LOGIN, resolverDestinoLogin, type InfoAal } from "@/lib/auth/f
 
 export interface LoginState {
   error?: string;
+  redirectTo?: string;
 }
 
 /**
@@ -52,7 +53,7 @@ export async function login(_prevState: LoginState, formData: FormData): Promise
       maxAge: 60 * 60 * 24 * 30, // 30 días
       secure: process.env.NODE_ENV === "production",
     });
-    redirect("/dashboard");
+    return { redirectTo: "/dashboard" };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -93,5 +94,5 @@ export async function login(_prevState: LoginState, formData: FormData): Promise
     return { error: decision.mensaje };
   }
 
-  redirect(decision.a);
+  return { redirectTo: decision.a };
 }
