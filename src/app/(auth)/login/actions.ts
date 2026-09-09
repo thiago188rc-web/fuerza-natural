@@ -40,8 +40,11 @@ export async function login(_prevState: LoginState, formData: FormData): Promise
       return { error: MENSAJES_LOGIN.credenciales };
     }
 
-    // Sesión simulada de desarrollo o credencial demo.
-    if (isDevMockAuthEnabled() || email === "demo@fuerzanatural.test") {
+    // Sesión simulada de desarrollo. `isDevMockAuthEnabled()` ya exige
+    // NODE_ENV != production Y que no haya Supabase real configurado — no
+    // agregar acá un atajo por email/contraseña fija: eso sería una puerta
+    // de acceso sin validar credencial, activa también en producción.
+    if (isDevMockAuthEnabled()) {
       const cookieStore = await cookies();
       cookieStore.set(DEV_MOCK_AUTH_COOKIE, "00000000-0000-0000-0000-000000000001", {
         path: "/",
