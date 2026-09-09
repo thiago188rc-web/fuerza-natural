@@ -262,19 +262,33 @@ export async function totalCobrado(
   return { total: Number(fila?.total ?? 0), cantidad: fila?.cantidad ?? 0 };
 }
 
+export type GranularidadFacturacion = "dia" | "semana" | "mes";
+
+const TRUNC_SQL: Record<GranularidadFacturacion, string> = {
+  dia: "day",
+  semana: "week",
+  mes: "month",
+};
+
 /**
- * Total cobrado por mes calendario, para el gráfico de facturación de
- * Métricas. Agrupa por `fecha_pago`, no por período cubierto: es "cuánto
- * entró en caja ese mes", la misma lógica que `totalCobrado`.
+ * Total cobrado por bucket de tiempo (día/semana/mes), para el gráfico de
+ * tendencia de Métricas. Agrupa por `fecha_pago`, no por período cubierto:
+ * es "cuánto entró en caja", la misma lógica que `totalCobrado`.
+ *
+ * `date_trunc` hace el bucketing en la base — para "semana" usa semana ISO
+ * (arranca lunes), que es exactamente lo que necesita el selector de vista
+ * sin tener que reimplementar esa aritmética en JS.
  */
-export async function totalesMensuales(
+export async function totalesPorPeriodo(
   tx: TxClient,
   ctx: AuthContext,
   rango: { desde: string; hasta: string },
+  granularidad: GranularidadFacturacion,
 ) {
+  const trunc = TRUNC_SQL[granularidad];
   const filas = await tx
     .select({
-      mes: sql<string>`to_char(${payments.fechaPago}, 'YYYY-MM')`,
+      periodo: sql<string>`to_char(date_trunc(${trunc}, ${payments.fechaPago}), 'YYYY-MM-DD')`,
       total: sql<string>`coalesce(sum(${payments.monto}), 0)`,
     })
     .from(payments)
@@ -286,9 +300,61 @@ export async function totalesMensuales(
         lte(payments.fechaPago, rango.hasta),
       ),
     )
-    .groupBy(sql`to_char(${payments.fechaPago}, 'YYYY-MM')`);
+    .groupBy(sql`date_trunc(${trunc}, ${payments.fechaPago})`);
 
-  return filas.map((f) => ({ mes: f.mes, total: Number(f.total) }));
+  return filas.map((f) => ({ periodo: f.periodo, total: Number(f.total) }));
+}
+
+/** Lo cobrado en un rango, agrupado por método de pago. */
+export async function totalesPorMetodo(
+  tx: TxClient,
+  ctx: AuthContext,
+  rango: { desde: string; hasta: string },
+) {
+  const filas = await tx
+    .select({
+      clave: payments.metodo,
+      total: sql<string>`coalesce(sum(${payments.monto}), 0)`,
+      cantidad: sql<number>`count(*)::int`,
+    })
+    .from(payments)
+    .where(
+      and(
+        eq(payments.gymId, ctx.gymId),
+        isNull(payments.anuladoEn),
+        gte(payments.fechaPago, rango.desde),
+        lte(payments.fechaPago, rango.hasta),
+      ),
+    )
+    .groupBy(payments.metodo);
+
+  return filas.map((f) => ({ clave: f.clave, total: Number(f.total), cantidad: f.cantidad }));
+}
+
+/** Lo cobrado en un rango, agrupado por modalidad (mes completo / 1-2 mes). */
+export async function totalesPorModalidad(
+  tx: TxClient,
+  ctx: AuthContext,
+  rango: { desde: string; hasta: string },
+) {
+  const filas = await tx
+    .select({
+      clave: payments.modalidad,
+      total: sql<string>`coalesce(sum(${payments.monto}), 0)`,
+      cantidad: sql<number>`count(*)::int`,
+    })
+    .from(payments)
+    .where(
+      and(
+        eq(payments.gymId, ctx.gymId),
+        isNull(payments.anuladoEn),
+        gte(payments.fechaPago, rango.desde),
+        lte(payments.fechaPago, rango.hasta),
+      ),
+    )
+    .groupBy(payments.modalidad);
+
+  return filas.map((f) => ({ clave: f.clave, total: Number(f.total), cantidad: f.cantidad }));
 }
 
 /** El plan habitual y el estado de un alumno, para el flujo de cobro. */

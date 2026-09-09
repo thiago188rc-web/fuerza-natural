@@ -133,3 +133,26 @@ export function edadEnAnios(nacimiento: string, hoy: string): number {
   if (h.mes < n.mes || (h.mes === n.mes && h.dia < n.dia)) edad -= 1;
   return edad;
 }
+
+/** El lunes de la semana que contiene `iso`. Semana lunes→domingo. */
+export function primerDiaDeLaSemana(iso: string): string {
+  const dia = diaDeLaSemana(iso); // 0 domingo … 6 sábado
+  const desdeElLunes = dia === 0 ? 6 : dia - 1;
+  return sumarDias(iso, -desdeElLunes);
+}
+
+export function ultimoDiaDeLaSemana(iso: string): string {
+  return sumarDias(primerDiaDeLaSemana(iso), 6);
+}
+
+export function sumarSemanas(iso: string, semanas: number): string {
+  return sumarDias(iso, semanas * 7);
+}
+
+export function primerDiaDelAnio(iso: string): string {
+  return `${iso.slice(0, 4)}-01-01`;
+}
+
+export function ultimoDiaDelAnio(iso: string): string {
+  return `${iso.slice(0, 4)}-12-31`;
+}
