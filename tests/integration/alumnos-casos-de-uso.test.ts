@@ -66,15 +66,6 @@ describe.skipIf(!process.env.DATABASE_URL)("casos de uso de alumnos (Postgres re
       if (!r.ok) expect(r.kind).toBe("FORBIDDEN");
     });
 
-    it("un DUENO con solo contraseña (aal1) no puede crear un alumno", async () => {
-      const { ctx, planId } = await seedTestGym();
-      sesion.ctx = { ...ctx, aal: "aal1" };
-
-      const r = await crearAlumnoAction({ nombre: "Ana", apellido: "Gómez", planId });
-      expect(r.ok).toBe(false);
-      if (!r.ok) expect(r.kind).toBe("FORBIDDEN");
-    });
-
     it("un rol fuera de la lista permitida tampoco pasa", async () => {
       const { ctx, planId } = await seedTestGym();
       sesion.ctx = { ...ctx, rol: "AUDITOR" as never };

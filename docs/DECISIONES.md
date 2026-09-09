@@ -400,3 +400,35 @@ una fórmula de "% de asistencia esperada según el plan", que nadie
 confirmó como regla de negocio (`docs/REGLAS-DE-NEGOCIO.md`). La métrica
 de Métricas ("asistió al menos una vez en 30 días") es deliberadamente
 simple por la misma razón.
+
+---
+
+## 2026-09-09 — `requiresAal2()` deshabilitado: ningún rol exige MFA por ahora
+
+**Decisión:** `requiresAal2()` (`src/lib/auth/context.ts`) devuelve
+`false` para los dos roles. Antes exigía `aal2` siempre para `DUENO`
+(SPEC V1 §3.10).
+
+**Motivo:** el enrolamiento TOTP nunca se terminó de implementar —
+`src/app/(auth)/mfa/actions.ts` sigue siendo un no-op ("TODO fase
+posterior"). Consecuencia real, no teórica: la cuenta `DUENO` recién
+creada en el proyecto Supabase de producción no podía usar NINGUNA
+pantalla (`withAuth` devolvía `FORBIDDEN` en todo, porque `aal` nunca
+podía llegar a `aal2` sin un factor enrolado que verificar). Pedido
+explícito del dueño del gimnasio para poder entrar con usuario y
+contraseña, sin ese paso extra.
+
+**Costo real de esto, para que quede escrito:** hoy una contraseña filtrada
+alcanza para operar la cuenta `DUENO` completa (alta/edición/pagos/bajas).
+No hay segundo factor protegiéndola. Se aceptó a cambio de tener el
+sistema utilizable ya, con un solo usuario real hoy.
+
+**Se descartó** borrar `aal`/`requiresAal2()` de raíz: la función se deja
+in situ, siempre devolviendo `false`, para poder reactivar la exigencia
+con un cambio de una línea el día que se implemente el enrolamiento TOTP
+de verdad (`supabase.auth.mfa.enroll()` / `challengeAndVerify()`).
+
+**Test de integración afectado:** se borró
+`"un DUENO con solo contraseña (aal1) no puede crear un alumno"` de
+`tests/integration/alumnos-casos-de-uso.test.ts` — verificaba exactamente
+la propiedad que se sacó a propósito.

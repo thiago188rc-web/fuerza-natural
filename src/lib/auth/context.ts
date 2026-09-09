@@ -116,12 +116,16 @@ export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
 });
 
 /**
- * DUENO exige aal2 siempre (SPEC V1 §3.10) — un token obtenido solo con
- * contraseña (aal1) no alcanza para tocar ni un dato, ni siquiera si el
- * atacante conoce la contraseña real. STAFF no lo exige todavía (Fase 3,
- * cuando ese rol tenga usuarios reales) pero la función ya existe para no
- * tener que tocar cada Server Action cuando se active.
+ * Ninguno de los dos roles exige aal2 hoy. SPEC V1 §3.10 pedía aal2
+ * siempre para DUENO, pero el enrolamiento TOTP nunca se terminó de
+ * construir (`app/(auth)/mfa/actions.ts` es un no-op) — el resultado real
+ * era que la cuenta DUENO quedaba bloqueada para siempre, porque nunca
+ * podía llegar a aal2. Decisión: sacar la exigencia hasta que el
+ * enrolamiento exista de verdad (ver docs/DECISIONES.md).
+ *
+ * La función se deja (en vez de borrar `aal` de todos lados) para volver a
+ * exigirlo con un solo cambio acá el día que el enrolamiento se implemente.
  */
-export function requiresAal2(rol: Rol): boolean {
-  return rol === "DUENO";
+export function requiresAal2(_rol: Rol): boolean {
+  return false;
 }
