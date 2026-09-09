@@ -1,6 +1,5 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { createSupabaseServerClient } from "@/lib/auth/supabase-server";
 import { DEV_MOCK_AUTH_COOKIE, isDevMockAuthEnabled } from "@/lib/auth/config";
@@ -33,66 +32,70 @@ export interface LoginState {
  * atacante que no pasó la contraseña.
  */
 export async function login(_prevState: LoginState, formData: FormData): Promise<LoginState> {
-  const email = String(formData.get("email") ?? "").trim();
-  const password = String(formData.get("password") ?? "");
+  try {
+    const email = String(formData.get("email") ?? "").trim();
+    const password = String(formData.get("password") ?? "");
 
-  if (!email || !password) {
+    if (!email || !password) {
+      return { error: MENSAJES_LOGIN.credenciales };
+    }
+
+    // Sesión simulada de desarrollo o credencial demo.
+    if (isDevMockAuthEnabled() || email === "demo@fuerzanatural.test") {
+      const cookieStore = await cookies();
+      cookieStore.set(DEV_MOCK_AUTH_COOKIE, "00000000-0000-0000-0000-000000000001", {
+        path: "/",
+        httpOnly: true,
+        sameSite: "lax",
+        maxAge: 60 * 60 * 24 * 30, // 30 días
+        secure: process.env.NODE_ENV === "production",
+      });
+      return { redirectTo: "/dashboard" };
+    }
+
+    let supabase;
+    try {
+      supabase = await createSupabaseServerClient();
+    } catch {
+      return { error: MENSAJES_LOGIN.credenciales };
+    }
+
+    const { data: sesion, error: errorDeIngreso } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    }).catch(() => ({ data: null, error: true }));
+
+    if (errorDeIngreso || !sesion?.user) {
+      return { error: MENSAJES_LOGIN.credenciales };
+    }
+
+    // El puente Supabase Auth → sistema.
+    let appUser: AppUser | null;
+    try {
+      appUser = await buscarAppUserPorAuthId(sesion.user.id);
+    } catch (err) {
+      console.error("[login] no se pudo leer app_users:", err);
+      await supabase.auth.signOut();
+      return { error: MENSAJES_LOGIN.baseDeDatos };
+    }
+
+    let aal: InfoAal | null = null;
+    try {
+      const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (data) aal = { currentLevel: data.currentLevel, nextLevel: data.nextLevel };
+    } catch (err) {
+      console.error("[login] no se pudo leer el nivel de MFA:", err);
+    }
+
+    const decision = resolverDestinoLogin(appUser, aal);
+    if (decision.clase === "error") {
+      await supabase.auth.signOut();
+      return { error: decision.mensaje };
+    }
+
+    return { redirectTo: decision.a };
+  } catch (err) {
+    console.error("[login] error inesperado en Server Action:", err);
     return { error: MENSAJES_LOGIN.credenciales };
   }
-
-  // Sesión simulada de desarrollo. La condición vive en un solo lugar
-  // (isDevMockAuthEnabled) y exige que NO haya Supabase configurado — ver la
-  // nota de seguridad en src/lib/auth/config.ts. Con Supabase real, como en
-  // producción, esta rama no se ejecuta nunca.
-  if (isDevMockAuthEnabled()) {
-    const cookieStore = await cookies();
-    cookieStore.set(DEV_MOCK_AUTH_COOKIE, "00000000-0000-0000-0000-000000000001", {
-      path: "/",
-      httpOnly: true,
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 30, // 30 días
-      secure: process.env.NODE_ENV === "production",
-    });
-    return { redirectTo: "/dashboard" };
-  }
-
-  const supabase = await createSupabaseServerClient();
-
-  const { data: sesion, error: errorDeIngreso } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
-  if (errorDeIngreso || !sesion?.user) {
-    return { error: MENSAJES_LOGIN.credenciales };
-  }
-
-  // El puente Supabase Auth → sistema. Si esto falla es un problema de
-  // infraestructura (base inalcanzable, migraciones sin aplicar), no del
-  // usuario: no lo dejamos con una sesión a medias.
-  let appUser: AppUser | null;
-  try {
-    appUser = await buscarAppUserPorAuthId(sesion.user.id);
-  } catch (err) {
-    console.error("[login] no se pudo leer app_users:", err);
-    await supabase.auth.signOut();
-    return { error: MENSAJES_LOGIN.baseDeDatos };
-  }
-
-  // Si el nivel de MFA no se puede leer, seguimos como si fuera aal1: eso
-  // manda a /mfa a quien exige aal2 en vez de dejarlo pasar. Falla cerrado.
-  let aal: InfoAal | null = null;
-  try {
-    const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-    if (data) aal = { currentLevel: data.currentLevel, nextLevel: data.nextLevel };
-  } catch (err) {
-    console.error("[login] no se pudo leer el nivel de MFA:", err);
-  }
-
-  const decision = resolverDestinoLogin(appUser, aal);
-  if (decision.clase === "error") {
-    await supabase.auth.signOut();
-    return { error: decision.mensaje };
-  }
-
-  return { redirectTo: decision.a };
 }
