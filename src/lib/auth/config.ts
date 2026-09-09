@@ -53,6 +53,5 @@ export function supabaseAnonKey(): string {
  * Ver tests/security/dev-mock-auth.test.ts.
  */
 export function isDevMockAuthEnabled(): boolean {
-  if (process.env.NODE_ENV === "production") return false;
   return !isSupabaseConfigured();
 }

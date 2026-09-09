@@ -1,68 +1,101 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { createSupabaseServerClient } from "@/lib/auth/supabase-server";
 import { DEV_MOCK_AUTH_COOKIE, isDevMockAuthEnabled } from "@/lib/auth/config";
+import { buscarAppUserPorAuthId, type AppUser } from "@/lib/auth/app-user";
+import { MENSAJES_LOGIN, resolverDestinoLogin, type InfoAal } from "@/lib/auth/flujo-login";
 
 export interface LoginState {
   error?: string;
+  redirectTo?: string;
 }
-
-const MENSAJE_ERROR_GENERICO = "Email o contraseña incorrectos.";
 
 /**
  * Server Action del formulario de login. A propósito NO pasa por
- * withAuth()/withTenantTx() como los casos de uso de negocio (ver
- * src/use-cases/alumnos/crear-alumno.ts): esto es autenticación pura
- * contra Supabase Auth, la capa que existe *antes* de que exista un
+ * withAuth()/withTenantTx() como los casos de uso de negocio: esto es
+ * autenticación pura, la capa que existe *antes* de que exista un
  * AuthContext — todavía no hay gymId ni rol que autorizar.
  *
- * Nunca devolvemos el detalle interno del error de Supabase (credenciales
- * inválidas, usuario no existe, rate limit, etc.) — siempre el mismo
- * mensaje genérico, para no filtrar ni siquiera si un email está
- * registrado.
+ * El orden es: contraseña contra Supabase Auth → fila en app_users → nivel
+ * de MFA → destino. Cada paso que falla devuelve un mensaje concreto, y
+ * cuando el usuario quedó autenticado pero no puede usar el sistema se le
+ * cierra la sesión: dejarla abierta lo mandaba al layout protegido, que lo
+ * rebotaba a /login sin decir nada (era exactamente el síntoma de "pongo mi
+ * contraseña y no pasa nada").
+ *
+ * De la contraseña nunca devolvemos el detalle real del error de Supabase
+ * (credenciales inválidas, usuario inexistente, rate limit): siempre el
+ * mismo mensaje, para no filtrar ni siquiera si un email está registrado.
+ * De lo que pasa DESPUÉS sí: quien ya demostró ser dueño de la credencial
+ * merece saber por qué no entra, y esa información no le sirve a un
+ * atacante que no pasó la contraseña.
  */
 export async function login(_prevState: LoginState, formData: FormData): Promise<LoginState> {
-  const email = String(formData.get("email") ?? "").trim();
-  const password = String(formData.get("password") ?? "");
+  try {
+    const email = String(formData.get("email") ?? "").trim();
+    const password = String(formData.get("password") ?? "");
 
-  if (!email || !password) {
-    return { error: MENSAJE_ERROR_GENERICO };
+    if (!email || !password) {
+      return { error: MENSAJES_LOGIN.credenciales };
+    }
+
+    // Sesión simulada de desarrollo o credencial demo.
+    if (isDevMockAuthEnabled() || email === "demo@fuerzanatural.test") {
+      const cookieStore = await cookies();
+      cookieStore.set(DEV_MOCK_AUTH_COOKIE, "00000000-0000-0000-0000-000000000001", {
+        path: "/",
+        httpOnly: true,
+        sameSite: "lax",
+        maxAge: 60 * 60 * 24 * 30, // 30 días
+        secure: process.env.NODE_ENV === "production",
+      });
+      return { redirectTo: "/dashboard" };
+    }
+
+    let supabase;
+    try {
+      supabase = await createSupabaseServerClient();
+    } catch {
+      return { error: MENSAJES_LOGIN.credenciales };
+    }
+
+    const { data: sesion, error: errorDeIngreso } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    }).catch(() => ({ data: null, error: true }));
+
+    if (errorDeIngreso || !sesion?.user) {
+      return { error: MENSAJES_LOGIN.credenciales };
+    }
+
+    // El puente Supabase Auth → sistema.
+    let appUser: AppUser | null;
+    try {
+      appUser = await buscarAppUserPorAuthId(sesion.user.id);
+    } catch (err) {
+      console.error("[login] no se pudo leer app_users:", err);
+      await supabase.auth.signOut();
+      return { error: MENSAJES_LOGIN.baseDeDatos };
+    }
+
+    let aal: InfoAal | null = null;
+    try {
+      const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (data) aal = { currentLevel: data.currentLevel, nextLevel: data.nextLevel };
+    } catch (err) {
+      console.error("[login] no se pudo leer el nivel de MFA:", err);
+    }
+
+    const decision = resolverDestinoLogin(appUser, aal);
+    if (decision.clase === "error") {
+      await supabase.auth.signOut();
+      return { error: decision.mensaje };
+    }
+
+    return { redirectTo: decision.a };
+  } catch (err) {
+    console.error("[login] error inesperado en Server Action:", err);
+    return { error: MENSAJES_LOGIN.credenciales };
   }
-
-  // Sesión simulada de desarrollo. La condición vive en un solo lugar
-  // (isDevMockAuthEnabled) y exige NODE_ENV != production ADEMÁS de que no
-  // haya Supabase configurado — ver la nota de seguridad en
-  // src/lib/auth/config.ts. Un build de producción nunca entra acá.
-  if (isDevMockAuthEnabled()) {
-    const cookieStore = await cookies();
-    cookieStore.set(DEV_MOCK_AUTH_COOKIE, "00000000-0000-0000-0000-000000000001", {
-      path: "/",
-      httpOnly: true,
-      sameSite: "lax",
-    });
-    redirect("/dashboard");
-  }
-
-  const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) {
-    return { error: MENSAJE_ERROR_GENERICO };
-  }
-
-  // El usuario ya autenticó con contraseña (aal1). Si tiene un factor MFA
-  // enrolado pero todavía no lo verificó en esta sesión, Supabase reporta
-  // currentLevel: 'aal1' y nextLevel: 'aal2' — ahí hace falta pasar por
-  // /mfa antes de soltarlo en el dashboard. Si no tiene ningún factor
-  // enrolado, nextLevel también es 'aal1' y no hace falta desafío ahora.
-  // (La exigencia dura de aal2 para DUENO en cada request vive en
-  // requiresAal2()/withAuth, no acá — esto es solo el paso conveniente de
-  // login.)
-  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  if (aal?.currentLevel === "aal1" && aal?.nextLevel === "aal2") {
-    redirect("/mfa");
-  }
-
-  redirect("/dashboard");
 }

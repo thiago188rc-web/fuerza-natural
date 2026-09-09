@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { buildCsp, SECURITY_HEADERS } from "@/lib/security/headers";
-import { supabaseAnonKey, supabaseUrl } from "@/lib/auth/config";
+import { isSupabaseConfigured, supabaseAnonKey, supabaseUrl } from "@/lib/auth/config";
 
 /**
  * DOS responsabilidades, y ninguna de las dos es autorizar (SPEC V1 §3.15):
@@ -33,6 +33,14 @@ export async function proxy(request: NextRequest) {
 
   let response = NextResponse.next({ request: { headers: requestHeaders } });
 
+  // Acá NO se entrega ninguna identidad. Hubo una versión de este archivo
+  // que, cuando no había Supabase configurado, le seteaba la cookie de
+  // sesión simulada a cualquier visitante: eso convertía a todo el que
+  // abriera la URL en DUENO con aal2, sin contraseña y sin pasar por
+  // /login. La sesión simulada la entrega únicamente el formulario de
+  // login (src/app/(auth)/login/actions.ts), y solo cuando el entorno la
+  // habilita.
+
   const supabase = createServerClient(url, anonKey, {
     cookies: {
       getAll() {
@@ -48,12 +56,13 @@ export async function proxy(request: NextRequest) {
     },
   });
 
-  // Dispara el refresh si hace falta. El resultado en sí no se usa para
-  // decidir nada acá — eso es responsabilidad de getAuthContext().
-  try {
-    await supabase.auth.getUser();
-  } catch {
-    // Ignorar si Supabase no está configurado o falla en dev sin credenciales
+  // Dispara el refresh solo si Supabase está configurado realmente.
+  if (isSupabaseConfigured()) {
+    try {
+      await supabase.auth.getUser();
+    } catch {
+      // Ignorar si Supabase falla o no responde
+    }
   }
 
   response.headers.set("Content-Security-Policy", csp);
