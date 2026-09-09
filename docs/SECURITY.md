@@ -155,15 +155,18 @@ contexto de tenant se fija con `set_config('app.gym_id', $1, true)` —
 nunca `SET`, que persistiría más allá de la transacción y podría filtrar
 un `gym_id` a la siguiente petición servida por la misma conexión física.
 
-## 8. Autenticación (diseñado, pendiente de credenciales reales para probarlo en vivo)
+## 8. Autenticación
 
 `getAuthContext()` usa `supabase.auth.getUser()`, nunca `getSession()` —
 `getSession()` solo decodifica la cookie sin validar la firma.
-`requiresAal2('DUENO')` es siempre `true`: el rol `DUENO` exige `aal2` en
-cada request, no solo en el login — verificado por lectura de código
-(`src/use-cases/_kernel/with-auth.ts`), pendiente de prueba end-to-end
-real hasta tener un proyecto Supabase con MFA configurado (ver
-`docs/RUNBOOK.md`).
+
+Sin verificación en dos pasos: alcanza con email + contraseña, para
+ambos roles (`DUENO` y `STAFF`) — decisión explícita del dueño del
+gimnasio, ver `docs/DECISIONES.md` (entrada "MFA sacado del todo").
+Consecuencia directa: una contraseña de `DUENO` filtrada alcanza, sola,
+para operar la cuenta completa (alta/edición/pagos/bajas). No hay una
+capa de "aal2" ni un flag de una línea para reactivarlo — reintroducir
+MFA implica reconstruir el enrolamiento TOTP desde cero.
 
 ## 9. Headers de seguridad y CSP
 
@@ -220,8 +223,9 @@ listar alumnos de otro, ni usar un plan ajeno, aunque mande el id exacto.
 
 ## 10. Qué falta para producción (pendiente, no bloqueante para Fase 0)
 
-- Proyecto Supabase real (URL, anon key, MFA habilitado, Turnstile) — ver
-  `docs/RUNBOOK.md`.
+- Proyecto Supabase real (URL, anon key, Turnstile) — ver `docs/RUNBOOK.md`.
+  MFA fue evaluado y descartado a propósito (ver `docs/DECISIONES.md`),
+  no es un pendiente.
 - Backups Nivel 2 (pg_dump cifrado a un proveedor distinto).
 - Primer simulacro de restauración registrado.
 - Segunda cuenta `DUENO` de emergencia creada.

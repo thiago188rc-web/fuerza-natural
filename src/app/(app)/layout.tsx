@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getAuthContext, requiresAal2 } from "@/lib/auth/context";
+import { getAuthContext } from "@/lib/auth/context";
 import { contextoDelGimnasio } from "@/use-cases/gimnasio/contexto";
 import { BarraMovil } from "@/components/shell/barra-movil";
 import { BotonCerrarSesion, Rail } from "@/components/shell/rail";
@@ -22,7 +22,6 @@ import { logout } from "./actions";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await getAuthContext();
   if (!ctx) redirect("/login");
-  if (requiresAal2(ctx.rol) && ctx.aal !== "aal2") redirect("/mfa");
 
   // Si la configuración no se puede leer, el marco igual tiene que
   // dibujarse: el usuario está autenticado y merece ver la interfaz con

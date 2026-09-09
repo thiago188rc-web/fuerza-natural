@@ -1,4 +1,4 @@
-import { getAuthContext, requiresAal2, type AuthContext, type Rol } from "@/lib/auth/context";
+import { getAuthContext, type AuthContext, type Rol } from "@/lib/auth/context";
 import { forbidden, type Result } from "./result";
 
 /**
@@ -10,16 +10,13 @@ import { forbidden, type Result } from "./result";
  *
  *   1. Sesión válida (getAuthContext → getUser, nunca getSession)
  *   2. Usuario activo en app_users
- *   3. AAL suficiente para el rol (DUENO exige aal2 siempre)
- *   4. Rol autorizado para esta operación puntual
+ *   3. Rol autorizado para esta operación puntual
+ *
+ * Sin verificación en dos pasos (ver docs/DECISIONES.md): la contraseña
+ * validada alcanza, no hay un nivel de AAL que exigir acá.
  *
  * Un test de arquitectura recorre las Server Actions exportadas y falla
  * si alguna no está envuelta acá — ver tests/security/.
- *
- * NOTA: por ahora esto no distingue "no hay sesión" de "sesión insuficiente"
- * a nivel de Result (ambos devuelven FORBIDDEN) — la distinción de a dónde
- * redirigir (login vs. desafío MFA) es responsabilidad de la capa de UI,
- * no de este kernel.
  */
 export function withAuth<TInput, TData, TConfirmacion = unknown>(
   rolesPermitidos: readonly Rol[],
@@ -28,7 +25,6 @@ export function withAuth<TInput, TData, TConfirmacion = unknown>(
   return async (input: TInput): Promise<Result<TData, TConfirmacion>> => {
     const ctx = await getAuthContext();
     if (!ctx) return forbidden();
-    if (requiresAal2(ctx.rol) && ctx.aal !== "aal2") return forbidden();
     if (!rolesPermitidos.includes(ctx.rol)) return forbidden();
 
     try {

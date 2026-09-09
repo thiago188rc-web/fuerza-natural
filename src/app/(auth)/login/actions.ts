@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { createSupabaseServerClient } from "@/lib/auth/supabase-server";
 import { DEV_MOCK_AUTH_COOKIE, isDevMockAuthEnabled } from "@/lib/auth/config";
 import { buscarAppUserPorAuthId, type AppUser } from "@/lib/auth/app-user";
-import { MENSAJES_LOGIN, resolverDestinoLogin, type InfoAal } from "@/lib/auth/flujo-login";
+import { MENSAJES_LOGIN, resolverDestinoLogin } from "@/lib/auth/flujo-login";
 
 export interface LoginState {
   error?: string;
@@ -17,8 +17,9 @@ export interface LoginState {
  * autenticación pura, la capa que existe *antes* de que exista un
  * AuthContext — todavía no hay gymId ni rol que autorizar.
  *
- * El orden es: contraseña contra Supabase Auth → fila en app_users → nivel
- * de MFA → destino. Cada paso que falla devuelve un mensaje concreto, y
+ * El orden es: contraseña contra Supabase Auth → fila en app_users →
+ * destino. Sin verificación en dos pasos (ver docs/DECISIONES.md): la
+ * contraseña validada alcanza. Cada paso que falla devuelve un mensaje concreto, y
  * cuando el usuario quedó autenticado pero no puede usar el sistema se le
  * cierra la sesión: dejarla abierta lo mandaba al layout protegido, que lo
  * rebotaba a /login sin decir nada (era exactamente el síntoma de "pongo mi
@@ -87,15 +88,7 @@ export async function login(_prevState: LoginState, formData: FormData): Promise
       return { error: MENSAJES_LOGIN.baseDeDatos };
     }
 
-    let aal: InfoAal | null = null;
-    try {
-      const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-      if (data) aal = { currentLevel: data.currentLevel, nextLevel: data.nextLevel };
-    } catch (err) {
-      console.error("[login] no se pudo leer el nivel de MFA:", err);
-    }
-
-    const decision = resolverDestinoLogin(appUser, aal);
+    const decision = resolverDestinoLogin(appUser);
     if (decision.clase === "error") {
       await supabase.auth.signOut();
       return { error: decision.mensaje };

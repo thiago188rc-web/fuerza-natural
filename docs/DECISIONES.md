@@ -422,3 +422,39 @@ sigue exigiendo `aal2` para `DUENO`, como decía SPEC V1 §3.10.
 privilegios del sistema a "una sola contraseña", de forma permanente.
 El problema real era que faltaba la pantalla de enrolamiento, no que la
 exigencia estuviera de más — y esa pantalla ya existe.
+
+---
+
+## 2026-09-09 — MFA sacado del todo: solo email + contraseña
+
+**Reemplaza la decisión anterior.** El dueño del gimnasio pidió
+explícitamente sacar la verificación en dos pasos — dos veces en la misma
+conversación, la segunda con la pregunta directa "se puede sacar el MFA
+sin que se rompa todo y quede andando bien solo con login y contraseña".
+Se le señaló que esto revierte la decisión anterior (que un colaborador
+distinto había fijado con un test de regresión a propósito, con un
+comentario explícito anticipando este escenario) y el costo concreto: una
+contraseña de `DUENO` filtrada alcanza, sola, para operar la cuenta
+completa. Confirmó que quería sacarlo igual.
+
+**Qué se sacó:**
+- Toda la ruta `/mfa` (`app/(auth)/mfa/`: page, actions, enrolar-mfa,
+  desafio-mfa) — eliminada, no solo deshabilitada.
+- `requiresAal2()`, el tipo `Aal` y el campo `aal` de `AuthContext` —
+  eliminados de `context.ts` y de `with-auth.ts`. No queda un flag para
+  reactivarlo con un cambio de una línea; reactivar MFA de verdad
+  significa reconstruir el enrolamiento.
+- `resolverDestinoLogin()` (`flujo-login.ts`) ya no considera AAL: con
+  contraseña válida y una fila utilizable en `app_users`, va directo a
+  `/dashboard`. De paso `login/actions.ts` ya no hace la consulta extra a
+  `getAuthenticatorAssuranceLevel()` — un round-trip de red menos en cada
+  login.
+
+**Por qué esta vez sí:** a diferencia de la vez anterior (donde el
+problema real era la falta de una pantalla de enrolamiento, no la
+exigencia en sí), acá el pedido es explícito, informado y repetido: el
+dueño prefiere la fricción de un solo factor a la de dos, para un
+sistema que hoy tiene un usuario real. Si en el futuro hay varios
+usuarios `DUENO`/`STAFF` y la superficie de riesgo crece, esto se puede
+reconsiderar — pero construyendo el enrolamiento de nuevo, no reviviendo
+código muerto.

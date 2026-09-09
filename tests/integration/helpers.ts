@@ -6,11 +6,11 @@ import { withTenantTx } from "@/use-cases/_kernel/with-tenant-tx";
 /**
  * Crea un gimnasio + plan + usuario de prueba con IDs frescos (uuid al
  * azar) y devuelve el AuthContext correspondiente, ya "logueado" como
- * DUENO con aal2 — sin pasar por Supabase (estos tests prueban el kernel
- * de datos/RLS, no el flujo de login; eso es responsabilidad de los
- * tests e2e). No hay limpieza al final a propósito: cada test usa IDs
- * frescos, así que los datos de tests anteriores nunca colisionan ni
- * afectan el resultado — es una base de desarrollo descartable.
+ * DUENO — sin pasar por Supabase (estos tests prueban el kernel de
+ * datos/RLS, no el flujo de login; eso es responsabilidad de los tests
+ * e2e). No hay limpieza al final a propósito: cada test usa IDs frescos,
+ * así que los datos de tests anteriores nunca colisionan ni afectan el
+ * resultado — es una base de desarrollo descartable.
  */
 export async function seedTestGym(): Promise<{ ctx: AuthContext; planId: string }> {
   const gymId = randomUUID();
@@ -23,7 +23,6 @@ export async function seedTestGym(): Promise<{ ctx: AuthContext; planId: string 
     userId,
     gymId,
     rol: "DUENO",
-    aal: "aal2",
     email,
     nombre: "Dueño de prueba",
   };
