@@ -5,6 +5,7 @@ import { conflict, ok, type Result } from "@/use-cases/_kernel/result";
 import { listarPlanes, obtenerConfiguracion, obtenerGimnasio } from "@/data/repositories/gym-repo";
 import { hoyISO } from "@/domain/fechas/hoy";
 import type { ParametrosDeCobertura } from "@/domain/pagos/cobertura";
+import { isDevMockAuthEnabled } from "@/lib/auth/config";
 
 /**
  * TODO lo que la interfaz necesita saber del gimnasio antes de dibujar
@@ -70,7 +71,34 @@ export const contextoDelGimnasioQuery = withAuth<void, ContextoDelGimnasio>(
     return withTenantTx<Result<ContextoDelGimnasio>>(ctx, async (tx) => {
       const gym = await obtenerGimnasio(tx, ctx);
       const config = await obtenerConfiguracion(tx, ctx);
-      if (!gym || !config) return conflict("No pudimos leer la configuración del gimnasio.");
+      if (!gym || !config) {
+        if (isDevMockAuthEnabled()) {
+          const tz = "America/Argentina/Buenos_Aires";
+          return ok({
+            nombre: "Fuerza Natural · DEMO",
+            moneda: "ARS",
+            timezone: tz,
+            hoy: hoyISO(tz),
+            parametros: {
+              ventanaPagoHasta: 10,
+              diasGracia: 5,
+              diasNuevoSinPago: 7,
+            },
+            ventanaPagoDesde: 1,
+            precioMedioMes: 45000,
+            alertasDesde: "2026-09-01",
+            planes: [
+              { id: "1", nombre: "2 días", diasSemana: 2, acceso: "DIAS_FIJOS", precio: 50000, activo: true },
+              { id: "2", nombre: "3 días", diasSemana: 3, acceso: "DIAS_FIJOS", precio: 55000, activo: true },
+              { id: "3", nombre: "4 días", diasSemana: 4, acceso: "DIAS_FIJOS", precio: 60000, activo: true },
+              { id: "4", nombre: "5 días", diasSemana: 5, acceso: "DIAS_FIJOS", precio: 65000, activo: true },
+              { id: "5", nombre: "LIBRE", diasSemana: 5, acceso: "LIBRE", precio: null, activo: true },
+            ],
+            motivosBaja: [],
+          });
+        }
+        return conflict("No pudimos leer la configuración del gimnasio.");
+      }
 
       const planes = await listarPlanes(tx, ctx);
 

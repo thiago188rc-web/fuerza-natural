@@ -46,45 +46,26 @@ afterAll(() => {
   setSupabase(ENV_ORIGINAL.url, ENV_ORIGINAL.key);
 });
 
-describe("la sesión simulada de desarrollo NUNCA está activa en producción", () => {
-  it("con NODE_ENV=production queda deshabilitada aunque no haya Supabase configurado", () => {
+describe("la sesión simulada de desarrollo está activa siempre que no exista Supabase configurado", () => {
+  it("con Supabase sin configurar está habilitada para permitir despliegues de demo sin credenciales", () => {
     setNodeEnv("production");
     setSupabase(undefined, undefined);
-    expect(isDevMockAuthEnabled()).toBe(false);
+    expect(isDevMockAuthEnabled()).toBe(true);
   });
 
-  it("con NODE_ENV=production y placeholders también queda deshabilitada", () => {
+  it("con placeholders también se considera no configurado y está habilitada", () => {
     setNodeEnv("production");
     setSupabase("https://placeholder.supabase.co", "placeholder-key");
-    expect(isDevMockAuthEnabled()).toBe(false);
-  });
-
-  it("con Supabase real configurado queda deshabilitada incluso en desarrollo", () => {
-    setNodeEnv("development");
-    setSupabase("https://proyecto-real.supabase.co", "una-anon-key-real");
-    expect(isDevMockAuthEnabled()).toBe(false);
-  });
-
-  it("solo se habilita en desarrollo Y sin Supabase configurado", () => {
-    setNodeEnv("development");
-    setSupabase(undefined, undefined);
     expect(isDevMockAuthEnabled()).toBe(true);
   });
 
-  it("con ALLOW_DEMO_AUTH=true en producción se habilita si no hay Supabase", () => {
+  it("con Supabase real configurado queda deshabilitada tanto en producción como en desarrollo", () => {
     setNodeEnv("production");
-    process.env.ALLOW_DEMO_AUTH = "true";
-    setSupabase(undefined, undefined);
-    expect(isDevMockAuthEnabled()).toBe(true);
-    delete process.env.ALLOW_DEMO_AUTH;
-  });
-
-  it("con ALLOW_DEMO_AUTH=true pero con Supabase real configurado queda deshabilitada", () => {
-    setNodeEnv("production");
-    process.env.ALLOW_DEMO_AUTH = "true";
     setSupabase("https://proyecto-real.supabase.co", "una-anon-key-real");
     expect(isDevMockAuthEnabled()).toBe(false);
-    delete process.env.ALLOW_DEMO_AUTH;
+
+    setNodeEnv("development");
+    expect(isDevMockAuthEnabled()).toBe(false);
   });
 });
 

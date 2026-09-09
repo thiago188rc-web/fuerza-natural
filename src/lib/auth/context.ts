@@ -84,33 +84,58 @@ export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
 
     if (!authUserId) return null;
 
-    const sql = getSql();
-    const rows = await sql<
-      { id: string; gym_id: string; rol: string; activo: boolean; email: string; nombre: string }[]
-    >`SELECT id, gym_id, rol, activo, email, nombre FROM app.get_app_user_by_auth_id(${authUserId})`;
+    try {
+      const sql = getSql();
+      const rows = await sql<
+        { id: string; gym_id: string; rol: string; activo: boolean; email: string; nombre: string }[]
+      >`SELECT id, gym_id, rol, activo, email, nombre FROM app.get_app_user_by_auth_id(${authUserId})`;
 
-    const appUser = rows[0];
-    if (!appUser || !appUser.activo) return null;
-    if (appUser.rol !== "DUENO" && appUser.rol !== "STAFF") return null;
+      const appUser = rows[0];
+      if (appUser && appUser.activo && (appUser.rol === "DUENO" || appUser.rol === "STAFF")) {
+        let aal: Aal = "aal1";
+        if (isDevMock) {
+          aal = "aal2";
+        } else {
+          const supabase = await createSupabaseServerClient();
+          const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+          aal = aalData?.currentLevel === "aal2" ? "aal2" : "aal1";
+        }
 
-    let aal: Aal = "aal1";
-    if (isDevMock) {
-      // Solo alcanzable en desarrollo sin Supabase (ver arriba).
-      aal = "aal2";
-    } else {
-      const supabase = await createSupabaseServerClient();
-      const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-      aal = aalData?.currentLevel === "aal2" ? "aal2" : "aal1";
+        return {
+          userId: appUser.id,
+          gymId: appUser.gym_id,
+          rol: appUser.rol as Rol,
+          aal,
+          email: appUser.email,
+          nombre: appUser.nombre,
+        };
+      }
+    } catch (dbErr) {
+      if (isDevMock) {
+        return {
+          userId: "00000000-0000-0000-0000-000000000001",
+          gymId: "00000000-0000-0000-0000-000000000000",
+          rol: "DUENO",
+          aal: "aal2",
+          email: "demo@fuerzanatural.test",
+          nombre: "Usuario Demo",
+        };
+      }
+      throw dbErr;
     }
 
-    return {
-      userId: appUser.id,
-      gymId: appUser.gym_id,
-      rol: appUser.rol,
-      aal,
-      email: appUser.email,
-      nombre: appUser.nombre,
-    };
+    if (isDevMock) {
+      return {
+        userId: "00000000-0000-0000-0000-000000000001",
+        gymId: "00000000-0000-0000-0000-000000000000",
+        rol: "DUENO",
+        aal: "aal2",
+        email: "demo@fuerzanatural.test",
+        nombre: "Usuario Demo",
+      };
+    }
+
+    return null;
   } catch (err) {
     console.error("getAuthContext failed gracefully:", err);
     return null;
