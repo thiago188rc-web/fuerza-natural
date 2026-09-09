@@ -25,6 +25,7 @@ import {
   type SegmentoDelMes,
   type TramoCubierto,
 } from "@/domain/pagos/cobertura";
+import { isDevMockAuthEnabled } from "@/lib/auth/config";
 
 /**
  * LA CENTRAL DE OPERACIONES.
@@ -97,9 +98,44 @@ const GRAVEDAD: Record<EstadoDeCobertura, number> = {
 
 export const panelQuery = withAuth<void, Panel>(["DUENO", "STAFF"], async (ctx) => {
   return withTenantTx<Result<Panel>>(ctx, async (tx) => {
-    const gym = await obtenerGimnasio(tx, ctx);
-    const config = await obtenerConfiguracion(tx, ctx);
-    if (!gym || !config) return conflict("No pudimos leer la configuración del gimnasio.");
+    let gym, config;
+    try {
+      gym = await obtenerGimnasio(tx, ctx);
+      config = await obtenerConfiguracion(tx, ctx);
+    } catch (err) {
+      if (isDevMockAuthEnabled()) {
+        gym = null;
+        config = null;
+      } else {
+        throw err;
+      }
+    }
+
+    if (!gym || !config) {
+      if (isDevMockAuthEnabled()) {
+        const tz = "America/Argentina/Buenos_Aires";
+        const hoy = hoyISO(tz);
+        return ok({
+          hoy,
+          etiquetaMes: etiquetaDeMes(hoy, { conAnio: true }),
+          posicionDeHoy: posicionEnElMes(hoy),
+          diaDeHoy: Number(hoy.slice(8, 10)),
+          diasDelMes: diasDelMes(hoy),
+          activos: 39,
+          pausados: 3,
+          bajas: 6,
+          cubiertos: 20,
+          enRevision: 7,
+          descubiertos: 12,
+          movimiento: { nuevos: 3, volvieron: 2, dejaron: 1, pausaron: 1 },
+          cobradoEsteMes: { total: 1450000, cantidad: 25 },
+          moneda: "ARS",
+          atencion: [],
+          actividad: [],
+        });
+      }
+      return conflict("No pudimos leer la configuración del gimnasio.");
+    }
 
     const hoy = hoyISO(gym.timezone);
     const inicioDelMes = primerDiaDelMes(hoy);
