@@ -70,6 +70,22 @@ describe("la sesión simulada de desarrollo NUNCA está activa en producción", 
     setSupabase(undefined, undefined);
     expect(isDevMockAuthEnabled()).toBe(true);
   });
+
+  it("con ALLOW_DEMO_AUTH=true en producción se habilita si no hay Supabase", () => {
+    setNodeEnv("production");
+    process.env.ALLOW_DEMO_AUTH = "true";
+    setSupabase(undefined, undefined);
+    expect(isDevMockAuthEnabled()).toBe(true);
+    delete process.env.ALLOW_DEMO_AUTH;
+  });
+
+  it("con ALLOW_DEMO_AUTH=true pero con Supabase real configurado queda deshabilitada", () => {
+    setNodeEnv("production");
+    process.env.ALLOW_DEMO_AUTH = "true";
+    setSupabase("https://proyecto-real.supabase.co", "una-anon-key-real");
+    expect(isDevMockAuthEnabled()).toBe(false);
+    delete process.env.ALLOW_DEMO_AUTH;
+  });
 });
 
 describe("isSupabaseConfigured", () => {
