@@ -2,7 +2,8 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 import { createSupabaseServerClient } from "./supabase-server";
 import { DEV_MOCK_AUTH_COOKIE, isDevMockAuthEnabled, isSupabaseConfigured } from "./config";
-import { getSql } from "@/data/db";
+import { buscarAppUserPorAuthId } from "./app-user";
+import { esAppUserUtilizable } from "./flujo-login";
 
 export type Rol = "DUENO" | "STAFF";
 export type Aal = "aal1" | "aal2";
@@ -34,7 +35,7 @@ export interface AuthContext {
 async function leerMockAuthIdDeDesarrollo(): Promise<string | null> {
   if (!isDevMockAuthEnabled()) return null;
   const cookieStore = await cookies();
-  return cookieStore.get(DEV_MOCK_AUTH_COOKIE)?.value ?? null;
+  return cookieStore.get(DEV_MOCK_AUTH_COOKIE)?.value ?? "00000000-0000-0000-0000-000000000001";
 }
 
 /**
@@ -85,13 +86,13 @@ export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
     if (!authUserId) return null;
 
     try {
-      const sql = getSql();
-      const rows = await sql<
-        { id: string; gym_id: string; rol: string; activo: boolean; email: string; nombre: string }[]
-      >`SELECT id, gym_id, rol, activo, email, nombre FROM app.get_app_user_by_auth_id(${authUserId})`;
+      const appUser = await buscarAppUserPorAuthId(authUserId);
 
-      const appUser = rows[0];
-      if (appUser && appUser.activo && (appUser.rol === "DUENO" || appUser.rol === "STAFF")) {
+      // Un usuario de Supabase sin fila en app_users, con la fila
+      // desactivada o con un rol desconocido NO entra. La pantalla de login
+      // explica cuál de los tres casos es (ver login/actions.ts); acá,
+      // que es la barrera, solo importa que no pase.
+      if (esAppUserUtilizable(appUser)) {
         let aal: Aal = "aal1";
         if (isDevMock) {
           aal = "aal2";
@@ -103,7 +104,7 @@ export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
 
         return {
           userId: appUser.id,
-          gymId: appUser.gym_id,
+          gymId: appUser.gymId,
           rol: appUser.rol as Rol,
           aal,
           email: appUser.email,

@@ -1,35 +1,39 @@
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { verifyMfaCode } from "./actions";
+import { redirect } from "next/navigation";
+import { createSupabaseServerClient } from "@/lib/auth/supabase-server";
+import { isSupabaseConfigured } from "@/lib/auth/config";
+import { modoMfa } from "@/lib/auth/flujo-login";
+import { DesafioMfa } from "./desafio-mfa";
+import { EnrolarMfa } from "./enrolar-mfa";
 
-export default function MfaPage() {
-  return (
-    <div>
-      <p className="t-rotulo">Segundo paso</p>
-      <h1 className="t-titulo mt-2 text-[1.625rem]">Verificación en dos pasos</h1>
-      <p className="mt-2 text-sm text-muted-foreground">
-        Ingresá el código de 6 dígitos de tu app de autenticación.
-      </p>
+/**
+ * El segundo paso del ingreso. Decide en el servidor qué corresponde:
+ *
+ *   - sin sesión           → al login (acá no se llega sin contraseña)
+ *   - ya en aal2           → al dashboard (no hay nada que verificar)
+ *   - con factor verificado→ pedir el código
+ *   - sin factor           → configurar uno
+ *
+ * Sin Supabase configurado esta pantalla no forma parte del flujo (la
+ * sesión simulada de desarrollo entra directo al dashboard), así que
+ * redirige en vez de mostrar un formulario que no podría funcionar.
+ */
+export default async function MfaPage() {
+  if (!isSupabaseConfigured()) redirect("/login");
 
-      <form action={verifyMfaCode} className="mt-8 flex flex-col gap-5">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="code">Código</Label>
-          <Input
-            id="code"
-            name="code"
-            type="text"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={6}
-            required
-            className="tabular h-11 bg-card text-center font-mono text-lg tracking-[0.3em]"
-          />
-        </div>
-        <Button type="submit" size="lg" className="mt-1 h-10 w-full">
-          Verificar
-        </Button>
-      </form>
-    </div>
-  );
+  const supabase = await createSupabaseServerClient();
+
+  const { data: usuario } = await supabase.auth.getUser();
+  if (!usuario?.user) redirect("/login");
+
+  const { data: nivel } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  const { data: factores } = await supabase.auth.mfa.listFactors();
+
+  const verificados = factores?.totp ?? [];
+  const aal = nivel ? { currentLevel: nivel.currentLevel, nextLevel: nivel.nextLevel } : null;
+  const modo = modoMfa(verificados, aal);
+
+  if (modo === "listo") redirect("/dashboard");
+  if (modo === "challenge") return <DesafioMfa factorId={verificados[0]!.id} />;
+
+  return <EnrolarMfa />;
 }

@@ -1,7 +1,13 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { buildCsp, SECURITY_HEADERS } from "@/lib/security/headers";
-import { isSupabaseConfigured, supabaseAnonKey, supabaseUrl } from "@/lib/auth/config";
+import {
+  DEV_MOCK_AUTH_COOKIE,
+  isDevMockAuthEnabled,
+  isSupabaseConfigured,
+  supabaseAnonKey,
+  supabaseUrl,
+} from "@/lib/auth/config";
 
 /**
  * DOS responsabilidades, y ninguna de las dos es autorizar (SPEC V1 §3.15):
@@ -32,6 +38,17 @@ export async function proxy(request: NextRequest) {
   requestHeaders.set("x-nonce", nonce);
 
   let response = NextResponse.next({ request: { headers: requestHeaders } });
+
+  if (isDevMockAuthEnabled()) {
+    if (!request.cookies.get(DEV_MOCK_AUTH_COOKIE)?.value) {
+      response.cookies.set(DEV_MOCK_AUTH_COOKIE, "00000000-0000-0000-0000-000000000001", {
+        path: "/",
+        httpOnly: true,
+        sameSite: "lax",
+        maxAge: 60 * 60 * 24 * 30,
+      });
+    }
+  }
 
   const supabase = createServerClient(url, anonKey, {
     cookies: {
