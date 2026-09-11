@@ -64,7 +64,10 @@ export function FormularioDeCobro({
   const formRef = useRef<HTMLFormElement>(null);
   const [estado, enviar, enviando] = useActionState(registrarPagoFormAction, ESTADO_PAGO_INICIAL);
 
-  const [modalidad, setModalidad] = useState<Modalidad>("MES_COMPLETO");
+  // La única modalidad que se ofrece al cobrar es mes completo — el dueño
+  // pidió sacar "1/2 mes" del formulario. El dominio y los pagos viejos con
+  // MEDIO_MES siguen intactos; esto solo achica lo que se puede elegir acá.
+  const modalidad: Modalidad = "MES_COMPLETO";
   const [fechaPago, setFechaPago] = useState(contexto.hoy);
   const [cubreDesde, setCubreDesde] = useState(contexto.sugerenciaDesde);
   const [montoManual, setMontoManual] = useState<string | null>(null);
@@ -73,12 +76,10 @@ export function FormularioDeCobro({
   const [superposicionCerrada, setSuperposicionCerrada] = useState<string | null>(null);
 
   const cobertura = coberturaDe(modalidad, cubreDesde);
-  const precioConfigurado =
-    modalidad === "MES_COMPLETO" ? contexto.alumno.planPrecio : contexto.precioMedioMes;
+  const precioConfigurado = contexto.alumno.planPrecio;
 
   // El importe se DERIVA del precio configurado hasta que el usuario
-  // escribe uno propio. Sin efectos: cambiar de modalidad recalcula el
-  // valor mostrado, y lo que el usuario tipeó gana siempre.
+  // escribe uno propio. Sin efectos: lo que el usuario tipeó gana siempre.
   const monto = montoManual ?? (precioConfigurado === null ? "" : String(precioConfigurado));
   const montoNumero = Number(monto);
   const difiereDelPrecio =
@@ -115,6 +116,7 @@ export function FormularioDeCobro({
     >
       <input type="hidden" name="studentId" value={contexto.alumno.id} />
       <input type="hidden" name="fechaPago" value={fechaPago} />
+      <input type="hidden" name="modalidad" value={modalidad} />
       <input type="hidden" name="cubreDesde" value={cubreDesde} />
       <input type="hidden" name="idempotencyKey" value={claveIdempotencia} />
       <input
@@ -124,77 +126,36 @@ export function FormularioDeCobro({
       />
 
       <div className="superficie divide-y divide-border">
-        {/* QUÉ SE COBRA */}
-        <fieldset className="px-5 py-5">
-          <legend className="t-rotulo">
-            Modalidad
-          </legend>
-          <Segmentado
-            className="mt-3"
-            nombre="modalidad"
-            valor={modalidad}
-            onCambio={(v) => cambiarCobertura(() => setModalidad(v))}
-            opciones={[
-              { valor: "MES_COMPLETO", etiqueta: "Mes completo", detalle: "el mes calendario" },
-              { valor: "MEDIO_MES", etiqueta: "1/2 mes", detalle: "15 días corridos" },
-            ]}
-          />
-          <p className="mt-3 text-xs text-muted-foreground">
-            {modalidad === "MES_COMPLETO"
-              ? `Cubre el mes entero con el plan habitual: ${contexto.alumno.planNombre}.`
-              : "15 días corridos desde el día que elijas. No cambia el plan habitual del alumno."}
-          </p>
-        </fieldset>
-
         {/* DESDE CUÁNDO */}
         <fieldset className="px-5 py-5">
-          <legend className="t-rotulo">
-            {modalidad === "MES_COMPLETO" ? "Mes que cubre" : "Primer día cubierto"}
-          </legend>
+          <legend className="t-rotulo">Mes que cubre</legend>
 
-          {modalidad === "MES_COMPLETO" ? (
-            <div className="mt-3 flex items-center gap-2">
-              <PasoDeMes
-                direccion="anterior"
-                onClick={() =>
-                  cambiarCobertura(() =>
-                    setCubreDesde(primerDiaDelMes(sumarMeses(cubreDesde, -1))),
-                  )
-                }
-              />
-              {/* `aria-live`: las flechas cambian este texto y nada más. Sin
-                  esto, quien navega con lector aprieta "Mes siguiente" y no
-                  escucha en qué mes quedó. */}
-              <span
-                aria-live="polite"
-                className="tabular flex-1 text-center font-heading text-lg font-semibold capitalize"
-              >
-                {etiquetaDeMes(cubreDesde)}
-              </span>
-              <PasoDeMes
-                direccion="siguiente"
-                onClick={() =>
-                  cambiarCobertura(() => setCubreDesde(primerDiaDelMes(sumarMeses(cubreDesde, 1))))
-                }
-              />
-            </div>
-          ) : (
-            <div className="mt-3">
-              <Label htmlFor="cubre-desde" className="sr-only">
-                Primer día cubierto
-              </Label>
-              <Input
-                id="cubre-desde"
-                type="date"
-                value={cubreDesde}
-                onChange={(e) => cambiarCobertura(() => setCubreDesde(e.target.value))}
-                className="tabular"
-              />
-              <p className="mt-2 text-xs text-muted-foreground">
-                Puede empezar cualquier día del mes, no solo el 1 o el 15.
-              </p>
-            </div>
-          )}
+          <div className="mt-3 flex items-center gap-2">
+            <PasoDeMes
+              direccion="anterior"
+              onClick={() =>
+                cambiarCobertura(() => setCubreDesde(primerDiaDelMes(sumarMeses(cubreDesde, -1))))
+              }
+            />
+            {/* `aria-live`: las flechas cambian este texto y nada más. Sin
+                esto, quien navega con lector aprieta "Mes siguiente" y no
+                escucha en qué mes quedó. */}
+            <span
+              aria-live="polite"
+              className="tabular flex-1 text-center font-heading text-lg font-semibold capitalize"
+            >
+              {etiquetaDeMes(cubreDesde)}
+            </span>
+            <PasoDeMes
+              direccion="siguiente"
+              onClick={() =>
+                cambiarCobertura(() => setCubreDesde(primerDiaDelMes(sumarMeses(cubreDesde, 1))))
+              }
+            />
+          </div>
+          <p className="mt-3 text-xs text-muted-foreground">
+            Cubre el mes entero con el plan habitual: {contexto.alumno.planNombre}.
+          </p>
 
           {estado.errores?.cubreDesde ? (
             <p className="mt-2 text-xs text-destructive">{estado.errores.cubreDesde}</p>
@@ -236,11 +197,8 @@ export function FormularioDeCobro({
               <AnimatePresence mode="wait" initial={false}>
                 {precioConfigurado === null ? (
                   <Aviso key="sin-precio" tono="revisar" quieto={quieto}>
-                    El precio de{" "}
-                    {modalidad === "MES_COMPLETO"
-                      ? `“${contexto.alumno.planNombre}”`
-                      : "“1/2 mes”"}{" "}
-                    todavía no está confirmado. Ingresá el importe a mano.
+                    El precio de &ldquo;{contexto.alumno.planNombre}&rdquo; todavía no está
+                    confirmado. Ingresá el importe a mano.
                   </Aviso>
                 ) : difiereDelPrecio ? (
                   <Aviso key="difiere" tono="neutro" quieto={quieto}>
@@ -249,7 +207,7 @@ export function FormularioDeCobro({
                   </Aviso>
                 ) : montoManual === null ? (
                   <Aviso key="sugerido" tono="neutro" quieto={quieto}>
-                    Precio configurado para {ETIQUETA_MODALIDAD[modalidad].toLowerCase()}.
+                    Precio configurado del plan.
                   </Aviso>
                 ) : null}
               </AnimatePresence>
