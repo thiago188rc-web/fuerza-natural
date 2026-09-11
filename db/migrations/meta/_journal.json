@@ -43,6 +43,13 @@
       "when": 1789087181536,
       "tag": "0005_blushing_maelstrom",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789105428317,
+      "tag": "0006_jazzy_nitro",
+      "breakpoints": true
     }
   ]
 }

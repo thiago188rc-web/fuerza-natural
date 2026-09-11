@@ -47,15 +47,6 @@ export const students = appSchema.table(
     // nunca se infiere. Ver docs/DECISIONES.md.
     genero: text("genero"),
 
-    // Preferencias de cobro, SOLO informativas — a diferencia de
-    // `payments.modalidad` y `payments.metodo`, estas dos columnas no
-    // cubren nada ni disparan ningún cálculo: son una nota de "cómo cobra
-    // habitualmente este alumno" para que el dueño no tenga que
-    // recordarlo. Cada pago sigue guardando su propio método y modalidad
-    // reales (docs/ARCHITECTURE.md: "el plan del alumno ≠ lo que pagó").
-    formaPagoHabitual: text("forma_pago_habitual"),
-    modalidadHabitual: text("modalidad_habitual"),
-
     // El único estado persistido. Ninguna transición ocurre automáticamente
     // — cambia solo por una acción humana explícita (alta/pausa/baja/reactivación).
     vinculo: text("vinculo").notNull().default("ACTIVO"),
@@ -103,15 +94,7 @@ export const students = appSchema.table(
     check("students_origen_check", sql`${t.origen} in ('MANUAL','IMPORTACION')`),
     check(
       "students_genero_check",
-      sql`${t.genero} is null or ${t.genero} in ('FEMENINO','MASCULINO','OTRO','PREFIERO_NO_DECIR')`,
-    ),
-    check(
-      "students_forma_pago_habitual_check",
-      sql`${t.formaPagoHabitual} is null or ${t.formaPagoHabitual} in ('EFECTIVO','TRANSFERENCIA','BILLETERA','OTRO')`,
-    ),
-    check(
-      "students_modalidad_habitual_check",
-      sql`${t.modalidadHabitual} is null or ${t.modalidadHabitual} in ('MES_COMPLETO','MEDIO_MES')`,
+      sql`${t.genero} is null or ${t.genero} in ('FEMENINO','MASCULINO')`,
     ),
 
     // Reglas de integridad exigidas por SPEC V1 §4.5 — se verifican en la

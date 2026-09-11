@@ -20,8 +20,6 @@ import { Importe } from "@/components/importe";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { esVinculo, etiquetaVinculo } from "@/domain/alumnos/vinculo";
 import { distanciaRelativa } from "@/domain/fechas/calendario";
-import { ETIQUETA_MODALIDAD, type Modalidad } from "@/domain/pagos/modalidad";
-import { ETIQUETA_METODO } from "@/schemas/payment";
 import { fechaCompleta } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 
@@ -229,22 +227,6 @@ export default async function FichaAlumnoPage({
                     <Dato
                       etiqueta="Fecha de nacimiento"
                       valor={alumno.fechaNacimiento ? fechaCompleta(alumno.fechaNacimiento) : null}
-                    />
-                    <Dato
-                      etiqueta="Forma de pago habitual"
-                      valor={
-                        alumno.formaPagoHabitual
-                          ? ETIQUETA_METODO[alumno.formaPagoHabitual as keyof typeof ETIQUETA_METODO]
-                          : null
-                      }
-                    />
-                    <Dato
-                      etiqueta="Modalidad habitual"
-                      valor={
-                        alumno.modalidadHabitual
-                          ? ETIQUETA_MODALIDAD[alumno.modalidadHabitual as Modalidad]
-                          : null
-                      }
                     />
                     <Dato etiqueta="Alta" valor={fechaCompleta(alumno.fechaAltaOriginal)} />
                     <Dato

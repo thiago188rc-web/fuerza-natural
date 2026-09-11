@@ -68,8 +68,6 @@ export async function crearAlumnoFormAction(
     notas: texto(formData, "notas"),
     genero: texto(formData, "genero"),
     fechaNacimiento: texto(formData, "fechaNacimiento"),
-    formaPagoHabitual: texto(formData, "formaPagoHabitual"),
-    modalidadHabitual: texto(formData, "modalidadHabitual"),
     // El schema de Zod ignora cualquier otro campo que llegue: `gymId` no
     // existe en la forma de entrada, así que no hay manera de mandarlo.
   });
@@ -95,8 +93,6 @@ export async function editarAlumnoFormAction(
     notas: texto(formData, "notas"),
     genero: texto(formData, "genero"),
     fechaNacimiento: texto(formData, "fechaNacimiento"),
-    formaPagoHabitual: texto(formData, "formaPagoHabitual"),
-    modalidadHabitual: texto(formData, "modalidadHabitual"),
   });
 
   if (!resultado.ok) return aEstadoFormulario(resultado);

@@ -18,8 +18,6 @@ import {
   type EstadoFormulario,
 } from "@/app/(app)/alumnos/estado-formulario";
 import { GENEROS, etiquetaGenero, type Genero } from "@/domain/alumnos/genero";
-import { MODALIDADES, ETIQUETA_MODALIDAD, type Modalidad } from "@/domain/pagos/modalidad";
-import { METODOS_PAGO, ETIQUETA_METODO } from "@/schemas/payment";
 
 export interface PlanOpcion {
   id: string;
@@ -37,8 +35,6 @@ export interface ValoresAlumno {
   notas: string;
   genero: string;
   fechaNacimiento: string;
-  formaPagoHabitual: string;
-  modalidadHabitual: string;
 }
 
 interface Props {
@@ -196,62 +192,6 @@ export function FormularioAlumno({
             defaultValue={valores.fechaNacimiento}
             aria-invalid={Boolean(errores.fechaNacimiento)}
           />
-        </Campo>
-
-        <Campo
-          id="formaPagoHabitual"
-          etiqueta="Forma de pago habitual"
-          error={errores.formaPagoHabitual}
-          ayuda="Opcional, solo de referencia. Cada pago igual registra su propio medio."
-        >
-          <Select
-            name="formaPagoHabitual"
-            defaultValue={valores.formaPagoHabitual || undefined}
-            items={METODOS_PAGO.map((m) => ({ value: m, label: ETIQUETA_METODO[m] }))}
-          >
-            <SelectTrigger
-              id="formaPagoHabitual"
-              className="w-full"
-              aria-invalid={Boolean(errores.formaPagoHabitual)}
-            >
-              <SelectValue placeholder="Sin especificar" />
-            </SelectTrigger>
-            <SelectContent>
-              {METODOS_PAGO.map((m) => (
-                <SelectItem key={m} value={m}>
-                  {ETIQUETA_METODO[m]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Campo>
-
-        <Campo
-          id="modalidadHabitual"
-          etiqueta="Modalidad habitual"
-          error={errores.modalidadHabitual}
-          ayuda="Opcional, solo de referencia. No cambia el plan ni cubre nada por sí sola."
-        >
-          <Select
-            name="modalidadHabitual"
-            defaultValue={valores.modalidadHabitual || undefined}
-            items={MODALIDADES.map((m) => ({ value: m, label: ETIQUETA_MODALIDAD[m] }))}
-          >
-            <SelectTrigger
-              id="modalidadHabitual"
-              className="w-full"
-              aria-invalid={Boolean(errores.modalidadHabitual)}
-            >
-              <SelectValue placeholder="Sin especificar" />
-            </SelectTrigger>
-            <SelectContent>
-              {MODALIDADES.map((m: Modalidad) => (
-                <SelectItem key={m} value={m}>
-                  {ETIQUETA_MODALIDAD[m]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         </Campo>
       </div>
 

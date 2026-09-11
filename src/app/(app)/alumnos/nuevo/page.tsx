@@ -61,8 +61,6 @@ export default async function NuevoAlumnoPage() {
               notas: "",
               genero: "",
               fechaNacimiento: "",
-              formaPagoHabitual: "",
-              modalidadHabitual: "",
             }}
           />
         </CardContent>

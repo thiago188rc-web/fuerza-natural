@@ -1,9 +1,10 @@
 /**
  * Género del alumno — dato opcional, cargado a mano. No se infiere de nada
  * (nombre, DNI) y nadie está obligado a cargarlo: un alumno sin dato es un
- * estado real, no un error (ver `docs/DECISIONES.md`).
+ * estado real, no un error (ver `docs/DECISIONES.md`). Solo dos opciones,
+ * a pedido del dueño.
  */
-export const GENEROS = ["FEMENINO", "MASCULINO", "OTRO", "PREFIERO_NO_DECIR"] as const;
+export const GENEROS = ["FEMENINO", "MASCULINO"] as const;
 
 export type Genero = (typeof GENEROS)[number];
 
@@ -14,8 +15,6 @@ export function esGenero(valor: unknown): valor is Genero {
 const ETIQUETAS: Record<Genero, string> = {
   FEMENINO: "Femenino",
   MASCULINO: "Masculino",
-  OTRO: "Otro",
-  PREFIERO_NO_DECIR: "Prefiero no decir",
 };
 
 export function etiquetaGenero(genero: Genero): string {

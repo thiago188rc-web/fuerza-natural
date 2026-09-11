@@ -85,8 +85,6 @@ export default async function EditarAlumnoPage({ params }: { params: Promise<{ i
               notas: alumno.notas ?? "",
               genero: alumno.genero ?? "",
               fechaNacimiento: alumno.fechaNacimiento ?? "",
-              formaPagoHabitual: alumno.formaPagoHabitual ?? "",
-              modalidadHabitual: alumno.modalidadHabitual ?? "",
             }}
           />
         </CardContent>
