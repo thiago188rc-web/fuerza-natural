@@ -65,6 +65,7 @@ export function FormularioDeCobro({
   const [estado, enviar, enviando] = useActionState(registrarPagoFormAction, ESTADO_PAGO_INICIAL);
 
   const [modalidad, setModalidad] = useState<Modalidad>("MES_COMPLETO");
+  const [fechaPago, setFechaPago] = useState(contexto.hoy);
   const [cubreDesde, setCubreDesde] = useState(contexto.sugerenciaDesde);
   const [montoManual, setMontoManual] = useState<string | null>(null);
   const [metodo, setMetodo] = useState<string>("EFECTIVO");
@@ -113,7 +114,7 @@ export function FormularioDeCobro({
       className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] lg:items-start"
     >
       <input type="hidden" name="studentId" value={contexto.alumno.id} />
-      <input type="hidden" name="fechaPago" value={contexto.hoy} />
+      <input type="hidden" name="fechaPago" value={fechaPago} />
       <input type="hidden" name="cubreDesde" value={cubreDesde} />
       <input type="hidden" name="idempotencyKey" value={claveIdempotencia} />
       <input
@@ -261,6 +262,29 @@ export function FormularioDeCobro({
           <legend className="t-rotulo">
             Método
           </legend>
+
+          <div className="mt-3">
+            <Label htmlFor="fecha-pago" className="text-xs text-muted-foreground">
+              Fecha del pago
+            </Label>
+            <Input
+              id="fecha-pago"
+              type="date"
+              max={contexto.hoy}
+              value={fechaPago}
+              onChange={(e) => setFechaPago(e.target.value)}
+              className="tabular mt-1.5"
+              aria-invalid={Boolean(estado.errores?.fechaPago)}
+            />
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              Cuándo se cobró de verdad. Cargá un pago atrasado con su fecha real, no con la de
+              hoy.
+            </p>
+            {estado.errores?.fechaPago ? (
+              <p className="mt-1.5 text-xs text-destructive">{estado.errores.fechaPago}</p>
+            ) : null}
+          </div>
+
           <Segmentado
             className="mt-3"
             size="compacto"
@@ -369,7 +393,7 @@ export function FormularioDeCobro({
             )}
           </Button>
           <p className="mt-2 text-center text-[0.7rem] text-muted-foreground">
-            Se registra con fecha {fechaCompleta(contexto.hoy)}
+            Se registra con fecha {fechaCompleta(fechaPago)}
           </p>
         </div>
       </aside>
