@@ -1,0 +1,4 @@
+ALTER TABLE "app"."students" ADD COLUMN "forma_pago_habitual" text;--> statement-breakpoint
+ALTER TABLE "app"."students" ADD COLUMN "modalidad_habitual" text;--> statement-breakpoint
+ALTER TABLE "app"."students" ADD CONSTRAINT "students_forma_pago_habitual_check" CHECK ("app"."students"."forma_pago_habitual" is null or "app"."students"."forma_pago_habitual" in ('EFECTIVO','TRANSFERENCIA','BILLETERA','OTRO'));--> statement-breakpoint
+ALTER TABLE "app"."students" ADD CONSTRAINT "students_modalidad_habitual_check" CHECK ("app"."students"."modalidad_habitual" is null or "app"."students"."modalidad_habitual" in ('MES_COMPLETO','MEDIO_MES'));

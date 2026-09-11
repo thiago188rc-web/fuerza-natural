@@ -37,6 +37,8 @@ export interface NuevoAlumno {
   documento?: string | null;
   fechaNacimiento?: string | null;
   genero?: string | null;
+  formaPagoHabitual?: string | null;
+  modalidadHabitual?: string | null;
   notas?: string | null;
   origen?: "MANUAL" | "IMPORTACION";
 }
@@ -56,6 +58,8 @@ export async function crearAlumno(tx: TxClient, ctx: AuthContext, input: NuevoAl
       documento: input.documento ?? null,
       fechaNacimiento: input.fechaNacimiento ?? null,
       genero: input.genero ?? null,
+      formaPagoHabitual: input.formaPagoHabitual ?? null,
+      modalidadHabitual: input.modalidadHabitual ?? null,
       notas: input.notas ?? null,
       origen: input.origen ?? "MANUAL",
     })
@@ -81,6 +85,9 @@ export async function obtenerFichaAlumno(tx: TxClient, ctx: AuthContext, id: str
       telefono: students.telefono,
       email: students.email,
       genero: students.genero,
+      fechaNacimiento: students.fechaNacimiento,
+      formaPagoHabitual: students.formaPagoHabitual,
+      modalidadHabitual: students.modalidadHabitual,
       vinculo: students.vinculo,
       planId: students.planId,
       planNombre: plans.nombre,
@@ -190,6 +197,9 @@ export interface DatosEditablesAlumno {
   vinculoDesde: string;
   notas: string | null;
   genero: string | null;
+  fechaNacimiento: string | null;
+  formaPagoHabitual: string | null;
+  modalidadHabitual: string | null;
 }
 
 export async function actualizarDatosAlumno(

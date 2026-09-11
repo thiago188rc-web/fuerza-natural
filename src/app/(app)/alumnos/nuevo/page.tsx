@@ -60,6 +60,9 @@ export default async function NuevoAlumnoPage() {
               fechaAltaOriginal: hoy.data,
               notas: "",
               genero: "",
+              fechaNacimiento: "",
+              formaPagoHabitual: "",
+              modalidadHabitual: "",
             }}
           />
         </CardContent>

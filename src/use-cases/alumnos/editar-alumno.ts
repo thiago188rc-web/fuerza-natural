@@ -29,6 +29,9 @@ const ETIQUETAS_DE_CAMPO: Record<string, string> = {
   fechaAltaOriginal: "Fecha de alta",
   notas: "Observaciones",
   genero: "Género",
+  fechaNacimiento: "Fecha de nacimiento",
+  formaPagoHabitual: "Forma de pago habitual",
+  modalidadHabitual: "Modalidad habitual",
 };
 
 /**
@@ -89,6 +92,9 @@ export const editarAlumnoAction = withAuth<EditarAlumnoRaw, AlumnoEditado>(
         vinculoDesde: fechas.fechas.vinculoDesde,
         notas: input.notas ?? null,
         genero: input.genero ?? null,
+        fechaNacimiento: input.fechaNacimiento ?? null,
+        formaPagoHabitual: input.formaPagoHabitual ?? null,
+        modalidadHabitual: input.modalidadHabitual ?? null,
       };
 
       const cambios: Record<string, CambioCampo> = {};

@@ -2,6 +2,8 @@ import { z } from "zod";
 import { normalizarTelefono, normalizarTexto } from "@/domain/alumnos/identidad";
 import { VINCULOS } from "@/domain/alumnos/vinculo";
 import { GENEROS } from "@/domain/alumnos/genero";
+import { MODALIDADES } from "@/domain/pagos/modalidad";
+import { METODOS_PAGO } from "./payment";
 import { opcional } from "./_helpers";
 
 /**
@@ -55,6 +57,12 @@ const notas = z
 const planId = z.string().uuid("Elegí un plan.");
 const fechaCivil = z.string().date("Fecha inválida. Usá el formato AAAA-MM-DD.");
 const genero = z.string({ error: "Género inválido." }).pipe(z.enum(GENEROS, { error: "Género inválido." }));
+const formaPagoHabitual = z
+  .string({ error: "Forma de pago inválida." })
+  .pipe(z.enum(METODOS_PAGO, { error: "Forma de pago inválida." }));
+const modalidadHabitual = z
+  .string({ error: "Modalidad inválida." })
+  .pipe(z.enum(MODALIDADES, { error: "Modalidad inválida." }));
 
 /** Alta. Estado inicial ACTIVO — no se pide ni se acepta del cliente. */
 export const crearAlumnoSchema = z.object({
@@ -69,6 +77,12 @@ export const crearAlumnoSchema = z.object({
   documento: opcional(z.string().trim().min(1).max(30)),
   fechaNacimiento: opcional(fechaCivil),
   genero: opcional(genero),
+  /**
+   * Solo informativas — no cubren nada. Ver el comentario en
+   * `data/schema/students.ts`.
+   */
+  formaPagoHabitual: opcional(formaPagoHabitual),
+  modalidadHabitual: opcional(modalidadHabitual),
 });
 
 /** Lo que sale de validar (normalizado). Lo consume el caso de uso. */
@@ -91,6 +105,9 @@ export const editarAlumnoSchema = z.object({
   fechaAltaOriginal: fechaCivil,
   notas: opcional(notas),
   genero: opcional(genero),
+  fechaNacimiento: opcional(fechaCivil),
+  formaPagoHabitual: opcional(formaPagoHabitual),
+  modalidadHabitual: opcional(modalidadHabitual),
 });
 
 export type EditarAlumnoInput = z.infer<typeof editarAlumnoSchema>;
