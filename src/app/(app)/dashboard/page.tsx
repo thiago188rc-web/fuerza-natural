@@ -110,6 +110,7 @@ export default async function DashboardPage() {
             moneda={panel.moneda}
             movimiento={panel.movimiento}
             eventos={panel.actividad}
+            cumpleanos={panel.cumpleanos}
             hoy={panel.hoy}
             etiquetaMes={panel.etiquetaMes}
           />

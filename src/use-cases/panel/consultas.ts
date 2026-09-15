@@ -5,8 +5,10 @@ import {
   contarAlumnosPorVinculo,
   contarMovimientoDelPadron,
   listarAlumnosActivosParaCobertura,
+  listarCumpleanosDeActivos,
   listarEventosRecientes,
 } from "@/data/repositories/students-repo";
+import { cumpleanosDelMes, type AlumnoConCumpleanos } from "@/domain/alumnos/cumpleanos";
 import { listarTramosCubiertos, totalCobrado } from "@/data/repositories/payments-repo";
 import { obtenerConfiguracion, obtenerGimnasio } from "@/data/repositories/gym-repo";
 import { hoyISO } from "@/domain/fechas/hoy";
@@ -87,6 +89,7 @@ export interface Panel {
   moneda: string;
   atencion: AlumnoEnAtencion[];
   actividad: EventoDelPanel[];
+  cumpleanos: AlumnoConCumpleanos[];
 }
 
 const GRAVEDAD: Record<EstadoDeCobertura, number> = {
@@ -132,6 +135,7 @@ export const panelQuery = withAuth<void, Panel>(["DUENO", "STAFF"], async (ctx) 
           moneda: "ARS",
           atencion: [],
           actividad: [],
+          cumpleanos: [],
         });
       }
       return conflict("No pudimos leer la configuración del gimnasio.");
@@ -141,12 +145,13 @@ export const panelQuery = withAuth<void, Panel>(["DUENO", "STAFF"], async (ctx) 
     const inicioDelMes = primerDiaDelMes(hoy);
     const finDelMes = ultimoDiaDelMes(hoy);
 
-    const [conteo, activos, movimiento, cobrado, actividad] = await Promise.all([
+    const [conteo, activos, movimiento, cobrado, actividad, cumpleanosCrudo] = await Promise.all([
       contarAlumnosPorVinculo(tx, ctx),
       listarAlumnosActivosParaCobertura(tx, ctx),
       contarMovimientoDelPadron(tx, ctx, { desde: inicioDelMes, hasta: finDelMes }),
       totalCobrado(tx, ctx, { desde: inicioDelMes, hasta: finDelMes }),
       listarEventosRecientes(tx, ctx, 8),
+      listarCumpleanosDeActivos(tx, ctx),
     ]);
 
     // La ventana va MUCHO más atrás que el mes en curso, y no es un
@@ -245,6 +250,7 @@ export const panelQuery = withAuth<void, Panel>(["DUENO", "STAFF"], async (ctx) 
         createdAt: e.createdAt.toISOString(),
         datos: (e.datos ?? {}) as Record<string, unknown>,
       })),
+      cumpleanos: cumpleanosDelMes(cumpleanosCrudo, hoy),
     });
   });
 });

@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, Cake } from "lucide-react";
 import type { EventoDelPanel } from "@/use-cases/panel/consultas";
+import type { AlumnoConCumpleanos } from "@/domain/alumnos/cumpleanos";
 import { NumeroAnimado } from "@/components/motion/primitivas";
 import { Importe } from "@/components/importe";
 import { detalleDeEvento, formaDeEvento } from "@/components/features/actividad/eventos";
 import { distanciaRelativa, etiquetaCorta } from "@/domain/fechas/calendario";
+import { cn } from "@/lib/utils";
 
 /**
  * EL CONTEXTO DEL PANEL. Una sola superficie con tres lecturas separadas
@@ -27,6 +29,7 @@ export function ColumnaDeContexto({
   moneda,
   movimiento,
   eventos,
+  cumpleanos,
   hoy,
   etiquetaMes,
 }: {
@@ -34,6 +37,7 @@ export function ColumnaDeContexto({
   moneda: string;
   movimiento: { nuevos: number; volvieron: number; dejaron: number; pausaron: number };
   eventos: EventoDelPanel[];
+  cumpleanos: AlumnoConCumpleanos[];
   hoy: string;
   etiquetaMes: string;
 }) {
@@ -43,8 +47,38 @@ export function ColumnaDeContexto({
     <aside className="superficie divide-y divide-border" aria-label="Contexto del mes">
       <Cobrado total={cobrado.total} cantidad={cobrado.cantidad} moneda={moneda} mes={mes} />
       <Movimiento movimiento={movimiento} mes={mes} />
+      {/* Solo si hay alguien: un mes sin cumpleaños cargados no necesita
+          una sección vacía diciéndolo — a diferencia de "Movimiento",
+          donde el 0 también es información. */}
+      {cumpleanos.length > 0 ? <Cumpleanos alumnos={cumpleanos} mes={mes} /> : null}
       <ActividadReciente eventos={eventos} hoy={hoy} />
     </aside>
+  );
+}
+
+function Cumpleanos({ alumnos, mes }: { alumnos: AlumnoConCumpleanos[]; mes: string }) {
+  return (
+    <section className="px-5 py-4">
+      <p className="t-rotulo">Cumpleaños de {mes}</p>
+      <ul className="mt-2.5 space-y-1.5">
+        {alumnos.map((a) => (
+          <li key={a.id} className="flex items-center justify-between gap-3">
+            <span className={cn("flex items-center gap-1.5 text-[0.8125rem]", a.esHoy && "font-medium")}>
+              {a.esHoy ? <Cake className="size-3.5 shrink-0 text-verde" strokeWidth={2} /> : null}
+              {a.nombre} {a.apellido}
+            </span>
+            <span
+              className={cn(
+                "tabular font-mono text-[0.8125rem]",
+                a.esHoy ? "text-verde" : "text-muted-foreground",
+              )}
+            >
+              {a.esHoy ? "hoy" : `día ${a.dia}`}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
