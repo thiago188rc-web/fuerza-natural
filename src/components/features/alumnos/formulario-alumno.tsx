@@ -18,6 +18,7 @@ import {
   type EstadoFormulario,
 } from "@/app/(app)/alumnos/estado-formulario";
 import { GENEROS, etiquetaGenero, type Genero } from "@/domain/alumnos/genero";
+import { DISCIPLINAS, etiquetaDisciplina, type Disciplina } from "@/domain/alumnos/disciplina";
 
 export interface PlanOpcion {
   id: string;
@@ -35,6 +36,7 @@ export interface ValoresAlumno {
   notas: string;
   genero: string;
   fechaNacimiento: string;
+  disciplina: string;
 }
 
 interface Props {
@@ -192,6 +194,25 @@ export function FormularioAlumno({
             defaultValue={valores.fechaNacimiento}
             aria-invalid={Boolean(errores.fechaNacimiento)}
           />
+        </Campo>
+
+        <Campo id="disciplina" etiqueta="Disciplina" error={errores.disciplina} ayuda="Opcional.">
+          <Select
+            name="disciplina"
+            defaultValue={valores.disciplina || undefined}
+            items={DISCIPLINAS.map((d) => ({ value: d, label: etiquetaDisciplina(d) }))}
+          >
+            <SelectTrigger id="disciplina" className="w-full" aria-invalid={Boolean(errores.disciplina)}>
+              <SelectValue placeholder="Sin especificar" />
+            </SelectTrigger>
+            <SelectContent>
+              {DISCIPLINAS.map((d: Disciplina) => (
+                <SelectItem key={d} value={d}>
+                  {etiquetaDisciplina(d)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </Campo>
       </div>
 

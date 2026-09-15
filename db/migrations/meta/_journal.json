@@ -50,6 +50,13 @@
       "when": 1789105428317,
       "tag": "0006_jazzy_nitro",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789447609427,
+      "tag": "0007_fancy_mole_man",
+      "breakpoints": true
     }
   ]
 }

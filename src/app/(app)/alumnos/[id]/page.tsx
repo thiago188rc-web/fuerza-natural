@@ -19,6 +19,7 @@ import { BotonLink } from "@/components/boton-link";
 import { Importe } from "@/components/importe";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { esVinculo, etiquetaVinculo } from "@/domain/alumnos/vinculo";
+import { esDisciplina, etiquetaDisciplina } from "@/domain/alumnos/disciplina";
 import { distanciaRelativa } from "@/domain/fechas/calendario";
 import { fechaCompleta } from "@/lib/formato";
 import { cn } from "@/lib/utils";
@@ -227,6 +228,10 @@ export default async function FichaAlumnoPage({
                     <Dato
                       etiqueta="Fecha de nacimiento"
                       valor={alumno.fechaNacimiento ? fechaCompleta(alumno.fechaNacimiento) : null}
+                    />
+                    <Dato
+                      etiqueta="Disciplina"
+                      valor={esDisciplina(alumno.disciplina) ? etiquetaDisciplina(alumno.disciplina) : null}
                     />
                     <Dato etiqueta="Alta" valor={fechaCompleta(alumno.fechaAltaOriginal)} />
                     <Dato

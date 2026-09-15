@@ -1,0 +1,2 @@
+ALTER TABLE "app"."students" ADD COLUMN "disciplina" text;--> statement-breakpoint
+ALTER TABLE "app"."students" ADD CONSTRAINT "students_disciplina_check" CHECK ("app"."students"."disciplina" is null or "app"."students"."disciplina" in ('MUSCULACION','CALISTENIA'));

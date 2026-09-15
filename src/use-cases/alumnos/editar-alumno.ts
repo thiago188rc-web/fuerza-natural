@@ -30,6 +30,7 @@ const ETIQUETAS_DE_CAMPO: Record<string, string> = {
   notas: "Observaciones",
   genero: "Género",
   fechaNacimiento: "Fecha de nacimiento",
+  disciplina: "Disciplina",
 };
 
 /**
@@ -91,6 +92,7 @@ export const editarAlumnoAction = withAuth<EditarAlumnoRaw, AlumnoEditado>(
         notas: input.notas ?? null,
         genero: input.genero ?? null,
         fechaNacimiento: input.fechaNacimiento ?? null,
+        disciplina: input.disciplina ?? null,
       };
 
       const cambios: Record<string, CambioCampo> = {};
