@@ -458,3 +458,31 @@ sistema que hoy tiene un usuario real. Si en el futuro hay varios
 usuarios `DUENO`/`STAFF` y la superficie de riesgo crece, esto se puede
 reconsiderar — pero construyendo el enrolamiento de nuevo, no reviviendo
 código muerto.
+
+---
+
+## 2026-09-15 — Vencimiento por conteo de días, no por ventana de calendario
+
+**Decisión:** `situacionDeCobertura()` deja de usar una ventana de
+calendario (`ventanaPagoHasta + diasGracia`, que solo protegía a quien
+venía al día justo en los primeros días del mes) para decidir "para
+revisar" vs. "sin cubrir". Ahora es un conteo de días real por alumno:
+días desde que venció su última cobertura, comparado contra
+`diasGracia`. Con el default de `diasGracia = 5`, el día 6 sin cobertura
+ya es "sin cubrir" (rojo) — sin importar qué día del mes sea ni si
+arrastra un hueco viejo o uno recién abierto. `ventanaPagoHasta` deja de
+influir en este cálculo; sigue existiendo para la franja visual de
+Configuración.
+
+**Motivo:** pedido explícito del dueño — "colores amarillo y rojo según
+los días transcurridos desde la fecha de pago, rojo a partir del sexto
+día". El mecanismo viejo no era un conteo de días: alguien que venía al
+día podía pasar de "para revisar" a "sin cubrir" según qué día del mes
+fuera, no según cuántos días llevaba sin pagar.
+
+**Qué NO cambia:** el semáforo de colores sigue siendo el mismo
+(`--cubierto`/`--revisar`/`--descubierto`, baja saturación) — no se
+introdujo una paleta nueva pese a que las capturas de referencia del
+dueño (su planilla Excel) usaban amarillo/rojo vivos. Ver la entrada del
+2026-09-08 sobre por qué el producto no se ve "como un dashboard SaaS
+genérico".
