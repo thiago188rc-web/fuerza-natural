@@ -196,7 +196,7 @@ export default async function MetricasPage({
         </section>
       </Aparece>
 
-      <div className="grid gap-5 sm:grid-cols-2">
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         <Aparece retraso={0.18} className="min-w-0">
           <section className="superficie h-full p-5">
             <p className="t-rotulo">Asistencia · {m.etiquetaDelRango.toLowerCase()}</p>
@@ -209,6 +209,15 @@ export default async function MetricasPage({
                 una vez
               </span>
             </p>
+          </section>
+        </Aparece>
+
+        <Aparece retraso={0.19} className="min-w-0">
+          <section className="superficie h-full p-5">
+            <Distribucion
+              titulo={`Frecuencia semanal · ${m.etiquetaDelRango.toLowerCase()}`}
+              segmentos={m.porFrecuencia}
+            />
           </section>
         </Aparece>
 

@@ -14,12 +14,13 @@ import {
   listarAlumnosActivosParaCobertura,
   listarCumpleanosDeActivos,
 } from "@/data/repositories/students-repo";
-import { asistieronEnRango } from "@/data/repositories/attendance-repo";
+import { asistieronEnRango, contarAsistenciasPorAlumno } from "@/data/repositories/attendance-repo";
 import { obtenerGimnasio } from "@/data/repositories/gym-repo";
 import { hoyISO } from "@/domain/fechas/hoy";
 import {
   claveDeMes,
   diasDelMes,
+  diasEntre,
   etiquetaCorta,
   etiquetaDeMes,
   primerDiaDeLaSemana,
@@ -38,6 +39,7 @@ import {
   type SegmentoDistribucion,
   type SegmentoEdadGenero,
 } from "@/domain/metricas/demografia";
+import { distribucionPorFrecuencia } from "@/domain/metricas/asistencia";
 import {
   curvaAcumulada,
   segmentosDeImporte,
@@ -121,6 +123,8 @@ export interface Metricas {
   totalAlumnosActivos: number;
 
   asistencia: { asistieron: number; total: number; porcentaje: number };
+  /** Promedio de veces por semana que asistió cada activo, en el rango mostrado. */
+  porFrecuencia: SegmentoDistribucion[];
 
   cumpleanos: AlumnoConCumpleanos[];
 }
@@ -220,6 +224,7 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
         demografia,
         activos,
         asistieron,
+        visitasPorAlumno,
         cumpleanos,
         totalesMesAnterior,
       ] = await Promise.all([
@@ -231,6 +236,7 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
         datosDemograficosDeActivos(tx, ctx),
         listarAlumnosActivosParaCobertura(tx, ctx),
         asistieronEnRango(tx, ctx, rango),
+        contarAsistenciasPorAlumno(tx, ctx, rango),
         listarCumpleanosDeActivos(tx, ctx),
         rangoMesAnterior
           ? totalesPorPeriodo(tx, ctx, rangoMesAnterior, "dia")
@@ -274,6 +280,11 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
       }
 
       const asistieronDeActivos = activos.filter((a) => asistieron.has(a.id)).length;
+      const diasDelRango = diasEntre(rango.desde, rango.hasta) + 1;
+      const porFrecuencia = distribucionPorFrecuencia(
+        activos.map((a) => visitasPorAlumno.get(a.id) ?? 0),
+        diasDelRango,
+      );
 
       return ok({
         hoy,
@@ -311,6 +322,7 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
           porcentaje:
             activos.length === 0 ? 0 : Math.round((asistieronDeActivos / activos.length) * 100),
         },
+        porFrecuencia,
 
         cumpleanos: cumpleanosDelMes(cumpleanos, hoy),
       });

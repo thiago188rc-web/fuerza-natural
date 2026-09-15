@@ -1,4 +1,4 @@
-import { and, eq, gte, lte } from "drizzle-orm";
+import { and, eq, gte, lte, sql } from "drizzle-orm";
 import { attendance } from "@/data/schema";
 import type { AuthContext } from "@/lib/auth/context";
 import type { TxClient } from "@/use-cases/_kernel/with-tenant-tx";
@@ -85,4 +85,29 @@ export async function asistieronEnRango(
       ),
     );
   return new Set(filas.map((f) => f.studentId));
+}
+
+/**
+ * Cuántas veces marcó presente cada alumno en el rango (para la
+ * frecuencia semanal de Métricas — a diferencia de `asistieronEnRango`,
+ * que solo dice sí/no, esto cuenta.
+ */
+export async function contarAsistenciasPorAlumno(
+  tx: TxClient,
+  ctx: AuthContext,
+  rango: { desde: string; hasta: string },
+) {
+  const filas = await tx
+    .select({ studentId: attendance.studentId, total: sql<number>`count(*)::int` })
+    .from(attendance)
+    .where(
+      and(
+        eq(attendance.gymId, ctx.gymId),
+        eq(attendance.activo, true),
+        gte(attendance.fecha, rango.desde),
+        lte(attendance.fecha, rango.hasta),
+      ),
+    )
+    .groupBy(attendance.studentId);
+  return new Map(filas.map((f) => [f.studentId, f.total]));
 }

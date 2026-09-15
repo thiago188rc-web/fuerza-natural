@@ -53,7 +53,13 @@ export interface SegmentoDistribucion {
   porcentaje: number;
 }
 
-function distribucion<T extends string>(
+/**
+ * El motor genérico detrás de toda distribución de este módulo (edad,
+ * género, frecuencia de asistencia): cuenta cuántas veces aparece cada
+ * clave y calcula el porcentaje sobre el total. Exportado para que otros
+ * dominios de Métricas (`asistencia.ts`) no reimplementen el mismo conteo.
+ */
+export function distribucion<T extends string>(
   valores: readonly T[],
   claves: readonly T[],
   etiqueta: (clave: T) => string,
