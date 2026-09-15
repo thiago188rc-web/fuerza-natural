@@ -6,6 +6,8 @@ import { ChevronRight } from "lucide-react";
 import type { FilaDelPadron } from "@/use-cases/alumnos/padron";
 import { BarraDeCobertura } from "@/components/features/cobertura/instrumento-del-mes";
 import { TEXTO_DE_ESTADO } from "@/components/features/cobertura/senal";
+import { BotonWhatsapp } from "@/components/boton-whatsapp";
+import { mensajeRecordatorioDeVencimiento } from "@/lib/mensajes-whatsapp";
 import { esVinculo, etiquetaVinculo } from "@/domain/alumnos/vinculo";
 import { distanciaRelativa } from "@/domain/fechas/calendario";
 import { DURACION, SALIDA } from "@/components/motion/tokens";
@@ -57,10 +59,16 @@ export function ListaDelPadron({
             }}
             className="fila group"
           >
-            <Link
-              href={`/alumnos/${alumno.id}`}
-              className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-4 gap-y-3 px-4 py-3 outline-none sm:px-5 lg:grid-cols-[auto_minmax(0,2.2fr)_minmax(0,1fr)_minmax(0,1.6fr)_auto]"
-            >
+            <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-4 gap-y-3 px-4 py-3 outline-none sm:px-5 lg:grid-cols-[auto_minmax(0,2.2fr)_minmax(0,1fr)_minmax(0,1.6fr)_auto]">
+              {/* Estira el enlace a la ficha sobre toda la fila. Va primero
+                  en el DOM para que quede debajo del resto en el orden de
+                  apilado; el botón de WhatsApp (`relative z-10`) es el
+                  único que necesita ganarle. */}
+              <Link
+                href={`/alumnos/${alumno.id}`}
+                aria-label={`Ver ficha de ${alumno.nombre} ${alumno.apellido}`}
+                className="absolute inset-0"
+              />
               <span
                 className={cn(
                   "grid size-8 shrink-0 place-items-center rounded-full font-mono text-[0.68rem] ring-1 transition-colors duration-150",
@@ -114,13 +122,29 @@ export function ListaDelPadron({
                       estado={alumno.estado}
                       titulo={`${alumno.nombre} ${alumno.apellido}: ${alumno.detalle}`}
                     />
-                    <span
-                      className={cn(
-                        "mt-1.5 block truncate text-xs",
-                        TEXTO_DE_ESTADO[alumno.estado],
-                      )}
-                    >
-                      {alumno.detalle}
+                    <span className="mt-1.5 flex items-center gap-1.5">
+                      <span
+                        className={cn("truncate text-xs", TEXTO_DE_ESTADO[alumno.estado])}
+                      >
+                        {alumno.detalle}
+                      </span>
+                      {alumno.estado === "REVISAR" || alumno.estado === "DESCUBIERTO" ? (
+                        <BotonWhatsapp
+                          telefono={alumno.telefono}
+                          mensaje={mensajeRecordatorioDeVencimiento({
+                            nombre: alumno.nombre,
+                            estado: alumno.estado,
+                            diasVencido: alumno.diasVencido,
+                            planNombre: alumno.planNombre,
+                          })}
+                          variant="ghost"
+                          size="icon-sm"
+                          className="relative z-10 shrink-0"
+                          aria-label={`Recordarle a ${alumno.nombre} ${alumno.apellido} por WhatsApp`}
+                        >
+                          <span className="sr-only">Recordar por WhatsApp</span>
+                        </BotonWhatsapp>
+                      ) : null}
                     </span>
                   </>
                 ) : (
@@ -134,7 +158,7 @@ export function ListaDelPadron({
                 className="col-start-3 row-start-1 size-4 shrink-0 text-muted-foreground/40 transition-all duration-150 group-hover:translate-x-0.5 group-hover:text-muted-foreground lg:col-start-5"
                 strokeWidth={2}
               />
-            </Link>
+            </div>
           </motion.li>
         );
       })}

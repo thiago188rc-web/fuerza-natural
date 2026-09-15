@@ -195,10 +195,6 @@ export const panelQuery = withAuth<void, Panel>(["DUENO", "STAFF"], async (ctx) 
       else if (situacion.estado === "DESCUBIERTO") descubiertos++;
 
       if (situacion.estado === "REVISAR" || situacion.estado === "DESCUBIERTO") {
-        const ultimoCubierto = suyos.reduce<string | null>(
-          (max, t) => (max === null || t.hasta > max ? t.hasta : max),
-          null,
-        );
         atencion.push({
           id: alumno.id,
           nombre: alumno.nombre,
@@ -207,9 +203,9 @@ export const panelQuery = withAuth<void, Panel>(["DUENO", "STAFF"], async (ctx) 
           planNombre: alumno.planNombre,
           estado: situacion.estado,
           detalle: situacion.detalle,
-          diasSinCubrir: ultimoCubierto
-            ? Math.max(0, Math.round((Date.parse(hoy) - Date.parse(ultimoCubierto)) / 86_400_000))
-            : Number.MAX_SAFE_INTEGER,
+          // `diasVencido` viene de `situacionDeCobertura()` — nunca pagó
+          // (null) ordena como el caso más grave, no como el más leve.
+          diasSinCubrir: situacion.diasVencido ?? Number.MAX_SAFE_INTEGER,
           segmentos: segmentosDelMes(inicioDelMes, suyos),
         });
       }

@@ -7,6 +7,8 @@ import { ArrowRight, Check, ChevronDown } from "lucide-react";
 import type { AlumnoEnAtencion } from "@/use-cases/panel/consultas";
 import { BarraDeCobertura } from "@/components/features/cobertura/instrumento-del-mes";
 import { TEXTO_DE_ESTADO } from "@/components/features/cobertura/senal";
+import { BotonWhatsapp } from "@/components/boton-whatsapp";
+import { mensajeRecordatorioDeVencimiento } from "@/lib/mensajes-whatsapp";
 import { DURACION, SALIDA } from "@/components/motion/tokens";
 import { iniciales } from "@/lib/formato";
 import { cn } from "@/lib/utils";
@@ -194,22 +196,45 @@ function Fila({ alumno, posicionDeHoy }: { alumno: AlumnoEnAtencion; posicionDeH
       </span>
 
       {/* LA ACCIÓN. Estirada sobre la fila (`after:inset-0`) y visible
-          como botón solo al tocar la fila. */}
-      <Link
-        href={`/pagos/nuevo?alumno=${alumno.id}`}
-        aria-label={`Cobrarle a ${nombre}`}
-        className={cn(
-          "col-start-3 row-start-1 self-center sm:col-start-4",
-          "after:absolute after:inset-0 after:content-['']",
-          "inline-flex h-7 items-center gap-1 rounded-md border border-border bg-card px-2 text-xs font-medium text-foreground",
-          "translate-x-1 opacity-0 transition-[opacity,transform,background-color,border-color] duration-150 ease-[var(--ease-salida)]",
-          "group-hover:translate-x-0 group-hover:opacity-100 group-focus-within:translate-x-0 group-focus-within:opacity-100",
-          "hover:border-foreground hover:bg-foreground hover:text-background focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-verde focus-visible:outline-none",
-        )}
-      >
-        Cobrar
-        <ArrowRight className="size-3" strokeWidth={2.25} />
-      </Link>
+          como botón solo al tocar la fila. El de WhatsApp va al lado, con
+          `relative z-10` para no quedar tapado por el `::after` de "Cobrar". */}
+      <span className="col-start-3 row-start-1 flex items-center gap-1.5 self-center sm:col-start-4">
+        {alumno.telefono ? (
+          <BotonWhatsapp
+            telefono={alumno.telefono}
+            mensaje={mensajeRecordatorioDeVencimiento({
+              nombre: alumno.nombre,
+              estado: alumno.estado === "DESCUBIERTO" ? "DESCUBIERTO" : "REVISAR",
+              diasVencido:
+                alumno.diasSinCubrir === Number.MAX_SAFE_INTEGER ? null : alumno.diasSinCubrir,
+              planNombre: alumno.planNombre,
+            })}
+            variant="ghost"
+            size="icon-sm"
+            className={cn(
+              "relative z-10 shrink-0 opacity-0 transition-opacity duration-150",
+              "group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100",
+            )}
+            aria-label={`Recordarle a ${nombre} por WhatsApp`}
+          >
+            <span className="sr-only">Recordar por WhatsApp</span>
+          </BotonWhatsapp>
+        ) : null}
+        <Link
+          href={`/pagos/nuevo?alumno=${alumno.id}`}
+          aria-label={`Cobrarle a ${nombre}`}
+          className={cn(
+            "after:absolute after:inset-0 after:content-['']",
+            "inline-flex h-7 items-center gap-1 rounded-md border border-border bg-card px-2 text-xs font-medium text-foreground",
+            "translate-x-1 opacity-0 transition-[opacity,transform,background-color,border-color] duration-150 ease-[var(--ease-salida)]",
+            "group-hover:translate-x-0 group-hover:opacity-100 group-focus-within:translate-x-0 group-focus-within:opacity-100",
+            "hover:border-foreground hover:bg-foreground hover:text-background focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-verde focus-visible:outline-none",
+          )}
+        >
+          Cobrar
+          <ArrowRight className="size-3" strokeWidth={2.25} />
+        </Link>
+      </span>
     </div>
   );
 }

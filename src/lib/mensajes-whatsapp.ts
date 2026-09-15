@@ -29,3 +29,28 @@ export function mensajeConfirmacionDePago(datos: {
 
   return `Hola ${datos.nombre}! Te confirmamos que recibimos tu pago de ${importeFormateado}. ${cobertura} ¡Gracias!`;
 }
+
+/**
+ * El recordatorio de vencimiento. Dos variantes de tono, no de información:
+ * "para revisar" (ámbar, recién venció) es un aviso amable; "sin cubrir"
+ * (rojo, más de `diasGracia` días) pide una acción más directa. Ninguna de
+ * las dos inventa un monto ni una fecha límite — eso lo decide el dueño al
+ * cobrar, no este mensaje.
+ */
+export function mensajeRecordatorioDeVencimiento(datos: {
+  nombre: string;
+  estado: "REVISAR" | "DESCUBIERTO";
+  diasVencido: number | null;
+  planNombre: string;
+}): string {
+  if (datos.estado === "REVISAR") {
+    return `Hola ${datos.nombre}! Te escribimos de Fuerza Natural para avisarte que tu cuota de ${datos.planNombre} está vencida. Cuando puedas, acercate a ponerla al día. ¡Gracias!`;
+  }
+
+  const hace =
+    datos.diasVencido === null
+      ? ""
+      : ` hace ${datos.diasVencido} ${datos.diasVencido === 1 ? "día" : "días"}`;
+
+  return `Hola ${datos.nombre}! Vemos que tu cuota de ${datos.planNombre} sigue sin abonarse${hace}. Te pedimos que te acerques a regularizarla a la brevedad. ¡Gracias!`;
+}

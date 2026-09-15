@@ -137,24 +137,38 @@ describe("situacionDeCobertura — se deriva, nunca se guarda", () => {
     expect(s.estado).toBe("DESCUBIERTO");
   });
 
-  it("venía al día y todavía no pagó el mes en curso: REVISAR", () => {
-    // Cubrió agosto entero; estamos el 5 de septiembre, dentro de la
-    // ventana de pago. Todavía no hay nada que reclamar.
+  it("venció hace 5 días (el límite de gracia): todavía REVISAR", () => {
+    // Cubrió hasta el 1/9; hoy es el 6/9, 5 días después — dentro del
+    // margen de `diasGracia`. Es un conteo de días real, no una fecha
+    // límite del calendario.
     const s = situacionDeCobertura(
-      "2026-09-05",
-      [{ desde: "2026-08-01", hasta: "2026-08-31" }],
+      "2026-09-06",
+      [{ desde: "2026-08-01", hasta: "2026-09-01" }],
       PARAMETROS,
       ACTIVO,
     );
     expect(s.estado).toBe("REVISAR");
+    expect(s.diasVencido).toBe(5);
   });
 
-  it("la ventana de pago NO tapa a quien arrastra meses sin cubrir", () => {
-    // Último mes cubierto: junio. Aunque hoy sea 5 y la ventana esté
-    // abierta, esta persona no "todavía no pasó a pagar" — hace rato que
-    // no cubre. Si la ventana lo protegiera, desaparecería de la bandeja
-    // los primeros quince días de cada mes, que es justo cuando conviene
-    // reclamarle.
+  it("venció hace 6 días: ya es DESCUBIERTO (rojo desde el día 6)", () => {
+    // Un día más que el caso anterior alcanza para cruzar `diasGracia`
+    // (5) y pasar a "sin cubrir" — sin importar qué día del mes sea ni
+    // si arrastra un hueco viejo o uno recién abierto.
+    const s = situacionDeCobertura(
+      "2026-09-07",
+      [{ desde: "2026-08-01", hasta: "2026-09-01" }],
+      PARAMETROS,
+      ACTIVO,
+    );
+    expect(s.estado).toBe("DESCUBIERTO");
+    expect(s.diasVencido).toBe(6);
+  });
+
+  it("un hueco viejo (meses sin cubrir) también es DESCUBIERTO, sin excepción de calendario", () => {
+    // Último mes cubierto: junio. Antes existía una "ventana de pago" que
+    // protegía los primeros días de cada mes a quien venía al día — ya no
+    // existe: el criterio es solo el conteo de días desde que venció.
     const s = situacionDeCobertura(
       "2026-09-05",
       [{ desde: "2026-06-01", hasta: "2026-06-30" }],
@@ -162,18 +176,14 @@ describe("situacionDeCobertura — se deriva, nunca se guarda", () => {
       ACTIVO,
     );
     expect(s.estado).toBe("DESCUBIERTO");
+    expect(s.diasVencido).toBeGreaterThan(PARAMETROS.diasGracia);
   });
 
-  it("quien nunca pagó y ya pasó su tolerancia de alta: DESCUBIERTO", () => {
+  it("quien nunca pagó y ya pasó su tolerancia de alta: DESCUBIERTO, sin días vencido (no hay desde cuándo contar)", () => {
     const s = situacionDeCobertura("2026-09-05", [], PARAMETROS, ACTIVO);
     expect(s.estado).toBe("DESCUBIERTO");
     expect(s.detalle).toBe("Nunca registró un pago");
-  });
-
-  it("pasada la ventana más la gracia, DESCUBIERTO", () => {
-    const s = situacionDeCobertura("2026-09-20", [], PARAMETROS, ACTIVO);
-    expect(s.estado).toBe("DESCUBIERTO");
-    expect(s.detalle).toBe("Nunca registró un pago");
+    expect(s.diasVencido).toBeNull();
   });
 
   it("un alta reciente no se reclama", () => {

@@ -1,9 +1,4 @@
-import {
-  diasEntre,
-  primerDiaDelMes,
-  sumarDias,
-  ultimoDiaDelMes,
-} from "@/domain/fechas/calendario";
+import { diasEntre, primerDiaDelMes, ultimoDiaDelMes } from "@/domain/fechas/calendario";
 
 /**
  * LA SITUACIÓN DE PAGO SE DERIVA. NUNCA SE GUARDA.
@@ -32,17 +27,27 @@ export interface TramoCubierto {
 export type EstadoDeCobertura =
   /** Hoy cae dentro de un tramo pagado. */
   | "CUBIERTO"
-  /** No cubierto, pero todavía es razonable que no haya pagado. */
+  /** No cubierto, pero hace `diasGracia` días o menos que venció. */
   | "REVISAR"
-  /** No cubierto y ya pasó la ventana de pago más la gracia. */
+  /** No cubierto hace más de `diasGracia` días. */
   | "DESCUBIERTO"
   /** El alumno no está activo: la cobertura no aplica. */
   | "NO_APLICA";
 
 export interface ParametrosDeCobertura {
-  /** `gym_settings.ventana_pago_hasta` — hasta qué día del mes se paga. */
+  /**
+   * `gym_settings.ventana_pago_hasta` — hasta qué día del mes se espera el
+   * pago. Ya no lo usa `situacionDeCobertura()` (ver `diasGracia`); sigue
+   * existiendo para la franja visual de Configuración.
+   */
   ventanaPagoHasta: number;
-  /** `gym_settings.dias_gracia` — margen después de la ventana. */
+  /**
+   * `gym_settings.dias_gracia` — cuántos días desde que venció la
+   * cobertura se lo sigue mostrando como "para revisar" (ámbar) antes de
+   * pasar a "sin cubrir" (rojo). Es un conteo de días por alumno, no una
+   * fecha límite del calendario: con el default de 5, el día 6 sin
+   * cobertura ya es rojo, sin importar qué día del mes sea.
+   */
   diasGracia: number;
   /** `gym_settings.dias_nuevo_sin_pago` — tolerancia para un alta reciente. */
   diasNuevoSinPago: number;
@@ -56,11 +61,13 @@ export interface SituacionDeCobertura {
   cubiertoHasta: string | null;
   /** Días que faltan para que se termine la cobertura. Null si no aplica. */
   diasRestantes: number | null;
-}
-
-/** El último día del mes anterior al de `iso`. */
-function cierreDelMesAnterior(iso: string): string {
-  return sumarDias(primerDiaDelMes(iso), -1);
+  /**
+   * Días transcurridos desde que terminó la última cobertura. Null si está
+   * `CUBIERTO`, `NO_APLICA`, o nunca pagó. Es lo que decide el color
+   * amarillo/rojo en Alumnos y en la bandeja de atención — no hace falta
+   * parsear `detalle`.
+   */
+  diasVencido: number | null;
 }
 
 function estaDentro(tramo: TramoCubierto, dia: string): boolean {
@@ -81,6 +88,7 @@ export function situacionDeCobertura(
       detalle: contexto.vinculo === "PAUSADO" ? "Pausado" : "Baja",
       cubiertoHasta: null,
       diasRestantes: null,
+      diasVencido: null,
     };
   }
 
@@ -98,6 +106,7 @@ export function situacionDeCobertura(
             : `Cubierto hasta el ${Number(vigente.hasta.slice(8, 10))}`,
       cubiertoHasta: vigente.hasta,
       diasRestantes: restantes,
+      diasVencido: null,
     };
   }
 
@@ -109,45 +118,36 @@ export function situacionDeCobertura(
       detalle: "Alta reciente, sin pago todavía",
       cubiertoHasta: null,
       diasRestantes: null,
+      diasVencido: null,
     };
   }
 
+  // Sin cobertura vigente: un conteo de días real por alumno, no una fecha
+  // límite del calendario. `diasGracia` decide cuántos días de margen tiene
+  // antes de pasar de "para revisar" a "sin cubrir" — sin importar qué día
+  // del mes sea ni si viene de un hueco viejo o de recién vencer.
   const ultimo = [...tramos].sort((a, b) => (a.hasta > b.hasta ? -1 : 1))[0];
+  const diasVencido = ultimo ? diasEntre(ultimo.hasta, hoy) : null;
 
-  // Dentro de la ventana en la que el gimnasio espera que se pague.
-  //
-  // La ventana protege UN caso concreto: el alumno que venía al día y
-  // todavía no pasó a pagar el mes en curso. No protege a quien arrastra
-  // meses sin cubrir — para ese, que hoy sea 5 o 25 no cambia nada, y
-  // mostrarlo como "para revisar" los primeros quince días de cada mes lo
-  // escondería justo cuando conviene reclamarle. Por eso se exige haber
-  // estado cubierto hasta el cierre del mes anterior.
-  const limite = Math.min(
-    parametros.ventanaPagoHasta + parametros.diasGracia,
-    Number(ultimoDiaDelMes(hoy).slice(8, 10)),
-  );
-  const diaDeHoy = Number(hoy.slice(8, 10));
-  const veniaAlDia = ultimo !== undefined && ultimo.hasta >= cierreDelMesAnterior(hoy);
-
-  if (veniaAlDia && diaDeHoy <= limite) {
+  if (diasVencido !== null && diasVencido <= parametros.diasGracia) {
     return {
       estado: "REVISAR",
-      detalle: `Sin cubrir — la ventana de pago cierra el ${limite}`,
+      detalle: `Sin cubrir hace ${diasVencido} ${diasVencido === 1 ? "día" : "días"}`,
       cubiertoHasta: null,
       diasRestantes: null,
+      diasVencido,
     };
   }
-
-  const desdeHace = ultimo ? diasEntre(ultimo.hasta, hoy) : null;
 
   return {
     estado: "DESCUBIERTO",
     detalle:
-      desdeHace === null
+      diasVencido === null
         ? "Nunca registró un pago"
-        : `Sin cobertura hace ${desdeHace} ${desdeHace === 1 ? "día" : "días"}`,
+        : `Sin cobertura hace ${diasVencido} ${diasVencido === 1 ? "día" : "días"}`,
     cubiertoHasta: null,
     diasRestantes: null,
+    diasVencido,
   };
 }
 

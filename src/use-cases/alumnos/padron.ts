@@ -46,6 +46,10 @@ export interface FilaDelPadron {
   fechaAltaOriginal: string;
   estado: EstadoDeCobertura;
   detalle: string;
+  /** Último día cubierto, si está `CUBIERTO`. Para la columna de pago. */
+  cubiertoHasta: string | null;
+  /** Días vencido, para el color amarillo/rojo y el texto de la columna. */
+  diasVencido: number | null;
   segmentos: SegmentoDelMes[];
 }
 
@@ -122,6 +126,8 @@ export const padronQuery = withAuth<FiltrosAlumnos, Padron>(
             fechaAltaOriginal: f.fechaAltaOriginal,
             estado: situacion.estado,
             detalle: situacion.detalle,
+            cubiertoHasta: situacion.cubiertoHasta,
+            diasVencido: situacion.diasVencido,
             segmentos: segmentosDelMes(inicioDelMes, suyos),
           };
         }),
