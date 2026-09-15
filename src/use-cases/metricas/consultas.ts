@@ -12,12 +12,14 @@ import {
   contarMovimientoDelPadron,
   datosDemograficosDeActivos,
   listarAlumnosActivosParaCobertura,
+  listarCumpleanosDeActivos,
 } from "@/data/repositories/students-repo";
 import { asistieronEnRango } from "@/data/repositories/attendance-repo";
 import { obtenerGimnasio } from "@/data/repositories/gym-repo";
 import { hoyISO } from "@/domain/fechas/hoy";
 import {
   claveDeMes,
+  diasDelMes,
   etiquetaCorta,
   etiquetaDeMes,
   primerDiaDeLaSemana,
@@ -25,17 +27,23 @@ import {
   primerDiaDelMes,
   sumarDias,
   sumarMeses,
-  sumarSemanas,
   ultimoDiaDelAnio,
   ultimoDiaDelMes,
   ultimoDiaDeLaSemana,
 } from "@/domain/fechas/calendario";
 import {
   distribucionPorEdad,
+  distribucionPorEdadYGenero,
   distribucionPorGenero,
   type SegmentoDistribucion,
+  type SegmentoEdadGenero,
 } from "@/domain/metricas/demografia";
-import { segmentosDeImporte, type SegmentoImporte } from "@/domain/metricas/facturacion";
+import {
+  curvaAcumulada,
+  segmentosDeImporte,
+  type SegmentoImporte,
+} from "@/domain/metricas/facturacion";
+import { cumpleanosDelMes, type AlumnoConCumpleanos } from "@/domain/alumnos/cumpleanos";
 import type { VistaMetricas } from "@/domain/metricas/vista";
 import { ETIQUETA_MODALIDAD } from "@/domain/pagos/modalidad";
 import { METODOS_PAGO, ETIQUETA_METODO, MODALIDADES_PAGO } from "@/schemas/payment";
@@ -62,6 +70,22 @@ export interface PuntoDeFacturacion {
   total: number;
 }
 
+export interface SerieMensual {
+  etiqueta: string;
+  /** Suma corrida, un valor por día del mes (índice 0 = día 1). */
+  acumulado: number[];
+}
+
+export interface MetricasInput {
+  vista?: VistaMetricas;
+  /**
+   * 'YYYY-MM' (o cualquier fecha de ese mes) — qué mes mirar. Solo aplica
+   * a la vista "mes"; sin esto, es el mes en curso. Así se navega a meses
+   * anteriores o posteriores sin que la vista deje de ser "mes".
+   */
+  mes?: string;
+}
+
 export interface Metricas {
   hoy: string;
   moneda: string;
@@ -72,10 +96,19 @@ export interface Metricas {
 
   facturacion: {
     tendencia: PuntoDeFacturacion[];
+    /** Índice del bucket que es "hoy", si hoy cae dentro del rango mostrado. */
+    indiceDeHoy: number | null;
     totalDelPeriodo: number;
     cantidadDePagos: number;
     ticketPromedio: number;
   };
+
+  /**
+   * Solo con la vista "mes": el acumulado día a día de este mes contra el
+   * anterior, para ver de un vistazo si vamos más atrasados o adelantados
+   * que el mes pasado a la misma altura.
+   */
+  comparacionMensual: { mesActual: SerieMensual; mesAnterior: SerieMensual } | null;
 
   movimiento: { nuevos: number; volvieron: number; dejaron: number; pausaron: number };
 
@@ -84,13 +117,16 @@ export interface Metricas {
 
   porEdad: SegmentoDistribucion[];
   porGenero: SegmentoDistribucion[];
+  porEdadYGenero: SegmentoEdadGenero[];
   totalAlumnosActivos: number;
 
   asistencia: { asistieron: number; total: number; porcentaje: number };
+
+  cumpleanos: AlumnoConCumpleanos[];
 }
 
 /** Rango del resumen + ventana y granularidad del gráfico de tendencia, según la vista elegida. */
-function configDeVista(vista: VistaMetricas, hoy: string) {
+function configDeVista(vista: VistaMetricas, hoy: string, mesReferencia?: string) {
   switch (vista) {
     case "semana":
       return {
@@ -99,17 +135,23 @@ function configDeVista(vista: VistaMetricas, hoy: string) {
         granularidad: "dia" as GranularidadFacturacion,
         // Últimos 14 días, para que la barra de hoy tenga contexto reciente.
         desdeTendencia: sumarDias(hoy, -13),
+        hastaTendencia: hoy,
         etiquetaDelRango: "Esta semana",
       };
-    case "mes":
+    case "mes": {
+      const mes = mesReferencia ? primerDiaDelMes(mesReferencia) : primerDiaDelMes(hoy);
+      const esMesActual = mes === primerDiaDelMes(hoy);
       return {
-        desde: primerDiaDelMes(hoy),
-        hasta: ultimoDiaDelMes(hoy),
-        granularidad: "semana" as GranularidadFacturacion,
-        // Últimas 8 semanas.
-        desdeTendencia: primerDiaDeLaSemana(sumarSemanas(hoy, -7)),
-        etiquetaDelRango: "Este mes",
+        desde: mes,
+        hasta: ultimoDiaDelMes(mes),
+        // Por día, no por semana: el mes se navega completo, día a día —
+        // es lo que pidió el dueño ("discriminación por días").
+        granularidad: "dia" as GranularidadFacturacion,
+        desdeTendencia: mes,
+        hastaTendencia: ultimoDiaDelMes(mes),
+        etiquetaDelRango: esMesActual ? "Este mes" : etiquetaDeMes(mes, { conAnio: true }),
       };
+    }
     case "anio":
       return {
         desde: primerDiaDelAnio(hoy),
@@ -117,6 +159,7 @@ function configDeVista(vista: VistaMetricas, hoy: string) {
         granularidad: "mes" as GranularidadFacturacion,
         // Últimos 12 meses.
         desdeTendencia: primerDiaDelMes(sumarMeses(hoy, -11)),
+        hastaTendencia: hoy,
         etiquetaDelRango: "Este año",
       };
   }
@@ -126,6 +169,7 @@ function configDeVista(vista: VistaMetricas, hoy: string) {
 function bucketsEsperados(
   vista: VistaMetricas,
   hoy: string,
+  mesReferencia?: string,
 ): { periodo: string; etiqueta: string }[] {
   if (vista === "semana") {
     return Array.from({ length: 14 }, (_, i) => {
@@ -134,9 +178,12 @@ function bucketsEsperados(
     });
   }
   if (vista === "mes") {
-    return Array.from({ length: 8 }, (_, i) => {
-      const inicio = primerDiaDeLaSemana(sumarSemanas(hoy, -(7 - i)));
-      return { periodo: inicio, etiqueta: etiquetaCorta(inicio, hoy) };
+    const mes = mesReferencia ? primerDiaDelMes(mesReferencia) : primerDiaDelMes(hoy);
+    return Array.from({ length: diasDelMes(mes) }, (_, i) => {
+      const dia = sumarDias(mes, i);
+      // Solo el número: el mes ya está en el título de la sección, y 31
+      // etiquetas tipo "7 sep" no entran cómodas.
+      return { periodo: dia, etiqueta: String(i + 1) };
     });
   }
   return Array.from({ length: 12 }, (_, i) => {
@@ -145,19 +192,24 @@ function bucketsEsperados(
   });
 }
 
-export const metricasQuery = withAuth<VistaMetricas | undefined, Metricas>(
+export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
   ["DUENO", "STAFF"],
-  async (ctx, vistaPedida) => {
-    const vista = vistaPedida ?? "mes";
+  async (ctx, input) => {
+    const vista = input?.vista ?? "mes";
 
     return withTenantTx<Result<Metricas>>(ctx, async (tx) => {
       const gym = await obtenerGimnasio(tx, ctx);
       if (!gym) return conflict("No pudimos leer la configuración del gimnasio.");
 
       const hoy = hoyISO(gym.timezone);
-      const config = configDeVista(vista, hoy);
+      const config = configDeVista(vista, hoy, input?.mes);
       const rango = { desde: config.desde, hasta: config.hasta };
-      const rangoTendencia = { desde: config.desdeTendencia, hasta: hoy };
+      const rangoTendencia = { desde: config.desdeTendencia, hasta: config.hastaTendencia };
+
+      const mesAnteriorDesde = vista === "mes" ? sumarMeses(config.desde, -1) : null;
+      const rangoMesAnterior = mesAnteriorDesde
+        ? { desde: mesAnteriorDesde, hasta: ultimoDiaDelMes(mesAnteriorDesde) }
+        : null;
 
       const [
         totalesTendencia,
@@ -168,6 +220,8 @@ export const metricasQuery = withAuth<VistaMetricas | undefined, Metricas>(
         demografia,
         activos,
         asistieron,
+        cumpleanos,
+        totalesMesAnterior,
       ] = await Promise.all([
         totalesPorPeriodo(tx, ctx, rangoTendencia, config.granularidad),
         totalCobrado(tx, ctx, rango),
@@ -177,14 +231,47 @@ export const metricasQuery = withAuth<VistaMetricas | undefined, Metricas>(
         datosDemograficosDeActivos(tx, ctx),
         listarAlumnosActivosParaCobertura(tx, ctx),
         asistieronEnRango(tx, ctx, rango),
+        listarCumpleanosDeActivos(tx, ctx),
+        rangoMesAnterior
+          ? totalesPorPeriodo(tx, ctx, rangoMesAnterior, "dia")
+          : Promise.resolve([]),
       ]);
 
+      const buckets = bucketsEsperados(vista, hoy, input?.mes);
       const porPeriodo = new Map(totalesTendencia.map((f) => [f.periodo, f.total]));
-      const tendencia: PuntoDeFacturacion[] = bucketsEsperados(vista, hoy).map((b) => ({
+      const tendencia: PuntoDeFacturacion[] = buckets.map((b) => ({
         periodo: b.periodo,
         etiqueta: b.etiqueta,
         total: porPeriodo.get(b.periodo) ?? 0,
       }));
+
+      const indiceDeHoyBruto = buckets.findIndex((b) => {
+        if (config.granularidad === "mes") return b.periodo === primerDiaDelMes(hoy);
+        if (config.granularidad === "semana") {
+          return hoy >= b.periodo && hoy <= sumarDias(b.periodo, 6);
+        }
+        return b.periodo === hoy;
+      });
+      const indiceDeHoy = indiceDeHoyBruto === -1 ? null : indiceDeHoyBruto;
+
+      let comparacionMensual: Metricas["comparacionMensual"] = null;
+      if (vista === "mes" && rangoMesAnterior) {
+        const porDiaAnterior = new Map(totalesMesAnterior.map((f) => [f.periodo, f.total]));
+        const serieAnterior = Array.from({ length: diasDelMes(rangoMesAnterior.desde) }, (_, i) =>
+          porDiaAnterior.get(sumarDias(rangoMesAnterior.desde, i)) ?? 0,
+        );
+
+        comparacionMensual = {
+          mesActual: {
+            etiqueta: etiquetaDeMes(config.desde, { conAnio: false }),
+            acumulado: curvaAcumulada(tendencia.map((p) => p.total)),
+          },
+          mesAnterior: {
+            etiqueta: etiquetaDeMes(rangoMesAnterior.desde, { conAnio: false }),
+            acumulado: curvaAcumulada(serieAnterior),
+          },
+        };
+      }
 
       const asistieronDeActivos = activos.filter((a) => asistieron.has(a.id)).length;
 
@@ -197,6 +284,7 @@ export const metricasQuery = withAuth<VistaMetricas | undefined, Metricas>(
 
         facturacion: {
           tendencia,
+          indiceDeHoy,
           totalDelPeriodo: cobradoDelPeriodo.total,
           cantidadDePagos: cobradoDelPeriodo.cantidad,
           ticketPromedio:
@@ -205,6 +293,8 @@ export const metricasQuery = withAuth<VistaMetricas | undefined, Metricas>(
               : Math.round(cobradoDelPeriodo.total / cobradoDelPeriodo.cantidad),
         },
 
+        comparacionMensual,
+
         movimiento,
 
         porMetodo: segmentosDeImporte(filasMetodo, ETIQUETA_METODO, METODOS_PAGO),
@@ -212,6 +302,7 @@ export const metricasQuery = withAuth<VistaMetricas | undefined, Metricas>(
 
         porEdad: distribucionPorEdad(demografia, hoy),
         porGenero: distribucionPorGenero(demografia),
+        porEdadYGenero: distribucionPorEdadYGenero(demografia, hoy),
         totalAlumnosActivos: activos.length,
 
         asistencia: {
@@ -220,6 +311,8 @@ export const metricasQuery = withAuth<VistaMetricas | undefined, Metricas>(
           porcentaje:
             activos.length === 0 ? 0 : Math.round((asistieronDeActivos / activos.length) * 100),
         },
+
+        cumpleanos: cumpleanosDelMes(cumpleanos, hoy),
       });
     });
   },

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { segmentosDeImporte } from "@/domain/metricas/facturacion";
+import { curvaAcumulada, segmentosDeImporte } from "@/domain/metricas/facturacion";
 
 const ETIQUETAS = { EFECTIVO: "Efectivo", TRANSFERENCIA: "Transferencia", OTRO: "Otro" };
 const ORDEN = ["EFECTIVO", "TRANSFERENCIA", "OTRO"] as const;
@@ -33,5 +33,19 @@ describe("segmentosDeImporte", () => {
     ];
     const segmentos = segmentosDeImporte(filas, ETIQUETAS, ORDEN);
     expect(segmentos.map((s) => s.clave)).toEqual(["EFECTIVO", "OTRO"]);
+  });
+});
+
+describe("curvaAcumulada", () => {
+  it("suma corrida, no acumulada al revés ni promediada", () => {
+    expect(curvaAcumulada([100, 50, 200])).toEqual([100, 150, 350]);
+  });
+
+  it("los ceros no rompen la suma corrida", () => {
+    expect(curvaAcumulada([0, 0, 30, 0])).toEqual([0, 0, 30, 30]);
+  });
+
+  it("lista vacía da lista vacía", () => {
+    expect(curvaAcumulada([])).toEqual([]);
   });
 });

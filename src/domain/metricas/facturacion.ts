@@ -22,6 +22,12 @@ export interface SegmentoImporte {
   porcentaje: number;
 }
 
+/** Suma corrida. `[100, 50, 200]` → `[100, 150, 350]`. Para comparar meses día a día. */
+export function curvaAcumulada(valores: readonly number[]): number[] {
+  let corrida = 0;
+  return valores.map((v) => (corrida += v));
+}
+
 export function segmentosDeImporte(
   filas: readonly FilaAgregada[],
   etiquetas: Record<string, string>,

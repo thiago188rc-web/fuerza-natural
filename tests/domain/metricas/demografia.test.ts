@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   bucketDeEdad,
   distribucionPorEdad,
+  distribucionPorEdadYGenero,
   distribucionPorGenero,
 } from "@/domain/metricas/demografia";
 
@@ -60,5 +61,38 @@ describe("distribucionPorGenero", () => {
     const dist = distribucionPorGenero(alumnos);
     expect(dist.find((s) => s.clave === "FEMENINO")?.cantidad).toBe(1);
     expect(dist.find((s) => s.clave === "SIN_DATO")?.cantidad).toBe(2);
+  });
+});
+
+describe("distribucionPorEdadYGenero", () => {
+  it("el género se calcula DENTRO de cada rango etario, no sobre el total", () => {
+    const alumnos = [
+      { fechaNacimiento: "2008-09-06", genero: "FEMENINO" }, // 18_25
+      { fechaNacimiento: "2008-09-06", genero: "FEMENINO" }, // 18_25
+      { fechaNacimiento: "2008-09-06", genero: "MASCULINO" }, // 18_25
+      { fechaNacimiento: "1970-01-01", genero: "MASCULINO" }, // 56_MAS
+    ];
+    const dist = distribucionPorEdadYGenero(alumnos, HOY);
+
+    const jovenes = dist.find((s) => s.bucket === "18_25");
+    expect(jovenes?.total).toBe(3);
+    expect(jovenes?.porGenero.find((g) => g.clave === "FEMENINO")?.porcentaje).toBe(67);
+
+    const mayores = dist.find((s) => s.bucket === "56_MAS");
+    expect(mayores?.total).toBe(1);
+    expect(mayores?.porGenero.find((g) => g.clave === "MASCULINO")?.porcentaje).toBe(100);
+  });
+
+  it("omite rangos etarios sin ningún alumno", () => {
+    const dist = distribucionPorEdadYGenero(
+      [{ fechaNacimiento: "2008-09-06", genero: "FEMENINO" }],
+      HOY,
+    );
+    expect(dist).toHaveLength(1);
+    expect(dist[0].bucket).toBe("18_25");
+  });
+
+  it("lista vacía no produce NaN", () => {
+    expect(distribucionPorEdadYGenero([], HOY)).toEqual([]);
   });
 });

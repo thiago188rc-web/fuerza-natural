@@ -34,9 +34,17 @@ function colorDeBarra(proporcion: number): string {
 export function GraficoDeFacturacion({
   puntos,
   moneda,
+  indiceDeHoy = null,
 }: {
   puntos: PuntoDeFacturacion[];
   moneda: string;
+  /**
+   * Qué barra es "hoy" (el aro de foco). Antes se asumía que siempre era
+   * la última — cierto mientras la tendencia terminaba en hoy, falso al
+   * navegar a un mes que no es el actual (ahí puede no haber ninguna, o
+   * puede no ser la última porque el mes todavía no terminó).
+   */
+  indiceDeHoy?: number | null;
 }) {
   const quieto = useReducedMotion();
   const maximo = Math.max(1, ...puntos.map((p) => p.total));
@@ -67,16 +75,14 @@ export function GraficoDeFacturacion({
                   className={cn(
                     "h-full w-full origin-bottom rounded-t-[3px]",
                     colorDeBarra(proporcion),
-                    i === puntos.length - 1 && "ring-2 ring-foreground/30 ring-offset-1",
+                    i === indiceDeHoy && "ring-2 ring-foreground/30 ring-offset-1",
                   )}
                 />
               </div>
               <span
                 className={cn(
                   "text-[0.7rem] whitespace-nowrap capitalize",
-                  i === puntos.length - 1
-                    ? "font-semibold text-foreground"
-                    : "text-muted-foreground",
+                  i === indiceDeHoy ? "font-semibold text-foreground" : "text-muted-foreground",
                 )}
               >
                 {punto.etiqueta}

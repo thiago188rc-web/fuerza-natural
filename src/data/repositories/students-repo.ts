@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
 import { appUsers, plans, students, studentEvents } from "@/data/schema";
 import type { AuthContext } from "@/lib/auth/context";
 import type { TxClient } from "@/use-cases/_kernel/with-tenant-tx";
@@ -350,6 +350,25 @@ export async function datosDemograficosDeActivos(tx: TxClient, ctx: AuthContext)
     .select({ fechaNacimiento: students.fechaNacimiento, genero: students.genero })
     .from(students)
     .where(and(eq(students.gymId, ctx.gymId), eq(students.vinculo, "ACTIVO")));
+}
+
+/** Nombre y fecha de nacimiento de los activos que la cargaron, para el aviso de cumpleaños. */
+export async function listarCumpleanosDeActivos(tx: TxClient, ctx: AuthContext) {
+  return tx
+    .select({
+      id: students.id,
+      nombre: students.nombre,
+      apellido: students.apellido,
+      fechaNacimiento: students.fechaNacimiento,
+    })
+    .from(students)
+    .where(
+      and(
+        eq(students.gymId, ctx.gymId),
+        eq(students.vinculo, "ACTIVO"),
+        isNotNull(students.fechaNacimiento),
+      ),
+    );
 }
 
 /**

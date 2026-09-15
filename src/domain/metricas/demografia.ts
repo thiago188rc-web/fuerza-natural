@@ -92,3 +92,32 @@ export function distribucionPorGenero(
   const valores: GeneroOSinDato[] = alumnos.map((a) => (esGenero(a.genero) ? a.genero : "SIN_DATO"));
   return distribucion(valores, claves, (c) => (c === "SIN_DATO" ? "Sin dato" : etiquetaGenero(c)));
 }
+
+export interface SegmentoEdadGenero {
+  bucket: BucketEdad;
+  etiqueta: string;
+  total: number;
+  /** El desglose por género, SOLO de los alumnos de este rango etario. */
+  porGenero: SegmentoDistribucion[];
+}
+
+/**
+ * Género DENTRO de cada rango etario — no dos listas separadas. Reusa
+ * `bucketDeEdad` y `distribucionPorGenero` en vez de reimplementar el
+ * cruce: cada bucket es, ni más ni menos, `distribucionPorGenero` corrida
+ * sobre el subconjunto de alumnos de esa edad.
+ */
+export function distribucionPorEdadYGenero(
+  alumnos: readonly { fechaNacimiento: string | null; genero: string | null }[],
+  hoy: string,
+): SegmentoEdadGenero[] {
+  return BUCKETS_EDAD.map((bucket) => {
+    const delBucket = alumnos.filter((a) => bucketDeEdad(a.fechaNacimiento, hoy) === bucket);
+    return {
+      bucket,
+      etiqueta: etiquetaBucketEdad(bucket),
+      total: delBucket.length,
+      porGenero: distribucionPorGenero(delBucket),
+    };
+  }).filter((s) => s.total > 0);
+}
