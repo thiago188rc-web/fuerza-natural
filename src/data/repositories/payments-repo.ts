@@ -301,6 +301,7 @@ export async function totalesPorPeriodo(
     .select({
       periodo: sql<string>`to_char(${truncado}, 'YYYY-MM-DD')`,
       total: sql<string>`coalesce(sum(${payments.monto}), 0)`,
+      cantidad: sql<number>`count(*)::int`,
     })
     .from(payments)
     .where(
@@ -313,7 +314,54 @@ export async function totalesPorPeriodo(
     )
     .groupBy(truncado);
 
-  return filas.map((f) => ({ periodo: f.periodo, total: Number(f.total) }));
+  return filas.map((f) => ({ periodo: f.periodo, total: Number(f.total), cantidad: f.cantidad }));
+}
+
+export interface PagoDelPeriodo {
+  id: string;
+  studentId: string;
+  nombre: string;
+  apellido: string;
+  monto: number;
+  metodo: string;
+  planNombreSnapshot: string;
+}
+
+/**
+ * Quién pagó dentro de un rango — el detalle detrás de una barra del
+ * gráfico de tendencia. Se pide bajo demanda (al tocar la barra), no se
+ * precarga con el resto de Métricas: para la vista "año" cada barra es un
+ * mes entero, y traer el detalle de los doce de una sola vez sería mucho
+ * más de lo que cualquier toque individual necesita.
+ */
+export async function listarPagosDelPeriodo(
+  tx: TxClient,
+  ctx: AuthContext,
+  rango: { desde: string; hasta: string },
+) {
+  const filas = await tx
+    .select({
+      id: payments.id,
+      studentId: payments.studentId,
+      nombre: students.nombre,
+      apellido: students.apellido,
+      monto: payments.monto,
+      metodo: payments.metodo,
+      planNombreSnapshot: payments.planNombreSnapshot,
+    })
+    .from(payments)
+    .innerJoin(students, eq(students.id, payments.studentId))
+    .where(
+      and(
+        eq(payments.gymId, ctx.gymId),
+        isNull(payments.anuladoEn),
+        gte(payments.fechaPago, rango.desde),
+        lte(payments.fechaPago, rango.hasta),
+      ),
+    )
+    .orderBy(asc(students.apellido), asc(students.nombre));
+
+  return filas.map((f) => ({ ...f, monto: Number(f.monto) }));
 }
 
 /** Lo cobrado en un rango, agrupado por método de pago. */

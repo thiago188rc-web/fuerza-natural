@@ -132,6 +132,7 @@ export default async function MetricasPage({
           <div className="mt-6">
             <GraficoDeFacturacion
               puntos={m.facturacion.tendencia}
+              granularidad={m.facturacion.granularidad}
               moneda={m.moneda}
               indiceDeHoy={m.facturacion.indiceDeHoy}
             />

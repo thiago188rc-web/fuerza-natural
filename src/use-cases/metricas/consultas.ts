@@ -70,6 +70,8 @@ export interface PuntoDeFacturacion {
   periodo: string;
   etiqueta: string;
   total: number;
+  /** Cuántos pagos componen ese total. Sirve para "quién pagó" al tocar la barra. */
+  cantidad: number;
 }
 
 export interface SerieMensual {
@@ -98,6 +100,8 @@ export interface Metricas {
 
   facturacion: {
     tendencia: PuntoDeFacturacion[];
+    /** Granularidad de cada punto de `tendencia` — la necesita el cliente para pedir el detalle de una barra. */
+    granularidad: GranularidadFacturacion;
     /** Índice del bucket que es "hoy", si hoy cae dentro del rango mostrado. */
     indiceDeHoy: number | null;
     totalDelPeriodo: number;
@@ -244,11 +248,12 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
       ]);
 
       const buckets = bucketsEsperados(vista, hoy, input?.mes);
-      const porPeriodo = new Map(totalesTendencia.map((f) => [f.periodo, f.total]));
+      const porPeriodo = new Map(totalesTendencia.map((f) => [f.periodo, f]));
       const tendencia: PuntoDeFacturacion[] = buckets.map((b) => ({
         periodo: b.periodo,
         etiqueta: b.etiqueta,
-        total: porPeriodo.get(b.periodo) ?? 0,
+        total: porPeriodo.get(b.periodo)?.total ?? 0,
+        cantidad: porPeriodo.get(b.periodo)?.cantidad ?? 0,
       }));
 
       const indiceDeHoyBruto = buckets.findIndex((b) => {
@@ -295,6 +300,7 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
 
         facturacion: {
           tendencia,
+          granularidad: config.granularidad,
           indiceDeHoy,
           totalDelPeriodo: cobradoDelPeriodo.total,
           cantidadDePagos: cobradoDelPeriodo.cantidad,
