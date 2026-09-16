@@ -92,6 +92,8 @@ export interface PuntoDeMovimiento {
   dejaron: number;
   /** nuevos + volvieron: cuánta gente entró (por primera vez o de vuelta) ese mes. */
   altas: number;
+  /** `false`: el sistema no tiene dato real para ese mes (es anterior al alta más vieja registrada). */
+  real: boolean;
 }
 
 export interface PuntoDeHistorial {
@@ -352,29 +354,9 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
         };
       }
 
-      const porMesYTipo = new Map<string, number>();
-      for (const f of movimientoCrudo) porMesYTipo.set(`${f.mes}:${f.tipo}`, f.total);
-      const historialDeMovimiento: PuntoDeMovimiento[] = Array.from(
-        { length: MESES_DE_HISTORIAL },
-        (_, i) => {
-          const mes = primerDiaDelMes(sumarMeses(mesDeHoy, -(MESES_DE_HISTORIAL - 1 - i)));
-          const nuevos = porMesYTipo.get(`${mes}:ALTA`) ?? 0;
-          const volvieron = porMesYTipo.get(`${mes}:REACTIVACION`) ?? 0;
-          const dejaron = porMesYTipo.get(`${mes}:BAJA`) ?? 0;
-          return {
-            mes,
-            etiqueta: etiquetaDeMes(mes, { conAnio: false }),
-            nuevos,
-            volvieron,
-            dejaron,
-            altas: nuevos + volvieron,
-          };
-        },
-      );
-
-      // El corte de "hay dato real" para los dos gráficos de historial de
-      // abajo: antes de la alta más vieja que tiene el sistema, un $0 o un
-      // 0 de activos no sería "no facturó nada" ni "no había nadie" — sería
+      // El corte de "hay dato real" para los tres gráficos de historial de
+      // abajo: antes de la alta más vieja que tiene el sistema, un $0, un
+      // 0 de activos o un 0 de movimiento no sería "no pasó nada" — sería
       // simplemente que nadie cargó ese mes todavía.
       const altaMasVieja = fechasDeVinculo.reduce<string | null>(
         (min, a) => (min === null || a.fechaAltaOriginal < min ? a.fechaAltaOriginal : min),
@@ -384,6 +366,24 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
       const finesDeMes = Array.from({ length: MESES_DE_HISTORIAL }, (_, i) =>
         ultimoDiaDelMes(primerDiaDelMes(sumarMeses(mesDeHoy, -(MESES_DE_HISTORIAL - 1 - i)))),
       );
+
+      const porMesYTipo = new Map<string, number>();
+      for (const f of movimientoCrudo) porMesYTipo.set(`${f.mes}:${f.tipo}`, f.total);
+      const historialDeMovimiento: PuntoDeMovimiento[] = finesDeMes.map((finDeMes) => {
+        const mes = primerDiaDelMes(finDeMes);
+        const nuevos = porMesYTipo.get(`${mes}:ALTA`) ?? 0;
+        const volvieron = porMesYTipo.get(`${mes}:REACTIVACION`) ?? 0;
+        const dejaron = porMesYTipo.get(`${mes}:BAJA`) ?? 0;
+        return {
+          mes,
+          etiqueta: etiquetaDeMes(mes, { conAnio: false }),
+          nuevos,
+          volvieron,
+          dejaron,
+          altas: nuevos + volvieron,
+          real: altaMasVieja !== null && finDeMes >= altaMasVieja,
+        };
+      });
 
       const porMesFacturacion = new Map(facturacionMensualCruda.map((f) => [f.periodo, f.total]));
       const facturacionPorMes: PuntoDeHistorial[] = finesDeMes.map((finDeMes) => {

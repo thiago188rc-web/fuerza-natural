@@ -21,6 +21,11 @@ import { cn } from "@/lib/utils";
  * vistazo, pero se factura y se decide con números, no con manchas.
  * "Altas" (el rótulo arriba de la barra) es nuevos + volvieron: cuánta
  * gente entró ese mes, sin importar si era la primera vez o si volvía.
+ *
+ * Un mes sin `real` (anterior al alta más vieja que tiene el sistema) se
+ * dibuja como una franja gris con "s/d": un hueco vacío ahí se leería como
+ * "no pasó nada" cuando en realidad es "nadie cargó este mes todavía" —
+ * mismo criterio que `BarraConTendencia`.
  */
 const ALTURA_PISTA_REM = 9;
 const ALTURA_MINIMA_TRAMO_REM = 1.05;
@@ -46,41 +51,63 @@ export function HistorialDeMovimiento({ puntos }: { puntos: PuntoDeMovimiento[] 
           style={{ minWidth: `${Math.max(puntos.length * 3.25, 16)}rem` }}
         >
           {puntos.map((punto, i) => {
+            const sinMovimiento = punto.nuevos === 0 && punto.volvieron === 0 && punto.dejaron === 0;
+
             return (
               <div key={punto.mes} className="flex flex-1 flex-col items-center gap-1.5">
                 <span className="tabular text-[0.75rem] font-medium whitespace-nowrap">
-                  Altas: {punto.altas}
+                  Altas: {punto.real ? punto.altas : "s/d"}
                 </span>
 
                 <div
                   className="flex w-full flex-col-reverse items-stretch justify-start"
                   style={{ height: `${ALTURA_PISTA_REM}rem` }}
-                  title={`${punto.etiqueta}: ${punto.nuevos} nuevos, ${punto.volvieron} volvieron, ${punto.dejaron} bajas`}
+                  title={
+                    punto.real
+                      ? `${punto.etiqueta}: ${punto.nuevos} nuevos, ${punto.volvieron} volvieron, ${punto.dejaron} bajas`
+                      : `${punto.etiqueta}: sin dato`
+                  }
                 >
-                  <Tramo
-                    valor={punto.nuevos}
-                    maximo={maximo}
-                    color="bg-verde-fuerte"
-                    textoClaro
-                    quieto={quieto}
-                    retraso={i * 0.04}
-                  />
-                  <Tramo
-                    valor={punto.volvieron}
-                    maximo={maximo}
-                    color="bg-verde-claro"
-                    textoClaro={false}
-                    quieto={quieto}
-                    retraso={i * 0.04 + 0.03}
-                  />
-                  <Tramo
-                    valor={punto.dejaron}
-                    maximo={maximo}
-                    color="bg-descubierto"
-                    textoClaro
-                    quieto={quieto}
-                    retraso={i * 0.04 + 0.06}
-                  />
+                  {!punto.real ? (
+                    <div
+                      style={{ height: `${ALTURA_MINIMA_TRAMO_REM}rem` }}
+                      className="flex items-center justify-center rounded-[3px] bg-muted-foreground/15"
+                    >
+                      <span className="text-[0.65rem] text-muted-foreground">s/d</span>
+                    </div>
+                  ) : sinMovimiento ? (
+                    <div
+                      style={{ height: "0.2rem" }}
+                      className="rounded-[3px] bg-muted-foreground/25"
+                    />
+                  ) : (
+                    <>
+                      <Tramo
+                        valor={punto.nuevos}
+                        maximo={maximo}
+                        color="bg-verde-fuerte"
+                        textoClaro
+                        quieto={quieto}
+                        retraso={i * 0.04}
+                      />
+                      <Tramo
+                        valor={punto.volvieron}
+                        maximo={maximo}
+                        color="bg-verde-claro"
+                        textoClaro={false}
+                        quieto={quieto}
+                        retraso={i * 0.04 + 0.03}
+                      />
+                      <Tramo
+                        valor={punto.dejaron}
+                        maximo={maximo}
+                        color="bg-descubierto"
+                        textoClaro
+                        quieto={quieto}
+                        retraso={i * 0.04 + 0.06}
+                      />
+                    </>
+                  )}
                 </div>
 
                 <span className="text-[0.7rem] whitespace-nowrap text-muted-foreground capitalize">
