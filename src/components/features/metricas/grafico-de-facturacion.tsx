@@ -190,28 +190,7 @@ function DetalleDelPeriodo({
         <p className="py-2 text-xs text-descubierto">No se pudo traer el detalle.</p>
       ) : (
         <>
-          <ul className="mt-1.5 max-h-64 space-y-1.5 overflow-y-auto">
-            {estado.pagos.map((p) => (
-              <li
-                key={p.studentId}
-                className="flex items-baseline justify-between gap-3 text-[0.8125rem]"
-              >
-                <span className="min-w-0 truncate">
-                  {p.nombre} {p.apellido}
-                </span>
-                <span className="tabular shrink-0 font-mono text-muted-foreground">
-                  {importe(p.monto, moneda)}
-                  <span className="ml-1 text-[0.7rem]">
-                    (
-                    {(METODOS_PAGO as readonly string[]).includes(p.metodo)
-                      ? ETIQUETA_METODO[p.metodo as (typeof METODOS_PAGO)[number]]
-                      : p.metodo}
-                    )
-                  </span>
-                </span>
-              </li>
-            ))}
-          </ul>
+          <ListaDePagos pagos={estado.pagos} moneda={moneda} />
 
           {estado.comparacionMesAnterior ? (
             <ComparacionDelDia
@@ -226,10 +205,40 @@ function DetalleDelPeriodo({
   );
 }
 
+function ListaDePagos({ pagos, moneda }: { pagos: AlumnoQuePago[]; moneda: string }) {
+  if (pagos.length === 0) {
+    return <p className="py-2 text-xs text-muted-foreground">Nadie pagó.</p>;
+  }
+
+  return (
+    <ul className="mt-1.5 max-h-56 space-y-1.5 overflow-y-auto">
+      {pagos.map((p) => (
+        <li key={p.studentId} className="flex items-baseline justify-between gap-3 text-[0.8125rem]">
+          <span className="min-w-0 truncate">
+            {p.nombre} {p.apellido}
+          </span>
+          <span className="tabular shrink-0 font-mono text-muted-foreground">
+            {importe(p.monto, moneda)}
+            <span className="ml-1 text-[0.7rem]">
+              (
+              {(METODOS_PAGO as readonly string[]).includes(p.metodo)
+                ? ETIQUETA_METODO[p.metodo as (typeof METODOS_PAGO)[number]]
+                : p.metodo}
+              )
+            </span>
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /**
  * "El mismo día, el mes pasado" — no el mes anterior completo (eso ya lo
  * muestra `ComparacionMensual`), sino el punto exacto que permite decir
- * "hoy vamos mejor o peor que a esta altura el mes pasado".
+ * "hoy vamos mejor o peor que a esta altura el mes pasado", con la misma
+ * lista de quién pagó — no solo el total, para no tener que abrir otra
+ * pantalla a averiguar quiénes fueron.
  */
 function ComparacionDelDia({
   comparacion,
@@ -246,16 +255,10 @@ function ComparacionDelDia({
 
   return (
     <div className="mt-2.5 border-t border-border pt-2.5">
-      <p className="text-[0.7rem] text-muted-foreground">
-        Mismo día, {fechaCompleta(comparacion.fecha)}
-      </p>
-      <div className="mt-1 flex items-baseline justify-between gap-3 text-[0.8125rem]">
-        <span className="tabular font-mono">
-          {importe(comparacion.total, moneda)}
-          <span className="ml-1 text-[0.7rem] text-muted-foreground">
-            ({comparacion.cantidad} {comparacion.cantidad === 1 ? "pago" : "pagos"})
-          </span>
-        </span>
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-[0.7rem] text-muted-foreground">
+          Mismo día, {fechaCompleta(comparacion.fecha)}
+        </p>
         {comparacion.total > 0 || totalDeHoy > 0 ? (
           <span className={cn("tabular font-mono text-[0.75rem]", colorDiferencia)}>
             {diferencia > 0 ? "+" : ""}
@@ -263,6 +266,14 @@ function ComparacionDelDia({
           </span>
         ) : null}
       </div>
+      <p className="tabular mt-0.5 font-mono text-[0.8125rem]">
+        {importe(comparacion.total, moneda)}
+        <span className="ml-1 text-[0.7rem] text-muted-foreground">
+          ({comparacion.cantidad} {comparacion.cantidad === 1 ? "pago" : "pagos"})
+        </span>
+      </p>
+
+      <ListaDePagos pagos={comparacion.pagos} moneda={moneda} />
     </div>
   );
 }

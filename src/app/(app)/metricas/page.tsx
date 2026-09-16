@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { metricasQuery } from "@/use-cases/metricas/consultas";
 import { esVistaMetricas } from "@/domain/metricas/vista";
-import { etiquetaDeMes, sumarMeses } from "@/domain/fechas/calendario";
+import { etiquetaDeMes, sumarMeses, sumarSemanas } from "@/domain/fechas/calendario";
 import { GraficoDeFacturacion } from "@/components/features/metricas/grafico-de-facturacion";
 import { ComparacionMensual } from "@/components/features/metricas/comparacion-mensual";
 import { HistorialDeMovimiento } from "@/components/features/metricas/historial-de-movimiento";
@@ -22,6 +22,7 @@ import { Importe } from "@/components/importe";
 export const metadata: Metadata = { title: "Métricas" };
 
 const MES_REGEX = /^\d{4}-\d{2}$/;
+const SEMANA_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * MÉTRICAS DEL NEGOCIO. La vista (semana/mes/año) vive en la URL y decide
@@ -38,13 +39,14 @@ const MES_REGEX = /^\d{4}-\d{2}$/;
 export default async function MetricasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ vista?: string; mes?: string }>;
+  searchParams: Promise<{ vista?: string; mes?: string; semana?: string }>;
 }) {
-  const { vista: vistaCruda, mes: mesCrudo } = await searchParams;
+  const { vista: vistaCruda, mes: mesCrudo, semana: semanaCruda } = await searchParams;
   const vista = esVistaMetricas(vistaCruda) ? vistaCruda : "mes";
   const mesPedido = mesCrudo && MES_REGEX.test(mesCrudo) ? `${mesCrudo}-01` : undefined;
+  const semanaPedida = semanaCruda && SEMANA_REGEX.test(semanaCruda) ? semanaCruda : undefined;
 
-  const resultado = await metricasQuery({ vista, mes: mesPedido });
+  const resultado = await metricasQuery({ vista, mes: mesPedido, semana: semanaPedida });
 
   if (!resultado.ok) {
     if (resultado.kind === "FORBIDDEN") redirect("/login");
@@ -65,6 +67,13 @@ export default async function MetricasPage({
   const mesActivo = m.rango.desde;
   const mesAnteriorHref = `?vista=mes&mes=${sumarMeses(mesActivo, -1).slice(0, 7)}`;
   const mesSiguienteHref = `?vista=mes&mes=${sumarMeses(mesActivo, 1).slice(0, 7)}`;
+
+  // El lunes de la semana que se está viendo, resuelto por el servidor
+  // (mismo criterio que `mesActivo`): así "esta semana" (sin `?semana=`)
+  // también navega bien a la anterior/siguiente.
+  const semanaActiva = m.rango.desde;
+  const semanaAnteriorHref = `?vista=semana&semana=${sumarSemanas(semanaActiva, -1)}`;
+  const semanaSiguienteHref = `?vista=semana&semana=${sumarSemanas(semanaActiva, 1)}`;
 
   return (
     <div className="space-y-6">
@@ -90,6 +99,27 @@ export default async function MetricasPage({
                 <Link
                   href={mesSiguienteHref}
                   aria-label="Mes siguiente"
+                  className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-verde focus-visible:outline-none"
+                >
+                  <ChevronRight className="size-4" strokeWidth={2} />
+                </Link>
+              </div>
+            ) : null}
+            {vista === "semana" ? (
+              <div className="flex items-center gap-1">
+                <Link
+                  href={semanaAnteriorHref}
+                  aria-label="Semana anterior"
+                  className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-verde focus-visible:outline-none"
+                >
+                  <ChevronLeft className="size-4" strokeWidth={2} />
+                </Link>
+                <span className="tabular min-w-[8rem] text-center text-sm font-medium capitalize">
+                  {m.etiquetaDelRango}
+                </span>
+                <Link
+                  href={semanaSiguienteHref}
+                  aria-label="Semana siguiente"
                   className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-verde focus-visible:outline-none"
                 >
                   <ChevronRight className="size-4" strokeWidth={2} />

@@ -113,6 +113,12 @@ export interface MetricasInput {
    * anteriores o posteriores sin que la vista deje de ser "mes".
    */
   mes?: string;
+  /**
+   * Cualquier fecha 'YYYY-MM-DD' de la semana a mirar — se normaliza al
+   * lunes de esa semana acá adentro, nunca en el cliente. Solo aplica a la
+   * vista "semana"; sin esto, es la semana en curso.
+   */
+  semana?: string;
 }
 
 export interface Metricas {
@@ -165,18 +171,33 @@ export interface Metricas {
 }
 
 /** Rango del resumen + ventana y granularidad del gráfico de tendencia, según la vista elegida. */
-function configDeVista(vista: VistaMetricas, hoy: string, mesReferencia?: string) {
+function configDeVista(
+  vista: VistaMetricas,
+  hoy: string,
+  mesReferencia?: string,
+  semanaReferencia?: string,
+) {
   switch (vista) {
-    case "semana":
+    case "semana": {
+      // Semana civil lunes→domingo, no "últimos 7 días": así se puede
+      // navegar a la semana anterior/siguiente completa, igual que la
+      // vista "mes" navega mes a mes (pedido del dueño).
+      const inicio = semanaReferencia
+        ? primerDiaDeLaSemana(semanaReferencia)
+        : primerDiaDeLaSemana(hoy);
+      const fin = ultimoDiaDeLaSemana(inicio);
+      const esSemanaActual = inicio === primerDiaDeLaSemana(hoy);
       return {
-        desde: primerDiaDeLaSemana(hoy),
-        hasta: ultimoDiaDeLaSemana(hoy),
+        desde: inicio,
+        hasta: fin,
         granularidad: "dia" as GranularidadFacturacion,
-        // Últimos 14 días, para que la barra de hoy tenga contexto reciente.
-        desdeTendencia: sumarDias(hoy, -13),
-        hastaTendencia: hoy,
-        etiquetaDelRango: "Esta semana",
+        desdeTendencia: inicio,
+        hastaTendencia: fin,
+        etiquetaDelRango: esSemanaActual
+          ? "Esta semana"
+          : `${etiquetaCorta(inicio, hoy)} – ${etiquetaCorta(fin, hoy)}`,
       };
+    }
     case "mes": {
       const mes = mesReferencia ? primerDiaDelMes(mesReferencia) : primerDiaDelMes(hoy);
       const esMesActual = mes === primerDiaDelMes(hoy);
@@ -209,10 +230,14 @@ function bucketsEsperados(
   vista: VistaMetricas,
   hoy: string,
   mesReferencia?: string,
+  semanaReferencia?: string,
 ): { periodo: string; etiqueta: string }[] {
   if (vista === "semana") {
-    return Array.from({ length: 14 }, (_, i) => {
-      const dia = sumarDias(hoy, -(13 - i));
+    const inicio = semanaReferencia
+      ? primerDiaDeLaSemana(semanaReferencia)
+      : primerDiaDeLaSemana(hoy);
+    return Array.from({ length: 7 }, (_, i) => {
+      const dia = sumarDias(inicio, i);
       return { periodo: dia, etiqueta: etiquetaCorta(dia, hoy) };
     });
   }
@@ -241,7 +266,7 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
       if (!gym) return conflict("No pudimos leer la configuración del gimnasio.");
 
       const hoy = hoyISO(gym.timezone);
-      const config = configDeVista(vista, hoy, input?.mes);
+      const config = configDeVista(vista, hoy, input?.mes, input?.semana);
       const rango = { desde: config.desde, hasta: config.hasta };
       const rangoTendencia = { desde: config.desdeTendencia, hasta: config.hastaTendencia };
 
@@ -290,7 +315,7 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
         listarFechasDeVinculo(tx, ctx),
       ]);
 
-      const buckets = bucketsEsperados(vista, hoy, input?.mes);
+      const buckets = bucketsEsperados(vista, hoy, input?.mes, input?.semana);
       const porPeriodo = new Map(totalesTendencia.map((f) => [f.periodo, f]));
       const tendencia: PuntoDeFacturacion[] = buckets.map((b) => ({
         periodo: b.periodo,

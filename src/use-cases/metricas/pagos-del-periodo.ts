@@ -1,7 +1,7 @@
 import { withAuth } from "@/use-cases/_kernel/with-auth";
 import { withTenantTx } from "@/use-cases/_kernel/with-tenant-tx";
 import { ok, validationError, type Result } from "@/use-cases/_kernel/result";
-import { listarPagosDelPeriodo, totalCobrado } from "@/data/repositories/payments-repo";
+import { listarPagosDelPeriodo } from "@/data/repositories/payments-repo";
 import { ultimoDiaDelMes, sumarDias, sumarMeses } from "@/domain/fechas/calendario";
 
 /**
@@ -40,6 +40,8 @@ export interface ComparacionMismoDia {
   fecha: string;
   total: number;
   cantidad: number;
+  /** Quién pagó ese día — no solo el total, para poder responder "¿quiénes?" sin abrir otra pantalla. */
+  pagos: AlumnoQuePago[];
 }
 
 export interface DetalleDelPeriodo {
@@ -70,25 +72,32 @@ export const pagosDelPeriodoQuery = withAuth<PagoDelPeriodoInput, DetalleDelPeri
 
       const fechaComparacion = input.granularidad === "dia" ? sumarMeses(input.periodo, -1) : null;
 
-      const [pagos, comparacion] = await Promise.all([
+      const [pagos, pagosComparacion] = await Promise.all([
         listarPagosDelPeriodo(tx, ctx, rango),
         fechaComparacion
-          ? totalCobrado(tx, ctx, { desde: fechaComparacion, hasta: fechaComparacion })
+          ? listarPagosDelPeriodo(tx, ctx, { desde: fechaComparacion, hasta: fechaComparacion })
           : Promise.resolve(null),
       ]);
 
+      const aAlumnoQuePago = (p: (typeof pagos)[number]): AlumnoQuePago => ({
+        studentId: p.studentId,
+        nombre: p.nombre,
+        apellido: p.apellido,
+        monto: p.monto,
+        metodo: p.metodo,
+        planNombreSnapshot: p.planNombreSnapshot,
+      });
+
       return ok({
-        pagos: pagos.map((p) => ({
-          studentId: p.studentId,
-          nombre: p.nombre,
-          apellido: p.apellido,
-          monto: p.monto,
-          metodo: p.metodo,
-          planNombreSnapshot: p.planNombreSnapshot,
-        })),
+        pagos: pagos.map(aAlumnoQuePago),
         comparacionMesAnterior:
-          fechaComparacion && comparacion
-            ? { fecha: fechaComparacion, total: comparacion.total, cantidad: comparacion.cantidad }
+          fechaComparacion && pagosComparacion
+            ? {
+                fecha: fechaComparacion,
+                total: pagosComparacion.reduce((acc, p) => acc + p.monto, 0),
+                cantidad: pagosComparacion.length,
+                pagos: pagosComparacion.map(aAlumnoQuePago),
+              }
             : null,
       });
     });
