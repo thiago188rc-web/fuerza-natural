@@ -8,6 +8,7 @@ import { etiquetaDeMes, sumarMeses } from "@/domain/fechas/calendario";
 import { GraficoDeFacturacion } from "@/components/features/metricas/grafico-de-facturacion";
 import { ComparacionMensual } from "@/components/features/metricas/comparacion-mensual";
 import { HistorialDeMovimiento } from "@/components/features/metricas/historial-de-movimiento";
+import { BarraConTendencia } from "@/components/features/metricas/barra-con-tendencia";
 import { Distribucion } from "@/components/features/metricas/distribucion";
 import { DistribucionEdadGenero } from "@/components/features/metricas/distribucion-edad-genero";
 import { AvisoDeCumpleanos } from "@/components/features/metricas/aviso-de-cumpleanos";
@@ -187,8 +188,42 @@ export default async function MetricasPage({
         </section>
       </Aparece>
 
-      <div className="grid gap-5 sm:grid-cols-2">
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Aparece retraso={0.135} className="min-w-0">
+          <section className="superficie h-full p-5">
+            <p className="t-rotulo">Facturación · últimos {m.facturacionPorMes.length} meses</p>
+            <p className="mt-0.5 text-[0.7rem] text-muted-foreground">En millones de {m.moneda}</p>
+            <div className="mt-2 overflow-x-auto">
+              <BarraConTendencia
+                puntos={m.facturacionPorMes}
+                formatearValor={(v) => (v / 1_000_000).toFixed(2)}
+                colorBarra="fill-verde"
+                colorLinea="stroke-revisar"
+                colorPunto="fill-revisar"
+              />
+            </div>
+          </section>
+        </Aparece>
+
         <Aparece retraso={0.14} className="min-w-0">
+          <section className="superficie h-full p-5">
+            <p className="t-rotulo">Alumnos activos · últimos {m.activosPorMes.length} meses</p>
+            <p className="mt-0.5 text-[0.7rem] text-muted-foreground">A fin de cada mes</p>
+            <div className="mt-2 overflow-x-auto">
+              <BarraConTendencia
+                puntos={m.activosPorMes}
+                formatearValor={(v) => String(v)}
+                colorBarra="fill-verde"
+                colorLinea="stroke-revisar"
+                colorPunto="fill-revisar"
+              />
+            </div>
+          </section>
+        </Aparece>
+      </div>
+
+      <div className="grid gap-5 sm:grid-cols-2">
+        <Aparece retraso={0.15} className="min-w-0">
           <section className="superficie p-5">
             <Distribucion titulo={`Edad · ${m.totalAlumnosActivos} activos`} segmentos={m.porEdad} />
           </section>

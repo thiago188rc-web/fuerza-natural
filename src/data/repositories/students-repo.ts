@@ -408,6 +408,23 @@ export async function contarMovimientoDelPadron(
 }
 
 /**
+ * `fechaAltaOriginal` y `bajaFecha` de TODOS los alumnos (activos y de
+ * baja, no solo los activos de hoy) — lo que necesita
+ * `activosAlFinDeCadaMes()` para reconstruir cuántos había en un mes
+ * pasado. Trae la lista cruda: son cientos de filas, no millones, y la
+ * cuenta por mes es aritmética de dominio, no una consulta agregada.
+ */
+export async function listarFechasDeVinculo(tx: TxClient, ctx: AuthContext) {
+  return tx
+    .select({
+      fechaAltaOriginal: students.fechaAltaOriginal,
+      bajaFecha: students.bajaFecha,
+    })
+    .from(students)
+    .where(eq(students.gymId, ctx.gymId));
+}
+
+/**
  * El mismo `contarMovimientoDelPadron`, pero desglosado mes a mes — el
  * historial completo de altas y bajas para el gráfico de Métricas, en vez
  * de un único total para el período elegido.

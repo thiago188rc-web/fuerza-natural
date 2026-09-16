@@ -13,6 +13,7 @@ import {
   datosDemograficosDeActivos,
   listarAlumnosActivosParaCobertura,
   listarCumpleanosDeActivos,
+  listarFechasDeVinculo,
   movimientoPorMes,
 } from "@/data/repositories/students-repo";
 import { asistieronEnRango, contarAsistenciasPorAlumno } from "@/data/repositories/attendance-repo";
@@ -47,6 +48,7 @@ import {
   type SegmentoImporte,
 } from "@/domain/metricas/facturacion";
 import { cumpleanosDelMes, type AlumnoConCumpleanos } from "@/domain/alumnos/cumpleanos";
+import { activosAlFinDeCadaMes } from "@/domain/metricas/roster";
 import type { VistaMetricas } from "@/domain/metricas/vista";
 import { ETIQUETA_MODALIDAD } from "@/domain/pagos/modalidad";
 import { METODOS_PAGO, ETIQUETA_METODO, MODALIDADES_PAGO } from "@/schemas/payment";
@@ -92,6 +94,14 @@ export interface PuntoDeMovimiento {
   altas: number;
 }
 
+export interface PuntoDeHistorial {
+  mes: string;
+  etiqueta: string;
+  valor: number;
+  /** `false`: el sistema no tiene dato real para ese mes (es anterior al alta más vieja registrada). */
+  real: boolean;
+}
+
 /** Cuántos meses hacia atrás muestra el historial de altas/bajas (incluye el actual). */
 const MESES_DE_HISTORIAL = 7;
 
@@ -134,6 +144,10 @@ export interface Metricas {
   movimiento: { nuevos: number; volvieron: number; dejaron: number; pausaron: number };
   /** Altas y bajas de los últimos meses — el historial completo, no solo el período elegido. */
   historialDeMovimiento: PuntoDeMovimiento[];
+  /** Facturado por mes, últimos `MESES_DE_HISTORIAL` meses. */
+  facturacionPorMes: PuntoDeHistorial[];
+  /** Alumnos activos a fin de cada uno de los últimos `MESES_DE_HISTORIAL` meses. */
+  activosPorMes: PuntoDeHistorial[];
 
   porMetodo: SegmentoImporte[];
   porModalidad: SegmentoImporte[];
@@ -255,6 +269,8 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
         cumpleanos,
         totalesMesAnterior,
         movimientoCrudo,
+        facturacionMensualCruda,
+        fechasDeVinculo,
       ] = await Promise.all([
         totalesPorPeriodo(tx, ctx, rangoTendencia, config.granularidad),
         totalCobrado(tx, ctx, rango),
@@ -270,6 +286,8 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
           ? totalesPorPeriodo(tx, ctx, rangoMesAnterior, "dia")
           : Promise.resolve([]),
         movimientoPorMes(tx, ctx, rangoHistorial),
+        totalesPorPeriodo(tx, ctx, rangoHistorial, "mes"),
+        listarFechasDeVinculo(tx, ctx),
       ]);
 
       const buckets = bucketsEsperados(vista, hoy, input?.mes);
@@ -329,6 +347,40 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
         },
       );
 
+      // El corte de "hay dato real" para los dos gráficos de historial de
+      // abajo: antes de la alta más vieja que tiene el sistema, un $0 o un
+      // 0 de activos no sería "no facturó nada" ni "no había nadie" — sería
+      // simplemente que nadie cargó ese mes todavía.
+      const altaMasVieja = fechasDeVinculo.reduce<string | null>(
+        (min, a) => (min === null || a.fechaAltaOriginal < min ? a.fechaAltaOriginal : min),
+        null,
+      );
+
+      const finesDeMes = Array.from({ length: MESES_DE_HISTORIAL }, (_, i) =>
+        ultimoDiaDelMes(primerDiaDelMes(sumarMeses(mesDeHoy, -(MESES_DE_HISTORIAL - 1 - i)))),
+      );
+
+      const porMesFacturacion = new Map(facturacionMensualCruda.map((f) => [f.periodo, f.total]));
+      const facturacionPorMes: PuntoDeHistorial[] = finesDeMes.map((finDeMes) => {
+        const mes = primerDiaDelMes(finDeMes);
+        return {
+          mes,
+          etiqueta: etiquetaDeMes(mes, { conAnio: false }),
+          valor: porMesFacturacion.get(mes) ?? 0,
+          real: altaMasVieja !== null && finDeMes >= altaMasVieja,
+        };
+      });
+
+      const activosPorMes: PuntoDeHistorial[] = activosAlFinDeCadaMes(
+        fechasDeVinculo,
+        finesDeMes,
+      ).map((a) => ({
+        mes: primerDiaDelMes(a.mes),
+        etiqueta: etiquetaDeMes(a.mes, { conAnio: false }),
+        valor: a.cantidad,
+        real: a.real,
+      }));
+
       const asistieronDeActivos = activos.filter((a) => asistieron.has(a.id)).length;
       const diasDelRango = diasEntre(rango.desde, rango.hasta) + 1;
       const porFrecuencia = distribucionPorFrecuencia(
@@ -359,6 +411,8 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
 
         movimiento,
         historialDeMovimiento,
+        facturacionPorMes,
+        activosPorMes,
 
         porMetodo: segmentosDeImporte(filasMetodo, ETIQUETA_METODO, METODOS_PAGO),
         porModalidad: segmentosDeImporte(filasModalidad, ETIQUETA_MODALIDAD, MODALIDADES_PAGO),
