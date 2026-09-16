@@ -7,6 +7,7 @@ import { esVistaMetricas } from "@/domain/metricas/vista";
 import { etiquetaDeMes, sumarMeses } from "@/domain/fechas/calendario";
 import { GraficoDeFacturacion } from "@/components/features/metricas/grafico-de-facturacion";
 import { ComparacionMensual } from "@/components/features/metricas/comparacion-mensual";
+import { HistorialDeMovimiento } from "@/components/features/metricas/historial-de-movimiento";
 import { Distribucion } from "@/components/features/metricas/distribucion";
 import { DistribucionEdadGenero } from "@/components/features/metricas/distribucion-edad-genero";
 import { AvisoDeCumpleanos } from "@/components/features/metricas/aviso-de-cumpleanos";
@@ -176,6 +177,15 @@ export default async function MetricasPage({
           </section>
         </Aparece>
       </div>
+
+      <Aparece retraso={0.13}>
+        <section className="superficie p-5">
+          <p className="t-rotulo">Altas y bajas · últimos {m.historialDeMovimiento.length} meses</p>
+          <div className="mt-4">
+            <HistorialDeMovimiento puntos={m.historialDeMovimiento} />
+          </div>
+        </section>
+      </Aparece>
 
       <div className="grid gap-5 sm:grid-cols-2">
         <Aparece retraso={0.14} className="min-w-0">

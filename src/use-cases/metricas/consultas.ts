@@ -13,6 +13,7 @@ import {
   datosDemograficosDeActivos,
   listarAlumnosActivosParaCobertura,
   listarCumpleanosDeActivos,
+  movimientoPorMes,
 } from "@/data/repositories/students-repo";
 import { asistieronEnRango, contarAsistenciasPorAlumno } from "@/data/repositories/attendance-repo";
 import { obtenerGimnasio } from "@/data/repositories/gym-repo";
@@ -80,6 +81,20 @@ export interface SerieMensual {
   acumulado: number[];
 }
 
+export interface PuntoDeMovimiento {
+  /** 'YYYY-MM-DD' — el primer día del mes. */
+  mes: string;
+  etiqueta: string;
+  nuevos: number;
+  volvieron: number;
+  dejaron: number;
+  /** nuevos + volvieron: cuánta gente entró (por primera vez o de vuelta) ese mes. */
+  altas: number;
+}
+
+/** Cuántos meses hacia atrás muestra el historial de altas/bajas (incluye el actual). */
+const MESES_DE_HISTORIAL = 7;
+
 export interface MetricasInput {
   vista?: VistaMetricas;
   /**
@@ -117,6 +132,8 @@ export interface Metricas {
   comparacionMensual: { mesActual: SerieMensual; mesAnterior: SerieMensual } | null;
 
   movimiento: { nuevos: number; volvieron: number; dejaron: number; pausaron: number };
+  /** Altas y bajas de los últimos meses — el historial completo, no solo el período elegido. */
+  historialDeMovimiento: PuntoDeMovimiento[];
 
   porMetodo: SegmentoImporte[];
   porModalidad: SegmentoImporte[];
@@ -219,6 +236,12 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
         ? { desde: mesAnteriorDesde, hasta: ultimoDiaDelMes(mesAnteriorDesde) }
         : null;
 
+      const mesDeHoy = primerDiaDelMes(hoy);
+      const rangoHistorial = {
+        desde: primerDiaDelMes(sumarMeses(mesDeHoy, -(MESES_DE_HISTORIAL - 1))),
+        hasta: ultimoDiaDelMes(mesDeHoy),
+      };
+
       const [
         totalesTendencia,
         cobradoDelPeriodo,
@@ -231,6 +254,7 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
         visitasPorAlumno,
         cumpleanos,
         totalesMesAnterior,
+        movimientoCrudo,
       ] = await Promise.all([
         totalesPorPeriodo(tx, ctx, rangoTendencia, config.granularidad),
         totalCobrado(tx, ctx, rango),
@@ -245,6 +269,7 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
         rangoMesAnterior
           ? totalesPorPeriodo(tx, ctx, rangoMesAnterior, "dia")
           : Promise.resolve([]),
+        movimientoPorMes(tx, ctx, rangoHistorial),
       ]);
 
       const buckets = bucketsEsperados(vista, hoy, input?.mes);
@@ -284,6 +309,26 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
         };
       }
 
+      const porMesYTipo = new Map<string, number>();
+      for (const f of movimientoCrudo) porMesYTipo.set(`${f.mes}:${f.tipo}`, f.total);
+      const historialDeMovimiento: PuntoDeMovimiento[] = Array.from(
+        { length: MESES_DE_HISTORIAL },
+        (_, i) => {
+          const mes = primerDiaDelMes(sumarMeses(mesDeHoy, -(MESES_DE_HISTORIAL - 1 - i)));
+          const nuevos = porMesYTipo.get(`${mes}:ALTA`) ?? 0;
+          const volvieron = porMesYTipo.get(`${mes}:REACTIVACION`) ?? 0;
+          const dejaron = porMesYTipo.get(`${mes}:BAJA`) ?? 0;
+          return {
+            mes,
+            etiqueta: etiquetaDeMes(mes, { conAnio: false }),
+            nuevos,
+            volvieron,
+            dejaron,
+            altas: nuevos + volvieron,
+          };
+        },
+      );
+
       const asistieronDeActivos = activos.filter((a) => asistieron.has(a.id)).length;
       const diasDelRango = diasEntre(rango.desde, rango.hasta) + 1;
       const porFrecuencia = distribucionPorFrecuencia(
@@ -313,6 +358,7 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
         comparacionMensual,
 
         movimiento,
+        historialDeMovimiento,
 
         porMetodo: segmentosDeImporte(filasMetodo, ETIQUETA_METODO, METODOS_PAGO),
         porModalidad: segmentosDeImporte(filasModalidad, ETIQUETA_MODALIDAD, MODALIDADES_PAGO),

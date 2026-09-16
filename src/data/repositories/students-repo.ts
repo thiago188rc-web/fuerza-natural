@@ -407,6 +407,36 @@ export async function contarMovimientoDelPadron(
   };
 }
 
+/**
+ * El mismo `contarMovimientoDelPadron`, pero desglosado mes a mes — el
+ * historial completo de altas y bajas para el gráfico de Métricas, en vez
+ * de un único total para el período elegido.
+ */
+export async function movimientoPorMes(
+  tx: TxClient,
+  ctx: AuthContext,
+  rango: { desde: string; hasta: string },
+) {
+  const truncado = sql`date_trunc('month', ${studentEvents.ocurridoEl})`;
+  const filas = await tx
+    .select({
+      mes: sql<string>`to_char(${truncado}, 'YYYY-MM-DD')`,
+      tipo: studentEvents.tipo,
+      total: count(),
+    })
+    .from(studentEvents)
+    .where(
+      and(
+        eq(studentEvents.gymId, ctx.gymId),
+        gte(studentEvents.ocurridoEl, rango.desde),
+        lte(studentEvents.ocurridoEl, rango.hasta),
+      ),
+    )
+    .groupBy(truncado, studentEvents.tipo);
+
+  return filas.map((f) => ({ mes: f.mes, tipo: f.tipo, total: f.total }));
+}
+
 /** Los últimos hechos de negocio del gimnasio entero, para el panel. */
 export async function listarEventosRecientes(tx: TxClient, ctx: AuthContext, limite = 8) {
   return tx
