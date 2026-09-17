@@ -125,6 +125,21 @@ export function diaDeLaSemana(iso: string): number {
   return new Date(aUTC(iso)).getUTCDay();
 }
 
+/**
+ * La inicial del día de la semana: L M M J V S D.
+ *
+ * Miércoles y martes comparten la "M", y sábado y domingo comparten sonido
+ * pero no letra. No se desambigua con dos letras ("Mi", "Mié") a propósito:
+ * en la vista semana las siete van en fila bajo las barras, siempre en el
+ * mismo orden lunes→domingo, y esa posición fija ya dice cuál es cada una.
+ * Una sola letra mantiene la fila liviana y legible a 375px.
+ */
+const INICIALES_DE_DIA = ["D", "L", "M", "M", "J", "V", "S"] as const;
+
+export function inicialDelDia(iso: string): string {
+  return INICIALES_DE_DIA[diaDeLaSemana(iso)]!;
+}
+
 /** Edad en años cumplidos a la fecha `hoy`. Aritmética civil, sin reloj. */
 export function edadEnAnios(nacimiento: string, hoy: string): number {
   const n = aPartes(nacimiento);

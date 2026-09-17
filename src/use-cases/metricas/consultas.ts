@@ -25,6 +25,7 @@ import {
   diasEntre,
   etiquetaCorta,
   etiquetaDeMes,
+  inicialDelDia,
   primerDiaDeLaSemana,
   primerDiaDelAnio,
   primerDiaDelMes,
@@ -72,6 +73,8 @@ export interface PuntoDeFacturacion {
   /** 'YYYY-MM-DD' — el día, o el primer día de la semana/mes del bucket. */
   periodo: string;
   etiqueta: string;
+  /** La inicial del día (L M M J V S D). Solo en la vista semana. */
+  subEtiqueta?: string;
   total: number;
   /** Cuántos pagos componen ese total. Sirve para "quién pagó" al tocar la barra. */
   cantidad: number;
@@ -233,14 +236,17 @@ function bucketsEsperados(
   hoy: string,
   mesReferencia?: string,
   semanaReferencia?: string,
-): { periodo: string; etiqueta: string }[] {
+): { periodo: string; etiqueta: string; subEtiqueta?: string }[] {
   if (vista === "semana") {
     const inicio = semanaReferencia
       ? primerDiaDeLaSemana(semanaReferencia)
       : primerDiaDeLaSemana(hoy);
+    // La inicial del día va SOLO acá: en la vista semana son siete y
+    // ordenan la lectura (lunes→domingo). En la vista mes serían 31 letras
+    // repetidas bajo 31 números, ruido puro.
     return Array.from({ length: 7 }, (_, i) => {
       const dia = sumarDias(inicio, i);
-      return { periodo: dia, etiqueta: etiquetaCorta(dia, hoy) };
+      return { periodo: dia, etiqueta: etiquetaCorta(dia, hoy), subEtiqueta: inicialDelDia(dia) };
     });
   }
   if (vista === "mes") {
@@ -322,6 +328,7 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
       const tendencia: PuntoDeFacturacion[] = buckets.map((b) => ({
         periodo: b.periodo,
         etiqueta: b.etiqueta,
+        subEtiqueta: b.subEtiqueta,
         total: porPeriodo.get(b.periodo)?.total ?? 0,
         cantidad: porPeriodo.get(b.periodo)?.cantidad ?? 0,
       }));

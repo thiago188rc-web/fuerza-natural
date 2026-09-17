@@ -32,10 +32,13 @@ export function mensajeConfirmacionDePago(datos: {
 
 /**
  * El recordatorio de vencimiento. Dos variantes de tono, no de información:
- * "para revisar" (ámbar, recién venció) es un aviso amable; "sin cubrir"
- * (rojo, más de `diasGracia` días) pide una acción más directa. Ninguna de
- * las dos inventa un monto ni una fecha límite — eso lo decide el dueño al
- * cobrar, no este mensaje.
+ * "para revisar" (ámbar) recuerda que la cuota venció; "sin cubrir" (rojo,
+ * más de `diasGracia` días) ya no insiste con el cobro sino que PREGUNTA si
+ * el alumno sigue viniendo — a esa altura el dato que le falta al gimnasio
+ * no es el pago, es si tiene que liberar el lugar.
+ *
+ * Ninguna de las dos inventa un monto ni una fecha límite: eso lo decide el
+ * dueño al cobrar, no este mensaje.
  */
 export function mensajeRecordatorioDeVencimiento(datos: {
   nombre: string;
@@ -44,13 +47,24 @@ export function mensajeRecordatorioDeVencimiento(datos: {
   planNombre: string;
 }): string {
   if (datos.estado === "REVISAR") {
-    return `Hola ${datos.nombre}! Te escribimos de Fuerza Natural para avisarte que tu cuota de ${datos.planNombre} está vencida. Cuando puedas, acercate a ponerla al día. ¡Gracias!`;
+    const hace =
+      datos.diasVencido === null
+        ? ""
+        : ` hace ${datos.diasVencido} ${datos.diasVencido === 1 ? "día" : "días"}`;
+
+    return `Hola ${datos.nombre}! Vemos que tu cuota de ${datos.planNombre} sigue sin abonarse${hace}. Te pedimos que te acerques a regularizarla a la brevedad. ¡Gracias!`;
   }
 
-  const hace =
-    datos.diasVencido === null
-      ? ""
-      : ` hace ${datos.diasVencido} ${datos.diasVencido === 1 ? "día" : "días"}`;
-
-  return `Hola ${datos.nombre}! Vemos que tu cuota de ${datos.planNombre} sigue sin abonarse${hace}. Te pedimos que te acerques a regularizarla a la brevedad. ¡Gracias!`;
+  // Texto dictado por el dueño, palabra por palabra. Los saltos de línea
+  // son parte del mensaje: `encodeURIComponent` en BotonWhatsapp los
+  // preserva y WhatsApp los respeta.
+  return [
+    `Hola ${datos.nombre} ¿cómo va?`,
+    "",
+    "Te escribo porque vimos que todavía no abonaste la cuota de este mes y queríamos saber si vas a continuar viniendo al gym",
+    "",
+    "Si vas a seguir, avisame así te dejamos la cuota pendiente y coordinamos el pago 💪",
+    "",
+    "Y si por el momento no vas a continuar avísanos, así le podemos dar el espacio a otra persona 🙌",
+  ].join("\n");
 }

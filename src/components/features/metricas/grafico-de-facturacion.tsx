@@ -148,11 +148,25 @@ export function GraficoDeFacturacion({
 
               <span
                 className={cn(
-                  "text-[0.7rem] whitespace-nowrap capitalize",
+                  "flex flex-col items-center gap-0.5 text-[0.7rem] whitespace-nowrap capitalize",
                   i === indiceDeHoy ? "font-semibold text-foreground" : "text-muted-foreground",
                 )}
               >
                 {punto.etiqueta}
+                {/* La inicial del día, debajo de la fecha. `aria-hidden`
+                    porque no agrega información para quien no ve el gráfico:
+                    el título de cada barra ya nombra el día completo. */}
+                {punto.subEtiqueta ? (
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "font-mono text-[0.65rem] tracking-[0.08em]",
+                      i === indiceDeHoy ? "text-foreground" : "text-muted-foreground/60",
+                    )}
+                  >
+                    {punto.subEtiqueta}
+                  </span>
+                ) : null}
               </span>
             </div>
           );

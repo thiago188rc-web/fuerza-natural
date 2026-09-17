@@ -5,7 +5,24 @@ import {
   sumarSemanas,
   primerDiaDelAnio,
   ultimoDiaDelAnio,
+  inicialDelDia,
+  sumarDias,
 } from "@/domain/fechas/calendario";
+
+describe("inicialDelDia", () => {
+  it("una semana completa arranca en L y termina en D", () => {
+    // 2026-09-07 es lunes.
+    const semana = Array.from({ length: 7 }, (_, i) => inicialDelDia(sumarDias("2026-09-07", i)));
+    expect(semana).toEqual(["L", "M", "M", "J", "V", "S", "D"]);
+  });
+
+  it("es la misma inicial en cualquier semana del año", () => {
+    // 2026-01-05 y 2026-12-28 también son lunes.
+    expect(inicialDelDia("2026-01-05")).toBe("L");
+    expect(inicialDelDia("2026-12-28")).toBe("L");
+    expect(inicialDelDia("2026-01-11")).toBe("D");
+  });
+});
 
 describe("primerDiaDeLaSemana / ultimoDiaDeLaSemana", () => {
   it("un lunes es el primer día de su propia semana", () => {
