@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { celdaATexto, elegirHoja, hojaATexto, separarEncabezado } from "@/domain/importacion/planilla";
+import {
+  celdaATexto,
+  elegirHoja,
+  hojaATexto,
+  recortarAColumnasUsadas,
+  separarEncabezado,
+} from "@/domain/importacion/planilla";
+import { analizarFilas, detectarColumnas } from "@/domain/importacion/analisis";
 
 describe("celdaATexto: lo que trae Excel, como texto que el análisis ya entiende", () => {
   it("una celda de fecha se vuelve AAAA-MM-DD, leída en UTC (Excel no guarda zona horaria)", () => {
@@ -106,5 +113,29 @@ describe("elegirHoja", () => {
 
   it("si ninguna tiene filas de datos, devuelve -1", () => {
     expect(elegirHoja([{ nombre: "Vacía", filas: [["solo encabezado"]], lineas: [1] }])).toBe(-1);
+  });
+});
+
+describe("recortarAColumnasUsadas: lo que viaja al servidor al importar", () => {
+  const encabezados = ["#", "NOMBRE Y APELLIDO", "PAGO", "DIAS", "VALOR", "TELÉFONO PRIVADO NO MAPEADO"];
+  const filas = [
+    ["1", "SOSA, ANA", "2026-09-01", "3", "55000", "11 1234"],
+    ["2", "JUAN PEREZ", "2026-09-02", "2", "50000", "11 5678"],
+  ];
+  const columnas = { ...detectarColumnas(encabezados), telefono: -1 };
+
+  it("solo viajan las columnas que se usan (ni el importe ni lo que no se mapeó)", () => {
+    const envio = recortarAColumnasUsadas(filas, columnas);
+    expect(envio.filas).toEqual([
+      ["SOSA, ANA", "3"],
+      ["JUAN PEREZ", "2"],
+    ]);
+    expect(envio.columnas.nombre).toBe(envio.columnas.apellido);
+  });
+
+  it("el análisis de lo que viaja es idéntico al de la vista previa", () => {
+    const contexto = { planes: ["2 días", "3 días"], existentes: [], hoy: "2026-10-01", lineas: [4, 5] };
+    const envio = recortarAColumnasUsadas(filas, columnas);
+    expect(analizarFilas(envio.filas, envio.columnas, contexto)).toEqual(analizarFilas(filas, columnas, contexto));
   });
 });

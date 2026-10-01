@@ -1,4 +1,4 @@
-import { CAMPOS, detectarColumnas } from "./analisis";
+import { CAMPOS, detectarColumnas, type Campo } from "./analisis";
 
 /**
  * DE UNA HOJA DE EXCEL A LAS FILAS DE TEXTO QUE EL ANÁLISIS YA ENTIENDE.
@@ -117,4 +117,29 @@ export function separarEncabezado(
  */
 export function elegirHoja(hojas: readonly HojaCruda[]): number {
   return hojas.findIndex((h) => separarEncabezado(h.filas, h.lineas) !== null);
+}
+
+/**
+ * Lo que viaja al servidor al confirmar la importación: cada fila con SOLO
+ * las columnas que el mapeo usa (no el importe, no lo que no se mapeó: no
+ * hace falta para crear un alumno y no tiene por qué salir de la máquina),
+ * y el mapeo traducido a esas posiciones.
+ *
+ * El mapeo viaja junto con las filas porque cambia lo que significa una
+ * celda — nombre y apellido en la misma columna se separan por la coma —,
+ * y el servidor tiene que analizar EXACTAMENTE lo mismo que vio la vista
+ * previa (ver el test "idéntico al de la vista previa").
+ */
+export function recortarAColumnasUsadas(
+  filas: readonly (readonly string[])[],
+  columnas: Readonly<Record<Campo, number>>,
+): { filas: string[][]; columnas: Record<Campo, number> } {
+  const usadas = [...new Set(CAMPOS.map((c) => columnas[c]).filter((i) => i >= 0))].sort((a, b) => a - b);
+  const posicion = new Map(usadas.map((original, nueva) => [original, nueva]));
+  return {
+    filas: filas.map((fila) => usadas.map((i) => fila[i] ?? "")),
+    columnas: Object.fromEntries(
+      CAMPOS.map((c) => [c, columnas[c] >= 0 ? posicion.get(columnas[c])! : -1]),
+    ) as Record<Campo, number>,
+  };
 }

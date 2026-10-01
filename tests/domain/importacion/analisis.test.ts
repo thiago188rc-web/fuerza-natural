@@ -183,7 +183,9 @@ describe("analizarFilas", () => {
     const { resumen } = analizarFilas(
       [
         ["Luis", "Paz", "", "3 días", ""],
-        ["", "", "", "", ""],
+        // Una fila con error (falta el nombre). Un renglón TOTALMENTE vacío
+        // ya no cuenta: no es una persona (ver "la planilla mensual").
+        ["", "Sosa", "", "3 días", ""],
         ["ana", "gomez", "", "3 días", ""],
       ],
       columnas,
@@ -212,5 +214,90 @@ describe("analizarFilas", () => {
 describe("claveDePersona", () => {
   it("iguala mayúsculas, acentos y espacios de más", () => {
     expect(claveDePersona("  ANA  ", "Gómez")).toBe(claveDePersona("ana", "gomez"));
+  });
+});
+
+/**
+ * La planilla real del gimnasio (la de pagos de cada mes) tiene el nombre
+ * en UNA columna, "NOMBRE Y APELLIDO", escrito "APELLIDO, NOMBRE"; el plan
+ * en una columna "DIAS" con el número de días ("2", "3", "LIBRE"); y al
+ * final, renglones numerados sin ningún dato. Estos casos salen de esa
+ * planilla, con nombres inventados.
+ */
+describe("la planilla mensual del gimnasio", () => {
+  const encabezados = ["", "NOMBRE Y APELLIDO", "PAGO", "DIAS", "VALOR", "NUEVOS", "SISTEMA"];
+  const columnas = detectarColumnas(encabezados);
+
+  it("una columna 'NOMBRE Y APELLIDO' es a la vez el nombre y el apellido; 'DIAS' es el plan", () => {
+    expect(columnas.nombre).toBe(1);
+    expect(columnas.apellido).toBe(1);
+    expect(columnas.plan).toBe(3);
+  });
+
+  it("la misma columna para nombre y apellido es la única que se repite", () => {
+    const asignadas = Object.entries(columnas)
+      .filter(([campo, i]) => i !== -1 && campo !== "apellido")
+      .map(([, i]) => i);
+    expect(new Set(asignadas).size).toBe(asignadas.length);
+    for (const otra of [["Apellido y nombre"], ["Nombre completo"], ["Alumno"]]) {
+      const c = detectarColumnas(otra);
+      expect([c.nombre, c.apellido]).toEqual([0, 0]);
+    }
+  });
+
+  it("separa 'APELLIDO, NOMBRE' por la coma", () => {
+    const { filas } = analizarFilas(
+      [
+        ["1", "SOSA, ARMANDO", "2026-09-01", "2", "50000", "", "ok"],
+        ["2", "DE LA FUENTE,  MARÍA JOSÉ ", "2026-09-02", "3", "55000", "", "ok"],
+      ],
+      columnas,
+      CONTEXTO,
+    );
+    expect(filas.map((f) => [f.apellido, f.nombre])).toEqual([
+      ["SOSA", "ARMANDO"],
+      ["DE LA FUENTE", "MARÍA JOSÉ"],
+    ]);
+    expect(filas.every((f) => f.problemas.length === 0)).toBe(true);
+  });
+
+  it("sin coma no se adivina cuál es el apellido: es un error con la indicación de cómo escribirlo", () => {
+    const { filas } = analizarFilas([["1", "JUAN PEREZ", "", "2", "", "", ""]], columnas, CONTEXTO);
+    const error = filas[0].problemas.find((p) => p.gravedad === "ERROR");
+    expect(error?.mensaje).toMatch(/APELLIDO, NOMBRE/);
+  });
+
+  it("el plan escrito como número de días es el plan 'N días' del gimnasio", () => {
+    const { filas, resumen } = analizarFilas(
+      [
+        ["1", "SOSA, ANA", "", "2", "", "", ""],
+        ["2", "PAZ, LUIS", "", " 3 ", "", "", ""],
+        ["3", "VERA, SOL", "", "libre", "", "", ""],
+        ["4", "RUIZ, EVA", "", "7", "", "", ""],
+      ],
+      columnas,
+      CONTEXTO,
+    );
+    expect(filas.map((f) => f.plan)).toEqual(["2 días", "3 días", "LIBRE", null]);
+    expect(resumen.planesDesconocidos).toEqual(["7"]);
+  });
+
+  it("los renglones sin ningún dato en las columnas usadas no son personas: se ignoran", () => {
+    const { filas, resumen } = analizarFilas(
+      [
+        ["1", "SOSA, ANA", "", "2", "", "", ""],
+        ["181", "", "", "", "", "", ""],
+        ["182", "", "", "", "", "", ""],
+      ],
+      columnas,
+      { ...CONTEXTO, lineas: [2, 182, 183] },
+    );
+    expect(resumen.total).toBe(1);
+    expect(filas.map((f) => f.linea)).toEqual([2]);
+  });
+
+  it("el duplicado contra el padrón se detecta con el nombre ya separado", () => {
+    const { filas } = analizarFilas([["1", "GÓMEZ, ANA", "", "2", "", "", ""]], columnas, CONTEXTO);
+    expect(filas[0].duplicadoExistente).toBe("Ana Gómez");
   });
 });

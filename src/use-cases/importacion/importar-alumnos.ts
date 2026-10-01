@@ -26,7 +26,7 @@ export interface ResultadoDeImportacion {
   omitidos: FilaOmitida[];
 }
 
-/** Las filas llegan con las columnas en el orden de CAMPOS: el mapeo es la identidad. */
+/** Sin mapeo explícito, las filas llegan con las columnas en el orden de CAMPOS. */
 const COLUMNAS_EN_ORDEN = Object.fromEntries(CAMPOS.map((campo, i) => [campo, i])) as Record<Campo, number>;
 
 const LARGO_MAXIMO_NOMBRE = 80;
@@ -91,7 +91,9 @@ export const importarAlumnosAction = withAuth<ImportarAlumnosRaw, ResultadoDeImp
       const activos = planes.filter((p) => p.activo);
       const planPorClave = new Map(activos.map((p) => [normalizarTerminoBusqueda(p.nombre), p.id]));
 
-      const { filas } = analizarFilas(input.filas, COLUMNAS_EN_ORDEN, {
+      // El MISMO mapeo que usó la vista previa: con nombre y apellido en la
+      // misma columna, el análisis los separa por la coma (ver schema).
+      const { filas } = analizarFilas(input.filas, input.columnas ?? COLUMNAS_EN_ORDEN, {
         planes: activos.map((p) => p.nombre),
         existentes,
         hoy,

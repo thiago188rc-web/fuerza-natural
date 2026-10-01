@@ -15,11 +15,13 @@ import {
 import type { ContextoDeImportacion } from "@/use-cases/importacion/consultas";
 import { importarAlumnos } from "@/app/(app)/importar/actions";
 import { leerArchivo, type ResultadoDeLectura } from "./leer-archivo";
+import { recortarAColumnasUsadas } from "@/domain/importacion/planilla";
 import {
   analizarFilas,
   CAMPOS,
   detectarColumnas,
   ETIQUETA_CAMPO,
+  separarNombreCompleto,
   type Campo,
   type FilaAnalizada,
 } from "@/domain/importacion/analisis";
@@ -126,9 +128,7 @@ export function AsistenteDeImportacion({ contexto }: { contexto: ContextoDeImpor
               nombreArchivo={archivo.nombre}
               analisis={analisis}
               filasParaImportar={() => ({
-                filas: hoja.filas.map((fila) =>
-                  CAMPOS.map((campo) => (columnas[campo] >= 0 ? (fila[columnas[campo]] ?? "") : "")),
-                ),
+                ...recortarAColumnasUsadas(hoja.filas, columnas),
                 lineas: hoja.lineas,
               })}
               soloProblemas={soloProblemas}
@@ -296,6 +296,17 @@ function MapeoDeColumnas({
   const obligatorios: Campo[] = ["nombre", "apellido", "plan"];
   const faltan = obligatorios.filter((c) => columnas[c] === -1);
   const hoja = archivo.hojas[archivo.hoja]!;
+  // "NOMBRE Y APELLIDO" en una sola columna: el ejemplo muestra cómo se
+  // separa, no la celda entera dos veces.
+  const juntos = columnas.nombre >= 0 && columnas.nombre === columnas.apellido;
+
+  function ejemplo(campo: Campo): string {
+    const celda = hoja.filas[0]?.[columnas[campo]] ?? "";
+    if (!juntos || (campo !== "nombre" && campo !== "apellido")) return celda;
+    const separado = separarNombreCompleto(celda);
+    if (!separado) return `${celda} (sin coma: no se puede separar)`;
+    return campo === "nombre" ? separado.nombre : separado.apellido;
+  }
 
   return (
     <div className="superficie overflow-hidden">
@@ -367,7 +378,14 @@ function MapeoDeColumnas({
             </select>
             {columnas[campo] >= 0 ? (
               <p className="mt-1 truncate text-xs text-muted-foreground">
-                Ej: {hoja.filas[0]?.[columnas[campo]] || "(vacío)"}
+                Ej: {ejemplo(campo) || "(vacío)"}
+              </p>
+            ) : null}
+            {juntos && campo === "apellido" ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Misma columna que el nombre: se separa por la coma, como{" "}
+                <span className="font-medium text-foreground">APELLIDO, NOMBRE</span>. Si alguna
+                fila no tiene coma, queda marcada para corregirla.
               </p>
             ) : null}
           </div>
@@ -504,7 +522,7 @@ function Revision({
 }
 
 type RespuestaDeImportacion = Awaited<ReturnType<typeof importarAlumnos>>;
-type FilasParaImportar = { filas: string[][]; lineas: number[] };
+type FilasParaImportar = ReturnType<typeof recortarAColumnasUsadas> & { lineas: number[] };
 
 /**
  * El paso final. Dos clics a propósito — "Importar" y "Sí, importar" — sin

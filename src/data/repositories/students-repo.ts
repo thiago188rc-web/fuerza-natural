@@ -372,6 +372,15 @@ export async function listarCumpleanosDeActivos(tx: TxClient, ctx: AuthContext) 
 }
 
 /**
+ * Las ALTAS que entraron por el importador no son gente que se sumó al
+ * gimnasio ese mes: ya entrenaba, solo se cargó en el sistema. Contarlas
+ * convertiría la migración desde el Excel en un "mes récord de altas" que
+ * nunca existió. Su ALTA sigue en el historial de cada alumno; lo que no
+ * hace es contar como movimiento del padrón.
+ */
+const noEsAltaImportada = sql`not (${studentEvents.tipo} = 'ALTA' and coalesce(${studentEvents.datos}->>'origen', '') = 'IMPORTACION')`;
+
+/**
  * El movimiento del padrón en un rango: cuántos entraron, cuántos
  * volvieron y cuántos se fueron.
  *
@@ -393,6 +402,7 @@ export async function contarMovimientoDelPadron(
         eq(studentEvents.gymId, ctx.gymId),
         gte(studentEvents.ocurridoEl, rango.desde),
         lte(studentEvents.ocurridoEl, rango.hasta),
+        noEsAltaImportada,
       ),
     )
     .groupBy(studentEvents.tipo);
@@ -447,6 +457,7 @@ export async function movimientoPorMes(
         eq(studentEvents.gymId, ctx.gymId),
         gte(studentEvents.ocurridoEl, rango.desde),
         lte(studentEvents.ocurridoEl, rango.hasta),
+        noEsAltaImportada,
       ),
     )
     .groupBy(truncado, studentEvents.tipo);

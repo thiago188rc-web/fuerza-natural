@@ -51,8 +51,28 @@ const SINONIMOS: Record<Campo, string[]> = {
 };
 
 /**
+ * Encabezados de una columna que trae nombre Y apellido juntos. Exactos:
+ * "nombre del plan" contiene "nombre" y no es esto.
+ */
+const NOMBRE_COMPLETO = [
+  "nombre y apellido",
+  "apellido y nombre",
+  "nombre completo",
+  "apellido nombre",
+  "nombre apellido",
+  "apellido, nombre",
+  "alumno",
+  "alumna",
+  "socio",
+];
+
+/**
  * Empareja cada columna del archivo con un campo conocido. Devuelve el
  * índice de columna por campo, o -1 si no se encontró.
+ *
+ * Una sola excepción a "una columna, un campo": si el archivo tiene una
+ * columna "NOMBRE Y APELLIDO" (y ninguna de apellido aparte), esa columna
+ * se asigna a los dos, y `analizarFilas` separa cada celda por la coma.
  *
  * Es una PROPUESTA: la pantalla la muestra y deja cambiarla. Adivinar mal
  * y no dejar corregir es peor que no adivinar.
@@ -62,7 +82,16 @@ export function detectarColumnas(encabezados: readonly string[]): Record<Campo, 
   const asignacion = {} as Record<Campo, number>;
   const usadas = new Set<number>();
 
+  const completa = normalizados.findIndex((h) => NOMBRE_COMPLETO.includes(h));
+  const apellidoAparte = normalizados.some((h) => SINONIMOS.apellido.includes(h));
+  if (completa !== -1 && !apellidoAparte) {
+    asignacion.nombre = completa;
+    asignacion.apellido = completa;
+    usadas.add(completa);
+  }
+
   for (const campo of CAMPOS) {
+    if (asignacion[campo] !== undefined) continue;
     let encontrada = -1;
 
     // Coincidencia exacta primero; recién después, por contenido. Sin ese
@@ -171,6 +200,36 @@ export function claveDePersona(nombre: string, apellido: string): string {
   return normalizarTerminoBusqueda(`${nombre} ${apellido}`);
 }
 
+/**
+ * "APELLIDO, NOMBRE" → { apellido, nombre }. Es la convención de las
+ * planillas de acá cuando el nombre va en una sola columna.
+ *
+ * Sin coma devuelve null: en "JUAN PEREZ" no hay forma de saber cuál es el
+ * apellido (¿y en "MARÍA DE LOS ÁNGELES PEREZ"?), y un apellido adivinado
+ * es un alumno mal cargado para siempre. Esa fila se corrige en el Excel.
+ */
+export function separarNombreCompleto(completo: string): { nombre: string; apellido: string } | null {
+  const coma = completo.indexOf(",");
+  if (coma === -1) return null;
+  const apellido = normalizarTexto(completo.slice(0, coma));
+  const nombre = normalizarTexto(completo.slice(coma + 1));
+  if (!apellido || !nombre || nombre.includes(",")) return null;
+  return { nombre, apellido };
+}
+
+/**
+ * El plan escrito en la planilla → el nombre del plan en el gimnasio, o
+ * null. Acepta el nombre (sin importar acentos ni mayúsculas) y, como en la
+ * planilla real la columna es "DIAS", el número solo: "3" es "3 días".
+ */
+function resolverPlan(crudo: string, planPorClave: ReadonlyMap<string, string>): string | null {
+  const clave = normalizarTerminoBusqueda(crudo);
+  const directo = planPorClave.get(clave);
+  if (directo) return directo;
+  if (/^\d+$/.test(clave)) return planPorClave.get(`${clave} dias`) ?? null;
+  return null;
+}
+
 export function analizarFilas(
   filas: readonly (readonly string[])[],
   columnas: Record<Campo, number>,
@@ -192,11 +251,18 @@ export function analizarFilas(
     porClave.set(claveDePersona(e.nombre, e.apellido), e);
   }
 
-  const planesConocidos = new Set(contexto.planes.map((p) => normalizarTerminoBusqueda(p)));
+  // Clave normalizada → nombre del plan tal como existe en el gimnasio.
+  const planPorClave = new Map(contexto.planes.map((p) => [normalizarTerminoBusqueda(p), p]));
   const planesDesconocidos = new Set<string>();
   const vistasEnArchivo = new Map<string, number>();
 
-  const analizadas: FilaAnalizada[] = filas.map((cruda, indice) => {
+  // Nombre y apellido en la misma columna ("NOMBRE Y APELLIDO"): se separan
+  // por la coma, ver separarNombreCompleto().
+  const juntos = columnas.nombre >= 0 && columnas.nombre === columnas.apellido;
+  const columnasUsadas = [...new Set(Object.values(columnas).filter((c) => c >= 0))];
+
+  const analizadas: FilaAnalizada[] = [];
+  filas.forEach((cruda, indice) => {
     const linea = contexto.lineas?.[indice] ?? indice + 2;
     const leer = (campo: Campo): string => {
       const columna = columnas[campo];
@@ -204,15 +270,38 @@ export function analizarFilas(
       return normalizarTexto(cruda[columna] ?? "");
     };
 
-    const problemas: ProblemaDeFila[] = [];
-    const nombre = leer("nombre");
-    const apellido = leer("apellido");
+    // Un renglón sin nada en ninguna de las columnas que se usan no es una
+    // persona (la planilla real termina con renglones numerados vacíos): no
+    // se cuenta, ni como error.
+    if (columnasUsadas.every((c) => normalizarTexto(cruda[c] ?? "") === "")) return;
 
-    if (!nombre) {
-      problemas.push({ campo: "nombre", gravedad: "ERROR", mensaje: "Falta el nombre." });
-    }
-    if (!apellido) {
-      problemas.push({ campo: "apellido", gravedad: "ERROR", mensaje: "Falta el apellido." });
+    const problemas: ProblemaDeFila[] = [];
+    let nombre: string;
+    let apellido: string;
+
+    if (juntos) {
+      const completo = leer("nombre");
+      const separado = separarNombreCompleto(completo);
+      nombre = separado?.nombre ?? completo;
+      apellido = separado?.apellido ?? "";
+      if (!completo) {
+        problemas.push({ campo: "nombre", gravedad: "ERROR", mensaje: "Falta el nombre." });
+      } else if (!separado) {
+        problemas.push({
+          campo: "nombre",
+          gravedad: "ERROR",
+          mensaje: `No se puede saber cuál es el apellido en “${completo}”. Escribilo como APELLIDO, NOMBRE.`,
+        });
+      }
+    } else {
+      nombre = leer("nombre");
+      apellido = leer("apellido");
+      if (!nombre) {
+        problemas.push({ campo: "nombre", gravedad: "ERROR", mensaje: "Falta el nombre." });
+      }
+      if (!apellido) {
+        problemas.push({ campo: "apellido", gravedad: "ERROR", mensaje: "Falta el apellido." });
+      }
     }
 
     // El teléfono se NORMALIZA (se sacan espacios y guiones) pero nunca se
@@ -235,9 +324,8 @@ export function analizarFilas(
     const planCrudo = leer("plan");
     let plan: string | null = null;
     if (planCrudo) {
-      if (planesConocidos.has(normalizarTerminoBusqueda(planCrudo))) {
-        plan = planCrudo;
-      } else {
+      plan = resolverPlan(planCrudo, planPorClave);
+      if (!plan) {
         planesDesconocidos.add(planCrudo);
         problemas.push({
           campo: "plan",
@@ -277,7 +365,7 @@ export function analizarFilas(
     const previa = clave ? vistasEnArchivo.get(clave) : undefined;
     if (clave && previa === undefined) vistasEnArchivo.set(clave, linea);
 
-    return {
+    analizadas.push({
       linea,
       nombre,
       apellido,
@@ -290,7 +378,7 @@ export function analizarFilas(
       problemas,
       duplicadoExistente: existente ? `${existente.nombre} ${existente.apellido}` : null,
       duplicadoEnArchivo: previa ?? null,
-    };
+    });
   });
 
   const conErrores = analizadas.filter((f) =>

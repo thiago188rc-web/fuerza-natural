@@ -22,6 +22,7 @@ vi.mock("@/lib/auth/context", async (importOriginal) => {
 
 const { importarAlumnosAction } = await import("@/use-cases/importacion/importar-alumnos");
 const { crearAlumnoAction } = await import("@/use-cases/alumnos/crear-alumno");
+const { contarMovimientoDelPadron, movimientoPorMes } = await import("@/data/repositories/students-repo");
 
 /**
  * Una fila tal como la manda el asistente: solo las columnas mapeadas, en
@@ -144,6 +145,56 @@ describe("importar alumnos (Postgres real)", () => {
 
   it("líneas que no corresponden a las filas se rechazan", async () => {
     const r = await importarAlumnosAction({ nombreArchivo: "x.csv", filas: [fila("Ana", "Ruiz")], lineas: [4, 5] });
+    expect(r).toMatchObject({ ok: false, kind: "VALIDATION" });
+  });
+
+  it("Métricas no cuenta a los importados como alumnos nuevos: no se sumaron ese mes, ya estaban", async () => {
+    const r = await importarAlumnosAction({
+      nombreArchivo: "padron.xlsx",
+      filas: [fila("Ana", "Ruiz"), fila("Luis", "Paz")],
+    });
+    expect(r).toMatchObject({ ok: true, data: { importados: 2 } });
+    const manual = await crearAlumnoAction({ nombre: "Sol", apellido: "Vera", planId });
+    expect(manual.ok).toBe(true);
+
+    const rango = { desde: "2000-01-01", hasta: "2999-12-31" };
+    const { periodo, porMes } = await withTenantTx(ctx, async (tx) => ({
+      periodo: await contarMovimientoDelPadron(tx, ctx, rango),
+      porMes: await movimientoPorMes(tx, ctx, rango),
+    }));
+    expect(periodo.nuevos).toBe(1);
+    expect(porMes.filter((m) => m.tipo === "ALTA").reduce((s, m) => s + Number(m.total), 0)).toBe(1);
+  });
+
+  it("nombre y apellido en la MISMA columna: el servidor los separa igual que la vista previa", async () => {
+    // Regresión: el asistente mandaba esa celda dos veces (como nombre y
+    // como apellido) y el servidor, sin el mapeo, guardaba "SOSA, ANA" en
+    // los dos campos y dejaba pasar a quien no tenía coma.
+    const sinUsar = { telefono: -1, fechaAlta: -1, email: -1, documento: -1, notas: -1 };
+    const r = await importarAlumnosAction({
+      nombreArchivo: "SEPT 2026.xlsx",
+      filas: [
+        ["SOSA, ANA", "3"],
+        ["JUAN PEREZ", "2"],
+      ],
+      columnas: { nombre: 0, apellido: 0, plan: 1, ...sinUsar },
+      lineas: [2, 3],
+    });
+    if (!r.ok) throw new Error(JSON.stringify(r));
+    expect(r.data.importados).toBe(1);
+    expect(r.data.omitidos.map((o) => o.linea)).toEqual([3]);
+    expect(r.data.omitidos[0]!.motivo).toMatch(/APELLIDO, NOMBRE/);
+
+    const [ana] = await alumnosDelGimnasio(ctx);
+    expect([ana!.apellido, ana!.nombre, ana!.planId]).toEqual(["SOSA", "ANA", planId]);
+  });
+
+  it("un mapeo que apunta fuera de las filas se rechaza", async () => {
+    const r = await importarAlumnosAction({
+      nombreArchivo: "x.xlsx",
+      filas: [["SOSA, ANA", "3"]],
+      columnas: { nombre: 0, apellido: 0, plan: 5, telefono: -1, fechaAlta: -1, email: -1, documento: -1, notas: -1 },
+    });
     expect(r).toMatchObject({ ok: false, kind: "VALIDATION" });
   });
 
