@@ -50,8 +50,15 @@ export function supabaseAnonKey(): string {
  *   2. No hay proyecto Supabase configurado — si hay auth real, no hay
  *      ninguna razón legítima para una identidad simulada.
  *
+ * La condición 1 se sacó una vez (commits d3a7013/dace90a, "demo en
+ * Vercel") y quedó así hasta 2026-10-01: un build de producción sin las
+ * env vars de Supabase —o un Preview, que no las tiene— dejaba entrar como
+ * DUENO con cualquier email y contraseña. Una demo sin login real se arma
+ * con `npm run dev`, nunca en un despliegue.
+ *
  * Ver tests/security/dev-mock-auth.test.ts.
  */
 export function isDevMockAuthEnabled(): boolean {
+  if (process.env.NODE_ENV === "production") return false;
   return !isSupabaseConfigured();
 }

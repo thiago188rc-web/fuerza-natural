@@ -46,17 +46,26 @@ afterAll(() => {
   setSupabase(ENV_ORIGINAL.url, ENV_ORIGINAL.key);
 });
 
-describe("la sesión simulada de desarrollo está activa siempre que no exista Supabase configurado", () => {
-  it("con Supabase sin configurar está habilitada para permitir despliegues de demo sin credenciales", () => {
-    setNodeEnv("production");
+describe("la sesión simulada de desarrollo exige las DOS condiciones", () => {
+  it("en desarrollo y sin Supabase configurado, está habilitada", () => {
+    setNodeEnv("development");
     setSupabase(undefined, undefined);
     expect(isDevMockAuthEnabled()).toBe(true);
   });
 
-  it("con placeholders también se considera no configurado y está habilitada", () => {
+  it("en un build de producción NUNCA está habilitada, aunque falte Supabase", () => {
+    // El caso que se rompió: un despliegue sin las env vars de Supabase (o
+    // un Preview de Vercel, que no las tiene) dejaba entrar como DUENO con
+    // cualquier email y contraseña.
+    setNodeEnv("production");
+    setSupabase(undefined, undefined);
+    expect(isDevMockAuthEnabled()).toBe(false);
+  });
+
+  it("en producción con placeholders tampoco", () => {
     setNodeEnv("production");
     setSupabase("https://placeholder.supabase.co", "placeholder-key");
-    expect(isDevMockAuthEnabled()).toBe(true);
+    expect(isDevMockAuthEnabled()).toBe(false);
   });
 
   it("con Supabase real configurado queda deshabilitada tanto en producción como en desarrollo", () => {
