@@ -274,6 +274,29 @@ La base de desarrollo no se limpia entre corridas: los specs generan un
 sufijo único por alumno para no pisarse. Si querés empezar de cero,
 recreá la base con el bootstrap de más arriba.
 
+## Scripts de instalación de dependencias (`allowScripts`)
+
+npm 11 avisa ("install scripts not yet covered by allowScripts") por cada
+dependencia con `postinstall` que el proyecto no revisó, y **igual lo
+ejecuta**; solo se saltea lo negado explícitamente. npm 12 da vuelta la
+regla: corre únicamente lo aprobado. Por eso la decisión está escrita en
+`package.json`, revisada paquete por paquete:
+
+| Paquete | Lo trae | Qué hace su script | Decisión |
+|---|---|---|---|
+| `esbuild` (0.18 / 0.25 / 0.28) | `drizzle-kit`, `tsx` (dev) | Verifica el binario nativo, que npm ya instaló como `optionalDependency`; si falta, lo **descarga por su cuenta**. En Linux, además, una micro-optimización del ejecutable | `false` |
+| `unrs-resolver` | `eslint-config-next` (dev) | Igual: verifica el binding nativo y, si falta, lo descarga | `false` |
+
+Ninguno participa de `next build` (Turbopack + SWC). Verificado el
+2026-10-01 con npm 11.21 y `npm ci` desde cero con la negación puesta:
+las 3 versiones de esbuild transforman, `tsx`, `drizzle-kit`, `lint`,
+`typecheck`, tests unitarios y `build` en verde.
+
+Cuando aparezca un paquete nuevo en el aviso: leer su script antes de
+decidir, y registrar la decisión con `npm install-scripts approve <pkg>`
+(queda fijada a esa versión) o `npm install-scripts deny <pkg>`. Nunca
+`approve --all`.
+
 ## Recuperación de cuenta (DUENO pierde el segundo factor)
 
 Ver SPEC V1 §3.11 — sin cambios respecto a lo diseñado ahí: segundo factor
@@ -306,5 +329,6 @@ todavía un proyecto real sobre el cual configurarlo. Cuando exista:
 | 2026-10-01 | Incidente: producción caída. El proyecto Supabase `xppuhabselycpyuocqnz` (Free) se pausó por inactividad; DNS `ENOTFOUND` y pooler "tenant/user not found". No se encontró en qué cuenta estaba | Se decidió un proyecto nuevo, recargado desde los Excel. El viejo queda pausado: si aparece la cuenta, se puede reanudar |
 | 2026-10-01 | `db:prod:bootstrap` (mismos roles/GRANT/extensiones) + `db:prod:migrate` + `db:prod:provision-gym` contra un Postgres 17 temporal con locale UTF-8 | ✓ Migración completa, alta atómica y sus 3 negativas (nombre repetido, UID ya vinculado, nombre DEMO), y 41/41 tests de integración con `fn_app` |
 | 2026-10-01 | Bootstrap de producción en `laaboaprbjegijnoxqpx` vía Management API: roles, migración, registro público desactivado, Data API solo `public`/`graphql_public` (anon/authenticated sin acceso a `app`), RLS en 11/11 tablas | ✓ `db:prod:diagnostico` OK con `fn_app` por el pooler |
+| 2026-10-01 | `allowScripts`: negar los `postinstall` de `esbuild` y `unrs-resolver` (ver sección arriba), probado con npm 11.21 y `npm ci` desde cero | ✓ Sin el aviso; lint, typecheck, 237 tests unitarios y build OK |
 | — | Simulacro de restauración de backup | Pendiente — no hay backups reales todavía |
 | — | Recuperación de cuenta DUENO | Pendiente — no hay usuarios reales todavía |
