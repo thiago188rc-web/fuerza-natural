@@ -179,6 +179,12 @@ export function analizarFilas(
     existentes: readonly AlumnoExistente[];
     /** Hoy, en la zona del gimnasio. Una fecha de alta futura es un error. */
     hoy: string;
+    /**
+     * La fila del archivo de cada elemento de `filas` (ver planilla.ts).
+     * Sin esto, se numera como si el encabezado fuera la línea 1 y no
+     * hubiera filas vacías.
+     */
+    lineas?: readonly number[];
   },
 ): { filas: FilaAnalizada[]; resumen: ResumenDelAnalisis } {
   const porClave = new Map<string, AlumnoExistente>();
@@ -191,6 +197,7 @@ export function analizarFilas(
   const vistasEnArchivo = new Map<string, number>();
 
   const analizadas: FilaAnalizada[] = filas.map((cruda, indice) => {
+    const linea = contexto.lineas?.[indice] ?? indice + 2;
     const leer = (campo: Campo): string => {
       const columna = columnas[campo];
       if (columna < 0 || columna >= cruda.length) return "";
@@ -268,10 +275,10 @@ export function analizarFilas(
     const clave = claveDePersona(nombre, apellido);
     const existente = clave ? (porClave.get(clave) ?? null) : null;
     const previa = clave ? vistasEnArchivo.get(clave) : undefined;
-    if (clave && previa === undefined) vistasEnArchivo.set(clave, indice + 2);
+    if (clave && previa === undefined) vistasEnArchivo.set(clave, linea);
 
     return {
-      linea: indice + 2,
+      linea,
       nombre,
       apellido,
       telefono,

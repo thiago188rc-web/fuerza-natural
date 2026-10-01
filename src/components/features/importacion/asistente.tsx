@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   AlertTriangle,
@@ -8,11 +8,13 @@ import {
   CheckCircle2,
   CircleAlert,
   FileSpreadsheet,
+  Loader2,
   Upload,
   Users,
 } from "lucide-react";
 import type { ContextoDeImportacion } from "@/use-cases/importacion/consultas";
-import { detectarSeparador, parsearCSV } from "@/domain/importacion/csv";
+import { importarAlumnos } from "@/app/(app)/importar/actions";
+import { leerArchivo, type ResultadoDeLectura } from "./leer-archivo";
 import {
   analizarFilas,
   CAMPOS,
@@ -22,6 +24,7 @@ import {
   type FilaAnalizada,
 } from "@/domain/importacion/analisis";
 import { Button } from "@/components/ui/button";
+import { BotonLink } from "@/components/boton-link";
 import { DURACION, SALIDA } from "@/components/motion/tokens";
 import { cn } from "@/lib/utils";
 
@@ -33,21 +36,16 @@ import { cn } from "@/lib/utils";
  * planilla de alumnos son datos personales de cientos de personas, y
  * mandarla a un servidor "para previsualizar" es exponerla sin necesidad.
  *
- * El análisis que se ve es REAL: parsea el archivo de verdad, aplica las
- * mismas normalizaciones que usa el alta manual y compara contra los
- * alumnos que ya existen en este gimnasio. Lo único que todavía no está
- * disponible es el paso final de escritura, y la pantalla lo dice con esas
- * palabras en vez de simular una importación que no ocurrió.
+ * El análisis que se ve es REAL: lee el archivo de verdad (.xlsx o CSV),
+ * aplica las mismas normalizaciones que usa el alta manual y compara
+ * contra los alumnos que ya existen en este gimnasio. Al confirmar, el
+ * servidor vuelve a correr ese mismo análisis contra su propio padrón y
+ * escribe solo las filas limpias (ver importar-alumnos.ts).
  */
 
 type Paso = "ARCHIVO" | "COLUMNAS" | "REVISION";
 
-interface ArchivoLeido {
-  nombre: string;
-  encabezados: string[];
-  filas: string[][];
-  separador: string;
-}
+type ArchivoLeido = Extract<ResultadoDeLectura, { ok: true }>;
 
 export function AsistenteDeImportacion({ contexto }: { contexto: ContextoDeImportacion }) {
   const quieto = useReducedMotion();
@@ -55,36 +53,42 @@ export function AsistenteDeImportacion({ contexto }: { contexto: ContextoDeImpor
   const [columnas, setColumnas] = useState<Record<Campo, number> | null>(null);
   const [paso, setPaso] = useState<Paso>("ARCHIVO");
   const [error, setError] = useState<string | null>(null);
+  const [leyendo, setLeyendo] = useState(false);
   const [soloProblemas, setSoloProblemas] = useState(false);
 
+  const hoja = archivo ? archivo.hojas[archivo.hoja] : undefined;
+
   const analisis = useMemo(() => {
-    if (!archivo || !columnas) return null;
-    return analizarFilas(archivo.filas, columnas, {
+    if (!hoja || !columnas) return null;
+    return analizarFilas(hoja.filas, columnas, {
       planes: contexto.planes,
       existentes: contexto.existentes,
       hoy: contexto.hoy,
+      lineas: hoja.lineas,
     });
-  }, [archivo, columnas, contexto]);
+  }, [hoja, columnas, contexto]);
 
   async function leer(file: File) {
     setError(null);
+    setLeyendo(true);
     try {
-      const texto = await file.text();
-      const separador = detectarSeparador(texto);
-      const todas = parsearCSV(texto, separador);
-
-      if (todas.length < 2) {
-        setError("El archivo no tiene filas de datos, solo el encabezado (o está vacío).");
+      const leido = await leerArchivo(file);
+      if (!leido.ok) {
+        setError(leido.error);
         return;
       }
-
-      const [encabezados, ...filas] = todas;
-      setArchivo({ nombre: file.name, encabezados, filas, separador });
-      setColumnas(detectarColumnas(encabezados));
+      setArchivo(leido);
+      setColumnas(detectarColumnas(leido.hojas[leido.hoja]!.encabezados));
       setPaso("COLUMNAS");
-    } catch {
-      setError("No pudimos leer el archivo. Tiene que ser un CSV de texto.");
+    } finally {
+      setLeyendo(false);
     }
+  }
+
+  function cambiarHoja(indice: number) {
+    if (!archivo) return;
+    setArchivo({ ...archivo, hoja: indice });
+    setColumnas(detectarColumnas(archivo.hojas[indice]!.encabezados));
   }
 
   function volverAEmpezar() {
@@ -107,19 +111,26 @@ export function AsistenteDeImportacion({ contexto }: { contexto: ContextoDeImpor
           transition={{ duration: DURACION.normal, ease: SALIDA }}
         >
           {paso === "ARCHIVO" ? (
-            <ZonaDeArchivo onArchivo={leer} error={error} />
+            <ZonaDeArchivo onArchivo={leer} error={error} leyendo={leyendo} />
           ) : paso === "COLUMNAS" && archivo && columnas ? (
             <MapeoDeColumnas
               archivo={archivo}
               columnas={columnas}
               onCambio={setColumnas}
+              onCambiarHoja={cambiarHoja}
               onVolver={volverAEmpezar}
               onSeguir={() => setPaso("REVISION")}
             />
-          ) : analisis && archivo ? (
+          ) : analisis && archivo && hoja && columnas ? (
             <Revision
               nombreArchivo={archivo.nombre}
               analisis={analisis}
+              filasParaImportar={() => ({
+                filas: hoja.filas.map((fila) =>
+                  CAMPOS.map((campo) => (columnas[campo] >= 0 ? (fila[columnas[campo]] ?? "") : "")),
+                ),
+                lineas: hoja.lineas,
+              })}
               soloProblemas={soloProblemas}
               onFiltro={setSoloProblemas}
               onVolver={() => setPaso("COLUMNAS")}
@@ -187,9 +198,11 @@ function Pasos({ actual }: { actual: Paso }) {
 function ZonaDeArchivo({
   onArchivo,
   error,
+  leyendo,
 }: {
   onArchivo: (file: File) => void;
   error: string | null;
+  leyendo: boolean;
 }) {
   const [encima, setEncima] = useState(false);
   const input = useRef<HTMLInputElement>(null);
@@ -226,23 +239,26 @@ function ZonaDeArchivo({
           Arrastrá la planilla de alumnos
         </h2>
         <p className="mt-1 max-w-md text-sm text-muted-foreground">
-          Un archivo CSV exportado de Excel o Google Sheets. El archivo se abre acá, en tu
-          computadora: no se sube a ningún lado hasta que decidas importarlo.
+          Una planilla de Excel (.xlsx) o un CSV. El archivo se abre acá, en tu computadora: no se
+          sube a ningún lado hasta que decidas importarlo.
         </p>
 
         <input
           ref={input}
           type="file"
-          accept=".csv,text/csv,text/plain"
+          accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain"
           className="sr-only"
           onChange={(e) => {
             const file = e.target.files?.[0];
+            // Vaciar el input: elegir el MISMO archivo de nuevo (después de
+            // corregirlo en Excel) tiene que volver a leerlo.
+            e.target.value = "";
             if (file) onArchivo(file);
           }}
         />
-        <Button type="button" className="mt-5" onClick={() => input.current?.click()}>
-          <FileSpreadsheet />
-          Elegir un archivo
+        <Button type="button" className="mt-5" disabled={leyendo} onClick={() => input.current?.click()}>
+          {leyendo ? <Loader2 className="animate-spin" /> : <FileSpreadsheet />}
+          {leyendo ? "Leyendo la planilla…" : "Elegir un archivo"}
         </Button>
 
         {error ? (
@@ -254,8 +270,9 @@ function ZonaDeArchivo({
       </div>
 
       <p className="mt-3 text-xs text-muted-foreground">
-        Se reconocen las columnas más comunes (nombre, apellido, teléfono, plan, fecha de alta) con
-        cualquier separador y con o sin acentos. Después vas a poder corregir el emparejamiento.
+        Se reconocen las columnas más comunes (nombre, apellido, teléfono, plan, fecha de alta), con
+        o sin acentos, aunque la planilla tenga un título arriba de la tabla. Después vas a poder
+        corregir el emparejamiento. Un Excel antiguo (.xls) hay que guardarlo antes como .xlsx.
       </p>
     </div>
   );
@@ -265,17 +282,20 @@ function MapeoDeColumnas({
   archivo,
   columnas,
   onCambio,
+  onCambiarHoja,
   onVolver,
   onSeguir,
 }: {
   archivo: ArchivoLeido;
   columnas: Record<Campo, number>;
   onCambio: (c: Record<Campo, number>) => void;
+  onCambiarHoja: (indice: number) => void;
   onVolver: () => void;
   onSeguir: () => void;
 }) {
   const obligatorios: Campo[] = ["nombre", "apellido", "plan"];
   const faltan = obligatorios.filter((c) => columnas[c] === -1);
+  const hoja = archivo.hojas[archivo.hoja]!;
 
   return (
     <div className="superficie overflow-hidden">
@@ -283,12 +303,38 @@ function MapeoDeColumnas({
         <h2 className="t-seccion">Qué es cada columna</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           <span className="font-medium text-foreground">{archivo.nombre}</span> ·{" "}
-          <span className="tabular">{archivo.filas.length}</span> filas ·{" "}
-          <span className="tabular">{archivo.encabezados.length}</span> columnas · separador{" "}
-          <code className="rounded bg-muted px-1 font-mono text-xs">
-            {archivo.separador === "\t" ? "tab" : archivo.separador}
-          </code>
+          <span className="tabular">{hoja.filas.length}</span> filas ·{" "}
+          <span className="tabular">{hoja.encabezados.length}</span> columnas
+          {archivo.formato === "csv" && archivo.separador ? (
+            <>
+              {" "}
+              · separador{" "}
+              <code className="rounded bg-muted px-1 font-mono text-xs">
+                {archivo.separador === "\t" ? "tab" : archivo.separador}
+              </code>
+            </>
+          ) : null}
         </p>
+
+        {/* Un libro de Excel puede tener varias hojas (alumnos, pagos,
+            una por mes...). Se abre la primera con datos; si no es la de
+            alumnos, se elige acá. */}
+        {archivo.hojas.length > 1 ? (
+          <label className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-muted-foreground">Hoja</span>
+            <select
+              value={archivo.hoja}
+              onChange={(e) => onCambiarHoja(Number(e.target.value))}
+              className="h-8 rounded-lg border border-border bg-card px-2 text-sm focus-visible:border-verde focus-visible:ring-2 focus-visible:ring-verde/25 focus-visible:outline-none"
+            >
+              {archivo.hojas.map((h, i) => (
+                <option key={`${h.nombre}-${i}`} value={i}>
+                  {h.nombre} ({h.filas.length} filas)
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
       </header>
 
       <div className="grid gap-x-6 gap-y-4 px-5 py-5 sm:grid-cols-2">
@@ -313,7 +359,7 @@ function MapeoDeColumnas({
               )}
             >
               <option value={-1}>— no está en el archivo —</option>
-              {archivo.encabezados.map((encabezado, i) => (
+              {hoja.encabezados.map((encabezado, i) => (
                 <option key={`${encabezado}-${i}`} value={i}>
                   {encabezado || `Columna ${i + 1}`}
                 </option>
@@ -321,7 +367,7 @@ function MapeoDeColumnas({
             </select>
             {columnas[campo] >= 0 ? (
               <p className="mt-1 truncate text-xs text-muted-foreground">
-                Ej: {archivo.filas[0]?.[columnas[campo]] || "(vacío)"}
+                Ej: {hoja.filas[0]?.[columnas[campo]] || "(vacío)"}
               </p>
             ) : null}
           </div>
@@ -351,6 +397,7 @@ function MapeoDeColumnas({
 function Revision({
   nombreArchivo,
   analisis,
+  filasParaImportar,
   soloProblemas,
   onFiltro,
   onVolver,
@@ -358,12 +405,18 @@ function Revision({
 }: {
   nombreArchivo: string;
   analisis: ReturnType<typeof analizarFilas>;
+  /** Las filas con solo las columnas mapeadas, en el orden de CAMPOS, y su línea en el archivo. */
+  filasParaImportar: () => FilasParaImportar;
   soloProblemas: boolean;
   onFiltro: (v: boolean) => void;
   onVolver: () => void;
   onEmpezarDeNuevo: () => void;
 }) {
   const { filas, resumen } = analisis;
+  // Después de importar, la vista previa se oculta: recalculada contra el
+  // padrón que ya incluye a esos alumnos los mostraría a todos como
+  // "duplicados", y eso se lee como un error justo cuando salió bien.
+  const [importado, setImportado] = useState(false);
   const visibles = soloProblemas
     ? filas.filter(
         (f) =>
@@ -373,92 +426,243 @@ function Revision({
 
   return (
     <div className="space-y-4">
+      {importado ? null : (
+        <>
+          <section className="superficie px-5 py-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-3">
+              <h2 className="t-seccion">
+                {resumen.total} filas analizadas
+              </h2>
+              <span className="text-xs text-muted-foreground">{nombreArchivo}</span>
+            </div>
+
+            <dl className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <Contador etiqueta="Listas" valor={resumen.listas} tono="text-cubierto" />
+              <Contador etiqueta="Con avisos" valor={resumen.conAvisos} tono="text-revisar" />
+              <Contador etiqueta="Con errores" valor={resumen.conErrores} tono="text-descubierto" />
+              <Contador etiqueta="Duplicadas" valor={resumen.duplicadas} tono="text-foreground" />
+            </dl>
+
+            {resumen.planesDesconocidos.length > 0 ? (
+              <p className="mt-4 flex items-start gap-2 rounded-lg bg-revisar-suave px-3 py-2 text-xs text-revisar">
+                <AlertTriangle className="mt-px size-3.5 shrink-0" strokeWidth={2} />
+                <span>
+                  El archivo menciona planes que no existen en el gimnasio:{" "}
+                  <strong className="font-medium">{resumen.planesDesconocidos.join(", ")}</strong>.
+                  Creálos en Configuración o corregí la planilla antes de importar.
+                </span>
+              </p>
+            ) : null}
+          </section>
+
+          <section className="superficie overflow-hidden">
+            <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-3">
+              <h3 className="text-sm font-medium">Fila por fila</h3>
+              <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={soloProblemas}
+                  onChange={(e) => onFiltro(e.target.checked)}
+                  className="size-3.5 accent-[var(--verde)]"
+                />
+                Mostrar solo las que necesitan atención
+              </label>
+            </header>
+
+            {visibles.length === 0 ? (
+              <p className="px-5 py-10 text-center text-sm text-muted-foreground">
+                No hay filas con problemas. Todo el archivo se entiende.
+              </p>
+            ) : (
+              <ul className="max-h-[28rem] divide-y divide-border overflow-y-auto">
+                {visibles.slice(0, 300).map((fila) => (
+                  <FilaDeRevision key={fila.linea} fila={fila} />
+                ))}
+              </ul>
+            )}
+
+            {visibles.length > 300 ? (
+              <p className="hundido border-t border-border px-5 py-2 text-xs text-muted-foreground">
+                Se muestran las primeras 300 de {visibles.length}.
+              </p>
+            ) : null}
+          </section>
+        </>
+      )}
+
+      <Importacion
+        nombreArchivo={nombreArchivo}
+        importables={resumen.listas}
+        afuera={resumen.total - resumen.listas}
+        filasParaImportar={filasParaImportar}
+        onImportado={() => setImportado(true)}
+        onVolver={onVolver}
+        onEmpezarDeNuevo={onEmpezarDeNuevo}
+      />
+    </div>
+  );
+}
+
+type RespuestaDeImportacion = Awaited<ReturnType<typeof importarAlumnos>>;
+type FilasParaImportar = { filas: string[][]; lineas: number[] };
+
+/**
+ * El paso final. Dos clics a propósito — "Importar" y "Sí, importar" — sin
+ * un diálogo del navegador: crear cientos de alumnos de una vez no se
+ * hace con un clic distraído, y la confirmación dice exactamente cuántos.
+ *
+ * Lo que se manda son las filas tal como se leyeron: el servidor vuelve a
+ * analizarlas contra su propio padrón y decide él qué entra (ver
+ * importar-alumnos.ts). Por eso el resultado puede diferir de la vista
+ * previa en una sola dirección: alguien cargado entre medio queda afuera.
+ */
+function Importacion({
+  nombreArchivo,
+  importables,
+  afuera,
+  filasParaImportar,
+  onImportado,
+  onVolver,
+  onEmpezarDeNuevo,
+}: {
+  nombreArchivo: string;
+  importables: number;
+  afuera: number;
+  filasParaImportar: () => FilasParaImportar;
+  onImportado: () => void;
+  onVolver: () => void;
+  onEmpezarDeNuevo: () => void;
+}) {
+  const [confirmando, setConfirmando] = useState(false);
+  const [respuesta, setRespuesta] = useState<RespuestaDeImportacion | null>(null);
+  const [importando, startTransition] = useTransition();
+
+  function importar() {
+    startTransition(async () => {
+      try {
+        const r = await importarAlumnos({ nombreArchivo, ...filasParaImportar() });
+        setRespuesta(r);
+        if (r.ok) onImportado();
+      } catch {
+        setRespuesta({ ok: false, mensaje: "No pudimos conectar con el sistema. Probá de nuevo en un momento." });
+      } finally {
+        setConfirmando(false);
+      }
+    });
+  }
+
+  if (respuesta?.ok) {
+    const { importados, omitidos } = respuesta.data;
+    return (
       <section className="superficie px-5 py-4">
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <h2 className="t-seccion">
-            {resumen.total} filas analizadas
-          </h2>
-          <span className="text-xs text-muted-foreground">{nombreArchivo}</span>
+        <div className="flex items-start gap-2.5">
+          <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-cubierto" strokeWidth={2} />
+          <div>
+            <h3 className="t-seccion">
+              {importados === 1 ? "Se importó 1 alumno" : `Se importaron ${importados} alumnos`}
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Quedaron activos, con su alta en el historial. La importación está registrada en
+              Actividad.
+              {omitidos.length > 0
+                ? ` ${omitidos.length} ${omitidos.length === 1 ? "fila quedó" : "filas quedaron"} afuera:`
+                : ""}
+            </p>
+          </div>
         </div>
 
-        <dl className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <Contador etiqueta="Listas" valor={resumen.listas} tono="text-cubierto" />
-          <Contador etiqueta="Con avisos" valor={resumen.conAvisos} tono="text-revisar" />
-          <Contador etiqueta="Con errores" valor={resumen.conErrores} tono="text-descubierto" />
-          <Contador etiqueta="Duplicadas" valor={resumen.duplicadas} tono="text-foreground" />
-        </dl>
-
-        {resumen.planesDesconocidos.length > 0 ? (
-          <p className="mt-4 flex items-start gap-2 rounded-lg bg-revisar-suave px-3 py-2 text-xs text-revisar">
-            <AlertTriangle className="mt-px size-3.5 shrink-0" strokeWidth={2} />
-            <span>
-              El archivo menciona planes que no existen en el gimnasio:{" "}
-              <strong className="font-medium">{resumen.planesDesconocidos.join(", ")}</strong>.
-              Creálos en Configuración o corregí la planilla antes de importar.
-            </span>
-          </p>
-        ) : null}
-      </section>
-
-      <section className="superficie overflow-hidden">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-3">
-          <h3 className="text-sm font-medium">Fila por fila</h3>
-          <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={soloProblemas}
-              onChange={(e) => onFiltro(e.target.checked)}
-              className="size-3.5 accent-[var(--verde)]"
-            />
-            Mostrar solo las que necesitan atención
-          </label>
-        </header>
-
-        {visibles.length === 0 ? (
-          <p className="px-5 py-10 text-center text-sm text-muted-foreground">
-            No hay filas con problemas. Todo el archivo se entiende.
-          </p>
-        ) : (
-          <ul className="max-h-[28rem] divide-y divide-border overflow-y-auto">
-            {visibles.slice(0, 300).map((fila) => (
-              <FilaDeRevision key={fila.linea} fila={fila} />
+        {omitidos.length > 0 ? (
+          <ul className="mt-3 max-h-60 divide-y divide-border overflow-y-auto rounded-lg border border-border text-sm">
+            {omitidos.slice(0, 200).map((o) => (
+              <li key={o.linea} className="flex gap-3 px-3 py-2">
+                <span className="tabular w-14 shrink-0 text-xs text-muted-foreground">línea {o.linea}</span>
+                <span className="min-w-0">
+                  <span className="font-medium">{o.nombre || "(sin nombre)"}</span>
+                  <span className="text-muted-foreground"> · {o.motivo}</span>
+                </span>
+              </li>
             ))}
           </ul>
-        )}
-
-        {visibles.length > 300 ? (
-          <p className="hundido border-t border-border px-5 py-2 text-xs text-muted-foreground">
-            Se muestran las primeras 300 de {visibles.length}.
-          </p>
         ) : null}
-      </section>
 
-      {/* El paso final. Se dice exactamente qué falta y por qué, en vez de
-          mostrar un botón que finge escribir en la base. */}
-      <section className="superficie flex flex-wrap items-center justify-between gap-4 px-5 py-4">
-        <div className="flex items-start gap-2.5">
-          <Users className="mt-0.5 size-4 shrink-0 text-muted-foreground" strokeWidth={2} />
-          <p className="max-w-xl text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">
-              La importación definitiva todavía no está habilitada.
-            </span>{" "}
-            Escribir cientos de alumnos de una vez exige antes resolver la identidad de cada
-            persona contra el padrón existente — es la fase de migración, y se hace con los datos
-            reales una sola vez. Todo lo que ves acá es análisis real de tu archivo.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="ghost" onClick={onVolver}>
-            <ArrowLeft />
-            Revisar columnas
-          </Button>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <BotonLink href="/alumnos">
+            <Users />
+            Ver alumnos
+          </BotonLink>
           <Button type="button" variant="outline" onClick={onEmpezarDeNuevo}>
-            Probar otro archivo
+            Importar otro archivo
           </Button>
         </div>
       </section>
-    </div>
+    );
+  }
+
+  return (
+    <section className="superficie flex flex-wrap items-center justify-between gap-4 px-5 py-4">
+      <div className="flex items-start gap-2.5">
+        <Users className="mt-0.5 size-4 shrink-0 text-muted-foreground" strokeWidth={2} />
+        <div className="max-w-xl text-sm text-muted-foreground">
+          {importables === 0 ? (
+            <p>
+              <span className="font-medium text-foreground">No hay filas para importar.</span>{" "}
+              Todas tienen errores o ya existen en el padrón. Corregí la planilla y volvé a probar.
+            </p>
+          ) : confirmando ? (
+            <p>
+              <span className="font-medium text-foreground">
+                Se van a crear {importables} {importables === 1 ? "alumno" : "alumnos"}, activos.
+              </span>{" "}
+              {afuera > 0
+                ? `Las ${afuera} filas con errores o duplicadas quedan afuera.`
+                : "No queda ninguna fila afuera."}
+            </p>
+          ) : (
+            <p>
+              <span className="font-medium text-foreground">
+                {importables} {importables === 1 ? "fila lista" : "filas listas"} para importar.
+              </span>{" "}
+              Las que tienen errores o están duplicadas no se importan; las que tienen avisos
+              entran como dice cada aviso.
+            </p>
+          )}
+          {respuesta && !respuesta.ok ? (
+            <p role="alert" className="mt-2 flex items-center gap-1.5 text-destructive">
+              <CircleAlert className="size-4" strokeWidth={2} />
+              {respuesta.mensaje}
+            </p>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {confirmando ? (
+          <>
+            <Button type="button" variant="ghost" disabled={importando} onClick={() => setConfirmando(false)}>
+              Cancelar
+            </Button>
+            <Button type="button" disabled={importando} onClick={importar}>
+              {importando ? <Loader2 className="animate-spin" /> : <CheckCircle2 />}
+              {importando ? "Importando…" : "Sí, importar"}
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button type="button" variant="ghost" onClick={onVolver}>
+              <ArrowLeft />
+              Revisar columnas
+            </Button>
+            <Button type="button" variant="outline" onClick={onEmpezarDeNuevo}>
+              Otro archivo
+            </Button>
+            <Button type="button" disabled={importables === 0} onClick={() => setConfirmando(true)}>
+              <Upload />
+              Importar {importables} {importables === 1 ? "alumno" : "alumnos"}
+            </Button>
+          </>
+        )}
+      </div>
+    </section>
   );
 }
 
