@@ -3,6 +3,7 @@ import { config as loadEnv } from "dotenv";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import postgres from "postgres";
+import { leerArgumentos, listarGimnasios } from "./_compartido";
 
 if (existsSync(resolve(process.cwd(), ".env.local"))) {
   loadEnv({ path: resolve(process.cwd(), ".env.local"), override: false, quiet: true });
@@ -20,7 +21,8 @@ if (existsSync(resolve(process.cwd(), ".env.local"))) {
  *
  * No crea nada en Supabase Auth: el usuario (email + contraseña) se crea
  * antes desde el panel de Supabase, y de ahí sale el UUID que se pasa acá.
- * Tampoco crea el gimnasio: eso lo hace `npm run db:seed`.
+ * Tampoco crea el gimnasio: en producción eso lo hace
+ * `npm run db:prod:provision-gym` (en desarrollo, `npm run db:seed`).
  *
  *   npm run db:provision-owner -- \
  *     --auth-id 3f7c… --gym-id 9a21… --email diego@… --nombre "Diego"
@@ -36,49 +38,6 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ROLES = ["DUENO", "STAFF"] as const;
 
 class ErrorDeUso extends Error {}
-
-function leerArgumentos(argv: string[]): Map<string, string> {
-  const args = new Map<string, string>();
-  for (let i = 0; i < argv.length; i++) {
-    const actual = argv[i]!;
-    if (!actual.startsWith("--")) continue;
-    const igual = actual.indexOf("=");
-    if (igual !== -1) {
-      args.set(actual.slice(2, igual), actual.slice(igual + 1));
-    } else {
-      const siguiente = argv[i + 1];
-      args.set(actual.slice(2), siguiente && !siguiente.startsWith("--") ? siguiente : "");
-      if (siguiente && !siguiente.startsWith("--")) i++;
-    }
-  }
-  return args;
-}
-
-/**
- * Los gimnasios que se pueden ver desde acá. `app.gyms` tiene FORCE ROW
- * LEVEL SECURITY, así que ni siquiera el dueño del esquema los lista sin
- * contexto de tenant: hay que preguntar de a uno, y los ids salen de
- * `app_users` (que no tiene FORCE, justamente para poder arrancar).
- * Un gimnasio sin ningún usuario todavía no aparece — para ese caso hay
- * que pasar --gym-id a mano.
- */
-async function listarGimnasios(sql: postgres.Sql) {
-  return sql.begin(async (tx) => {
-    const ids = await tx<{ gym_id: string }[]>`SELECT DISTINCT gym_id FROM app.app_users`;
-    const salida: { id: string; nombre: string; usuarios: number }[] = [];
-    for (const { gym_id } of ids) {
-      await tx`SELECT set_config('app.gym_id', ${gym_id}, true)`;
-      const [gym] = await tx<{ nombre: string }[]>`
-        SELECT nombre FROM app.gyms WHERE id = ${gym_id}
-      `;
-      const [{ total }] = await tx<{ total: number }[]>`
-        SELECT count(*)::int AS total FROM app.app_users WHERE gym_id = ${gym_id}
-      `;
-      salida.push({ id: gym_id, nombre: gym?.nombre ?? "(sin nombre)", usuarios: total });
-    }
-    return salida;
-  });
-}
 
 async function main() {
   const url = process.env.DATABASE_URL_OWNER;

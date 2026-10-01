@@ -7,6 +7,7 @@ import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { gyms, gymSettings, plans, appUsers } from "@/data/schema";
 import { eq, sql } from "drizzle-orm";
+import { CATALOGO_PLANES_INICIAL, PRECIO_MEDIO_MES_INICIAL } from "./_compartido";
 
 if (existsSync(resolve(process.cwd(), ".env.local"))) {
   loadEnv({ path: resolve(process.cwd(), ".env.local"), override: false, quiet: true });
@@ -76,38 +77,17 @@ async function main() {
       await tx.update(gyms).set({ nombre: NOMBRE_DEMO }).where(eq(gyms.id, gymId));
     }
 
-    // $45.000 confirmado por el dueño para la modalidad "1/2 MES". Vive en
-    // la configuración del gimnasio, no como constante del código, y NO
-    // como un plan: `students.plan_id` referencia `plans`, así que un
-    // "1/2 MES" ahí dentro podría asignarse como plan habitual de alguien
-    // — exactamente lo que la regla confirmada prohíbe.
+    // Precio de "1/2 MES" y catálogo de planes: los confirmados por el
+    // dueño, compartidos con provision-gym.ts (ver scripts/db/_compartido.ts).
     await tx
       .insert(gymSettings)
-      .values({ gymId, precioMedioMes: "45000" })
+      .values({ gymId, precioMedioMes: PRECIO_MEDIO_MES_INICIAL })
       .onConflictDoUpdate({
         target: gymSettings.gymId,
-        set: { precioMedioMes: "45000", updatedAt: new Date() },
+        set: { precioMedioMes: PRECIO_MEDIO_MES_INICIAL, updatedAt: new Date() },
       });
 
-    // Los cinco planes y los precios que el dueño confirmó
-    // (docs/REGLAS-DE-NEGOCIO.md §1 y §2). Son DATOS del gimnasio, no
-    // constantes del código: se editan desde Configuración, y cambiarlos
-    // no toca ningún pago ya registrado — cada pago conserva su snapshot.
-    //
-    // LIBRE va con `precioActual: null` a propósito: el dueño todavía NO
-    // confirmó su precio, y un 0 diría que el plan es gratis. `acceso:
-    // "LIBRE"` significa "5 días o más por semana, incluye sábados", con
-    // `diasSemana` leído como piso — por eso no es lo mismo que "5 días",
-    // aunque históricamente hayan costado igual.
-    const catalogo = [
-      { nombre: "2 días", diasSemana: 2, acceso: "DIAS_FIJOS", precioActual: "50000", orden: 1 },
-      { nombre: "3 días", diasSemana: 3, acceso: "DIAS_FIJOS", precioActual: "55000", orden: 2 },
-      { nombre: "4 días", diasSemana: 4, acceso: "DIAS_FIJOS", precioActual: "60000", orden: 3 },
-      { nombre: "5 días", diasSemana: 5, acceso: "DIAS_FIJOS", precioActual: "65000", orden: 4 },
-      { nombre: "LIBRE", diasSemana: 5, acceso: "LIBRE", precioActual: null, orden: 5 },
-    ] as const;
-
-    for (const plan of catalogo) {
+    for (const plan of CATALOGO_PLANES_INICIAL) {
       await tx
         .insert(plans)
         .values({ id: randomUUID(), gymId, ...plan })

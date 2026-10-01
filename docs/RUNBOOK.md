@@ -122,50 +122,69 @@ npm run db:migrate
 
 ---
 
-## Bootstrap en Supabase (pendiente de credenciales reales)
+## Bootstrap en Supabase (proyecto de producción nuevo)
 
-**Estado: NO ejecutado todavía.** Esta sesión de Fase 0 no tuvo acceso a
-un proyecto Supabase real — todo lo de abajo es el procedimiento a seguir
-la primera vez que exista uno, escrito con el mismo nivel de precisión que
-el bootstrap local (que sí se ejecutó y verificó).
+**Antes de empezar, anotá acá en qué cuenta y organización de Supabase
+queda el proyecto.** El 2026-10-01 producción se cayó porque el primer
+proyecto (`xppuhabselycpyuocqnz`, plan Free) se pausó por inactividad y
+nadie sabía en qué cuenta estaba: este documento decía "NO ejecutado" y
+nunca registró dónde se había creado. Ver la tabla de historial al final.
 
-1. Crear el proyecto en supabase.com (plan Pro recomendado desde el día 1
-   de producción — el free tier puede pausar proyectos inactivos).
-2. **Deshabilitar el Data API** (Settings → Data API) o, como mínimo,
-   confirmar que no expone el esquema `app` (por diseño, el Data API de
-   Supabase solo expone `public`, y nuestras tablas de negocio viven en
-   `app` — pero conviene apagarlo del todo si no se va a usar).
-3. Desde el SQL Editor del dashboard (conectado como `postgres`, el
-   superusuario gestionado de Supabase):
-   ```sql
-   CREATE ROLE fn_owner    WITH LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD '<generar>';
-   CREATE ROLE fn_app      WITH LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD '<generar>';
-   CREATE ROLE fn_readonly WITH LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD '<generar>';
-   GRANT CREATE ON DATABASE postgres TO fn_owner;   -- el nombre de la db en Supabase suele ser "postgres"
-   GRANT CONNECT ON DATABASE postgres TO fn_app, fn_readonly;
-   GRANT CREATE ON SCHEMA public TO fn_owner;
-   ```
-4. Tomar las cadenas de conexión de Supabase (Settings → Database →
-   Connection string) y armar `DATABASE_URL`/`DATABASE_URL_OWNER`
-   reemplazando el usuario/contraseña por `fn_app`/`fn_owner`. **Usar el
-   modo "Session" (puerto 5432) para migraciones y el modo "Transaction"
-   (Supavisor, puerto 6543) para `DATABASE_URL` de runtime** — es
-   precisamente el modo transacción el que exige `prepare: false` y
-   `set_config(..., true)` en vez de `SET` (ver `src/data/db.ts` y
-   `docs/SECURITY.md`).
-5. `npm run db:migrate` apunta a `DATABASE_URL_OWNER` — correrlo contra el
-   proyecto real aplica las 3 capas (extensiones/roles, esquema, RLS).
-6. Auth: Settings → Authentication → habilitar MFA (TOTP), configurar
-   Cloudflare Turnstile como CAPTCHA del login (Settings → Auth →
-   Bot and Abuse Protection).
-7. Crear el primer usuario `DUENO` real — ver "Dar de alta a una persona
-   real" más abajo. Ya no se hace con SQL a mano: hay un script
-   (`npm run db:provision-owner`).
-8. **Segunda cuenta `DUENO` de emergencia** (SPEC V1 §3.11) — crear
-   ANTES de darle al dueño real su primer acceso, con su propio TOTP
-   enrolado y credenciales impresas guardadas físicamente. Es el mismo
-   procedimiento de abajo, con otro email. Sigue siendo un paso manual,
-   documentado explícitamente para no olvidarlo.
+| Dato | Valor |
+|---|---|
+| Cuenta / organización Supabase | _(completar al crear)_ |
+| Ref del proyecto | _(completar al crear)_ |
+| Región | East US (North Virginia), `us-east-1` — la misma que las funciones de Vercel (`iad1`) |
+| Plan | _(Free se pausa a los 7 días sin uso; Pro no)_ |
+
+Credenciales de producción: en `.env.produccion.local` (fuera de git), **no**
+en `.env.local`. Los tests de integración escriben gimnasios de prueba en
+la base de `.env.local` sin limpiarlos; con producción ahí, un `npm test`
+la ensucia. Todos los scripts `npm run db:prod:*` leen ese archivo.
+
+En el panel de Supabase (solo lo puede hacer quien tiene la cuenta):
+
+1. Crear el proyecto en la región de arriba, con una contraseña de base
+   fuerte guardada en un gestor de contraseñas.
+2. Authentication → Sign In / Providers → **desactivar "Allow new users to
+   sign up"**. Los usuarios los da de alta un administrador, nunca una
+   pantalla pública.
+3. Authentication → Users → Add user → Create new user, con el email y la
+   contraseña del dueño y **"Auto Confirm User" activado**. Copiar su UID.
+4. Botón Connect → **Session pooler** → copiar la cadena y pegarla en
+   `.env.produccion.local` como `DATABASE_URL_ADMIN`, con la contraseña de
+   la base en lugar de `[YOUR-PASSWORD]`.
+
+Desde el repo:
+
+```bash
+# Roles fn_owner / fn_app / fn_readonly con contraseñas aleatorias,
+# permisos y extensiones. Escribe DATABASE_URL, DATABASE_URL_OWNER y
+# DATABASE_URL_READONLY en .env.produccion.local y borra la cadena admin.
+npm run db:prod:bootstrap
+
+# Las 3 capas: extensiones/roles, esquema (drizzle-kit), RLS y triggers.
+npm run db:prod:migrate
+
+# Gimnasio real + configuración + catálogo de planes confirmado + primer
+# DUENO, en una sola transacción (se niega a duplicar).
+npm run db:prod:provision-gym -- --gimnasio "Fuerza Natural" \
+  --auth-id <UID del paso 3> --email <email del dueño> --nombre "<Nombre Apellido>"
+
+# Prueba la conexión de runtime (fn_app) como la usa el login.
+npm run db:prod:diagnostico
+```
+
+En Vercel (Production): `NEXT_PUBLIC_SUPABASE_URL` (`https://<ref>.supabase.co`),
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` (la **publishable key** `sb_publishable_…`
+de Settings → API Keys; los proyectos nuevos ya no traen la anon key
+legacy) y `DATABASE_URL` (la de `.env.produccion.local`, rol `fn_app`,
+puerto 6543). Después, redeploy: las `NEXT_PUBLIC_*` se fijan al compilar.
+
+**Segunda cuenta `DUENO` de emergencia** (SPEC V1 §3.11): mismo paso 3
+con otro email y `npm run db:prod:provision-owner -- --gym-id … --auth-id …`,
+con las credenciales guardadas fuera de línea. Sigue siendo manual,
+documentado para no olvidarlo.
 
 ## Dar de alta a una persona real (Supabase Auth → app_users)
 
@@ -201,9 +220,9 @@ idempotente: correrlo dos veces actualiza los datos en vez de duplicar.
 Se niega a usar el `auth_user_id` de la sesión simulada, y se niega a mover
 un usuario ya vinculado a otro gimnasio.
 
-`DATABASE_URL_OWNER` tiene que apuntar al proyecto Supabase mientras se
-corre el script. Al terminar, devolvelo a la base local: es la credencial
-con DDL y no conviene dejarla apuntando a producción.
+Contra producción se corre como `npm run db:prod:provision-owner`, que toma
+`DATABASE_URL_OWNER` de `.env.produccion.local`: así `.env.local` nunca
+tiene que apuntar a producción.
 
 ### El segundo factor del dueño
 
@@ -278,5 +297,7 @@ todavía un proyecto real sobre el cual configurarlo. Cuando exista:
 |---|---|---|
 | 2026-09-07 | Migración completa (00 → esquema → 01) contra Postgres 17 local, desde cero | ✓ Exitoso, ver docs/DECISIONES.md para los 2 ajustes que hicieron falta |
 | 2026-09-07 | Test de aislamiento cross-gym (lectura, UPDATE, sin contexto, payments inmutable, activity_log append-only) | ✓ 5/5 casos verificados contra datos reales |
+| 2026-10-01 | Incidente: producción caída. El proyecto Supabase `xppuhabselycpyuocqnz` (Free) se pausó por inactividad; DNS `ENOTFOUND` y pooler "tenant/user not found". No se encontró en qué cuenta estaba | Se decidió un proyecto nuevo, recargado desde los Excel. El viejo queda pausado: si aparece la cuenta, se puede reanudar |
+| 2026-10-01 | `db:prod:bootstrap` (mismos roles/GRANT/extensiones) + `db:prod:migrate` + `db:prod:provision-gym` contra un Postgres 17 temporal con locale UTF-8 | ✓ Migración completa, alta atómica y sus 3 negativas (nombre repetido, UID ya vinculado, nombre DEMO), y 41/41 tests de integración con `fn_app` |
 | — | Simulacro de restauración de backup | Pendiente — no hay backups reales todavía |
 | — | Recuperación de cuenta DUENO | Pendiente — no hay usuarios reales todavía |
