@@ -1,5 +1,6 @@
 import { normalizarTerminoBusqueda } from "@/domain/alumnos/busqueda";
 import { normalizarTelefono, normalizarTexto } from "@/domain/alumnos/identidad";
+import type { Genero } from "@/domain/alumnos/genero";
 
 /**
  * ANÁLISIS DE UNA PLANILLA DE ALUMNOS.
@@ -23,6 +24,8 @@ export const CAMPOS = [
   "email",
   "documento",
   "notas",
+  "fechaNacimiento",
+  "genero",
 ] as const;
 
 export type Campo = (typeof CAMPOS)[number];
@@ -36,6 +39,8 @@ export const ETIQUETA_CAMPO: Record<Campo, string> = {
   email: "Email",
   documento: "Documento",
   notas: "Observaciones",
+  fechaNacimiento: "Fecha de nacimiento",
+  genero: "Género",
 };
 
 /** Encabezados que se reconocen para cada campo, ya normalizados. */
@@ -48,6 +53,8 @@ const SINONIMOS: Record<Campo, string[]> = {
   email: ["email", "e mail", "correo", "mail"],
   documento: ["documento", "dni", "doc", "cedula", "cuil"],
   notas: ["notas", "observaciones", "obs", "comentarios", "nota"],
+  fechaNacimiento: ["fecha de nacimiento", "fecha nacimiento", "nacimiento", "fec nac", "f nac", "nacido"],
+  genero: ["genero", "sexo"],
 };
 
 /**
@@ -140,6 +147,8 @@ export interface FilaAnalizada {
   email: string | null;
   documento: string | null;
   notas: string | null;
+  fechaNacimiento: string | null;
+  genero: Genero | null;
   problemas: ProblemaDeFila[];
   /** Coincide con un alumno que ya existe en el padrón. */
   duplicadoExistente: string | null;
@@ -215,6 +224,26 @@ export function separarNombreCompleto(completo: string): { nombre: string; apell
   const nombre = normalizarTexto(completo.slice(coma + 1));
   if (!apellido || !nombre || nombre.includes(",")) return null;
   return { nombre, apellido };
+}
+
+/**
+ * Las formas en que una planilla escribe el género. "M" NO está: puede ser
+ * "mujer" o "masculino", y un dato adivinado es peor que uno vacío.
+ */
+const FORMAS_DE_GENERO: Record<string, Genero> = {
+  f: "FEMENINO",
+  fem: "FEMENINO",
+  femenino: "FEMENINO",
+  mujer: "FEMENINO",
+  h: "MASCULINO",
+  masc: "MASCULINO",
+  masculino: "MASCULINO",
+  hombre: "MASCULINO",
+  varon: "MASCULINO",
+};
+
+function leerGenero(crudo: string): Genero | null {
+  return FORMAS_DE_GENERO[normalizarTerminoBusqueda(crudo).replace(/\.$/, "")] ?? null;
 }
 
 /**
@@ -360,6 +389,33 @@ export function analizarFilas(
       }
     }
 
+    // Fecha de nacimiento y género: opcionales, y solo si la planilla los
+    // trae. Lo que no se entiende entra VACÍO con un aviso — nunca se
+    // adivina (y el género, menos: ver domain/alumnos/genero.ts).
+    const nacimientoCrudo = leer("fechaNacimiento");
+    let fechaNacimiento: string | null = null;
+    if (nacimientoCrudo) {
+      fechaNacimiento = normalizarFecha(nacimientoCrudo);
+      if (!fechaNacimiento || fechaNacimiento > contexto.hoy || fechaNacimiento < "1900-01-01") {
+        fechaNacimiento = null;
+        problemas.push({
+          campo: "fechaNacimiento",
+          gravedad: "AVISO",
+          mensaje: `No se entiende la fecha de nacimiento “${nacimientoCrudo}”. Se va a importar vacía.`,
+        });
+      }
+    }
+
+    const generoCrudo = leer("genero");
+    const genero = generoCrudo ? leerGenero(generoCrudo) : null;
+    if (generoCrudo && !genero) {
+      problemas.push({
+        campo: "genero",
+        gravedad: "AVISO",
+        mensaje: `No se entiende el género “${generoCrudo}”. Se va a importar vacío.`,
+      });
+    }
+
     const clave = claveDePersona(nombre, apellido);
     const existente = clave ? (porClave.get(clave) ?? null) : null;
     const previa = clave ? vistasEnArchivo.get(clave) : undefined;
@@ -375,6 +431,8 @@ export function analizarFilas(
       email: leer("email") || null,
       documento: leer("documento") || null,
       notas: leer("notas") || null,
+      fechaNacimiento,
+      genero,
       problemas,
       duplicadoExistente: existente ? `${existente.nombre} ${existente.apellido}` : null,
       duplicadoEnArchivo: previa ?? null,

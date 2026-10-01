@@ -39,6 +39,8 @@ function fila(nombre: string, apellido: string, extra: Partial<Record<Campo, str
     email: "",
     documento: "",
     notas: "",
+    fechaNacimiento: "",
+    genero: "",
     ...extra,
   };
   return CAMPOS.map((campo) => valores[campo]);
@@ -63,7 +65,13 @@ describe("importar alumnos (Postgres real)", () => {
     const r = await importarAlumnosAction({
       nombreArchivo: "padron.xlsx",
       filas: [
-        fila("Ángela", "Pérez", { telefono: "+54 9 11 5555-1234", fechaAlta: "2026-03-04", documento: "30123456" }),
+        fila("Ángela", "Pérez", {
+          telefono: "+54 9 11 5555-1234",
+          fechaAlta: "2026-03-04",
+          documento: "30123456",
+          fechaNacimiento: "15/06/1988",
+          genero: "Mujer",
+        }),
         fila("Juan", "Gómez", { notas: "Lesión de rodilla" }),
       ],
     });
@@ -80,6 +88,8 @@ describe("importar alumnos (Postgres real)", () => {
       vinculoDesde: "2026-03-04",
       vinculo: "ACTIVO",
       documento: "30123456",
+      fechaNacimiento: "1988-06-15",
+      genero: "FEMENINO",
       origen: "IMPORTACION",
     });
 
@@ -170,7 +180,7 @@ describe("importar alumnos (Postgres real)", () => {
     // Regresión: el asistente mandaba esa celda dos veces (como nombre y
     // como apellido) y el servidor, sin el mapeo, guardaba "SOSA, ANA" en
     // los dos campos y dejaba pasar a quien no tenía coma.
-    const sinUsar = { telefono: -1, fechaAlta: -1, email: -1, documento: -1, notas: -1 };
+    const sinUsar = { telefono: -1, fechaAlta: -1, email: -1, documento: -1, notas: -1, fechaNacimiento: -1, genero: -1 };
     const r = await importarAlumnosAction({
       nombreArchivo: "SEPT 2026.xlsx",
       filas: [
@@ -193,7 +203,7 @@ describe("importar alumnos (Postgres real)", () => {
     const r = await importarAlumnosAction({
       nombreArchivo: "x.xlsx",
       filas: [["SOSA, ANA", "3"]],
-      columnas: { nombre: 0, apellido: 0, plan: 5, telefono: -1, fechaAlta: -1, email: -1, documento: -1, notas: -1 },
+      columnas: { nombre: 0, apellido: 0, plan: 5, telefono: -1, fechaAlta: -1, email: -1, documento: -1, notas: -1, fechaNacimiento: -1, genero: -1 },
     });
     expect(r).toMatchObject({ ok: false, kind: "VALIDATION" });
   });

@@ -301,3 +301,50 @@ describe("la planilla mensual del gimnasio", () => {
     expect(filas[0].duplicadoExistente).toBe("Ana Gómez");
   });
 });
+
+/**
+ * Género y fecha de nacimiento alimentan los gráficos de edad y género de
+ * Métricas (pedido del dueño). Se importan SOLO si la planilla los trae en
+ * una columna propia: nunca se infieren (ver domain/alumnos/genero.ts).
+ */
+describe("fecha de nacimiento y género", () => {
+  const encabezados = ["Nombre", "Apellido", "Plan", "Fecha de nacimiento", "Sexo"];
+  const columnas = detectarColumnas(encabezados);
+  const analizar = (nacimiento: string, genero: string) =>
+    analizarFilas([["Ana", "Ruiz", "3 días", nacimiento, genero]], columnas, CONTEXTO).filas[0]!;
+
+  it("reconoce las columnas", () => {
+    expect(columnas.fechaNacimiento).toBe(3);
+    expect(columnas.genero).toBe(4);
+    expect(columnas.fechaAlta).toBe(-1);
+  });
+
+  it("lee la fecha como la de alta (día primero) y el género por sus formas comunes", () => {
+    const f = analizar("03/04/1990", "Femenino");
+    expect([f.fechaNacimiento, f.genero, f.problemas]).toEqual(["1990-04-03", "FEMENINO", []]);
+    expect(analizar("", "mujer").genero).toBe("FEMENINO");
+    expect(analizar("", "F").genero).toBe("FEMENINO");
+    expect(analizar("", "Varón").genero).toBe("MASCULINO");
+    expect(analizar("", "hombre").genero).toBe("MASCULINO");
+    expect(analizar("", "H").genero).toBe("MASCULINO");
+  });
+
+  it("'M' es ambigua (¿mujer o masculino?): aviso, y se importa vacía", () => {
+    const f = analizar("", "M");
+    expect(f.genero).toBeNull();
+    expect(f.problemas).toEqual([expect.objectContaining({ campo: "genero", gravedad: "AVISO" })]);
+  });
+
+  it("una fecha de nacimiento ilegible o imposible es un aviso, no un error: se importa vacía", () => {
+    for (const mala of ["31/31/1990", "ayer", "01/01/2999", "01/01/1850"]) {
+      const f = analizar(mala, "");
+      expect(f.fechaNacimiento).toBeNull();
+      expect(f.problemas.map((p) => [p.campo, p.gravedad])).toEqual([["fechaNacimiento", "AVISO"]]);
+    }
+  });
+
+  it("vacíos no son un problema: el dato es opcional", () => {
+    const f = analizar("", "");
+    expect([f.fechaNacimiento, f.genero, f.problemas]).toEqual([null, null, []]);
+  });
+});

@@ -130,6 +130,9 @@ export const importarAlumnosAction = withAuth<ImportarAlumnosRaw, ResultadoDeImp
           documento:
             fila.documento && fila.documento.length <= LARGO_MAXIMO_DOCUMENTO ? fila.documento : null,
           notas: fila.notas ? fila.notas.slice(0, LARGO_MAXIMO_NOTAS) : null,
+          // Ya validados por el análisis: lo ilegible llega como null.
+          fechaNacimiento: fila.fechaNacimiento,
+          genero: fila.genero,
           origen: "IMPORTACION",
         });
 
