@@ -4,7 +4,11 @@ import { cookies } from "next/headers";
 import { createSupabaseServerClient } from "@/lib/auth/supabase-server";
 import { DEV_MOCK_AUTH_COOKIE, isDevMockAuthEnabled } from "@/lib/auth/config";
 import { buscarAppUserPorAuthId, type AppUser } from "@/lib/auth/app-user";
-import { MENSAJES_LOGIN, resolverDestinoLogin } from "@/lib/auth/flujo-login";
+import {
+  MENSAJES_LOGIN,
+  esFalloDeInfraestructuraAuth,
+  resolverDestinoLogin,
+} from "@/lib/auth/flujo-login";
 
 export interface LoginState {
   error?: string;
@@ -28,6 +32,10 @@ export interface LoginState {
  * De la contraseña nunca devolvemos el detalle real del error de Supabase
  * (credenciales inválidas, usuario inexistente, rate limit): siempre el
  * mismo mensaje, para no filtrar ni siquiera si un email está registrado.
+ * La excepción es cuando Supabase no contestó (red, DNS, 5xx, timeout):
+ * ahí no sabemos nada de la contraseña, y decir "incorrecta" manda al
+ * usuario a dudar de una credencial que está bien. Ese caso no depende del
+ * email, así que distinguirlo no filtra nada.
  * De lo que pasa DESPUÉS sí: quien ya demostró ser dueño de la credencial
  * merece saber por qué no entra, y esa información no le sirve a un
  * atacante que no pasó la contraseña.
@@ -64,15 +72,25 @@ export async function login(_prevState: LoginState, formData: FormData): Promise
       return { error: MENSAJES_LOGIN.credenciales };
     }
 
-    const { data: sesion, error: errorDeIngreso } = await Promise.race([
-      supabase.auth.signInWithPassword({
-        email,
-        password,
-      }),
-      new Promise<{ data: null; error: boolean }>((_, reject) =>
-        setTimeout(() => reject(new Error("timeout")), 6000),
-      ),
-    ]).catch(() => ({ data: null, error: true }));
+    let ingreso;
+    try {
+      ingreso = await Promise.race([
+        supabase.auth.signInWithPassword({
+          email,
+          password,
+        }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 6000)),
+      ]);
+    } catch (err) {
+      console.error("[login] Supabase Auth no respondió:", err);
+      return { error: MENSAJES_LOGIN.sinConexion };
+    }
+    const { data: sesion, error: errorDeIngreso } = ingreso;
+
+    if (errorDeIngreso && esFalloDeInfraestructuraAuth(errorDeIngreso)) {
+      console.error("[login] Supabase Auth no respondió:", errorDeIngreso);
+      return { error: MENSAJES_LOGIN.sinConexion };
+    }
 
     if (errorDeIngreso || !sesion?.user) {
       return { error: MENSAJES_LOGIN.credenciales };
@@ -85,7 +103,7 @@ export async function login(_prevState: LoginState, formData: FormData): Promise
     } catch (err) {
       console.error("[login] no se pudo leer app_users:", err);
       await supabase.auth.signOut();
-      return { error: MENSAJES_LOGIN.baseDeDatos };
+      return { error: MENSAJES_LOGIN.sinConexion };
     }
 
     const decision = resolverDestinoLogin(appUser);

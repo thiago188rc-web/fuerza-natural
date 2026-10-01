@@ -1,9 +1,10 @@
 import { cache } from "react";
 import { cookies } from "next/headers";
+import { unstable_rethrow } from "next/navigation";
 import { createSupabaseServerClient } from "./supabase-server";
 import { DEV_MOCK_AUTH_COOKIE, isDevMockAuthEnabled, isSupabaseConfigured } from "./config";
 import { buscarAppUserPorAuthId } from "./app-user";
-import { esAppUserUtilizable } from "./flujo-login";
+import { esAppUserUtilizable, esFalloDeInfraestructuraAuth } from "./flujo-login";
 
 export type Rol = "DUENO" | "STAFF";
 
@@ -104,6 +105,14 @@ export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
         "getUser",
       );
 
+      // Ojo: ante un fallo de red (DNS, proyecto pausado, 5xx) getUser() NO
+      // lanza: lo DEVUELVE, con la misma forma que un "no hay sesión". Si
+      // Supabase no contestó, no sabemos si hay sesión — ver
+      // `ErrorDeInfraestructura`.
+      if (userError && esFalloDeInfraestructuraAuth(userError)) {
+        throw new ErrorDeInfraestructura("getUser: Supabase Auth no respondió", { cause: userError });
+      }
+
       if (!userError && userData?.user) {
         authUserId = userData.user.id;
       }
@@ -161,6 +170,11 @@ export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
 
     return null;
   } catch (err) {
+    // Primero los errores de control de Next.js: `cookies()` lanza uno al
+    // prerenderizar (DYNAMIC_SERVER_USAGE) para marcar la ruta como
+    // dinámica, y redirect()/notFound() también son throws. No son fallas
+    // y no se loguean: son de Next, que los tiene que recibir.
+    unstable_rethrow(err);
     // Relanzar los errores de infraestructura (DB, o un timeout de
     // getUser() marcado como tal) para que el Error Boundary muestre una
     // pantalla de error — nunca silenciarlos como "sin sesión": eso es lo

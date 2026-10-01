@@ -1,6 +1,8 @@
+import { isAuthRetryableFetchError } from "@supabase/supabase-js";
+
 /**
- * Decisiones PURAS del flujo de login — sin Supabase, sin base de datos,
- * sin cookies. Todo lo que se puede decidir con datos ya leídos vive acá
+ * Decisiones PURAS del flujo de login — sin llamadas a Supabase, sin base
+ * de datos, sin cookies. Todo lo que se puede decidir con datos ya leídos vive acá
  * para poder testearlo de forma determinística (ver
  * tests/security/flujo-login.test.ts). login/actions.ts hace la parte de
  * I/O y delega la decisión en estas funciones.
@@ -21,8 +23,26 @@ export const MENSAJES_LOGIN = {
   noVinculado:
     "Tu usuario todavía no está habilitado en este gimnasio. Pedile al administrador que te dé acceso.",
   inactivo: "Tu usuario está desactivado. Contactá al administrador del gimnasio.",
-  baseDeDatos: "No pudimos conectar con el sistema. Probá de nuevo en un momento.",
+  sinConexion: "No pudimos conectar con el sistema. Probá de nuevo en un momento.",
 } as const;
+
+/**
+ * ¿Este error de Supabase Auth significa "no pudimos preguntar" (red
+ * caída, DNS que no resuelve, proyecto Supabase pausado, 5xx) en vez de
+ * "la respuesta es no" (sin sesión, token inválido, contraseña incorrecta,
+ * rate limit)?
+ *
+ * Importa porque supabase-js NO lanza ante un fallo de red: `getUser()` y
+ * `signInWithPassword()` devuelven `{ error: AuthRetryableFetchError }`
+ * igual que devolverían un "no". Tratarlo como un "no" mandaba a /login a
+ * un usuario con la sesión válida y le decía "contraseña incorrecta" a
+ * quien la había escrito bien.
+ */
+export function esFalloDeInfraestructuraAuth(error: unknown): boolean {
+  if (isAuthRetryableFetchError(error)) return true;
+  const status = (error as { status?: unknown } | null)?.status;
+  return typeof status === "number" && status >= 500;
+}
 
 /** El subconjunto de una fila de app_users que estas decisiones usan. */
 export interface AppUserMinimo {
