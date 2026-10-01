@@ -132,10 +132,10 @@ nunca registró dónde se había creado. Ver la tabla de historial al final.
 
 | Dato | Valor |
 |---|---|
-| Cuenta / organización Supabase | _(completar al crear)_ |
-| Ref del proyecto | _(completar al crear)_ |
-| Región | East US (North Virginia), `us-east-1` — la misma que las funciones de Vercel (`iad1`) |
-| Plan | _(Free se pausa a los 7 días sin uso; Pro no)_ |
+| Cuenta / organización Supabase | org `acnbctehunzysripzffk` — _(completar con el nombre de la cuenta y de la organización)_ |
+| Ref del proyecto | `laaboaprbjegijnoxqpx` ("fuerza-natural-bootstrap"), creado el 2026-10-01 |
+| Región | West US (Oregon), `us-west-2`. Las funciones de Vercel corren en `pdx1` (Portland, `vercel.json`) para quedar al lado de la base |
+| Plan | _(a confirmar: Free se pausa a los 7 días sin uso; Pro no)_ |
 
 Credenciales de producción: en `.env.produccion.local` (fuera de git), **no**
 en `.env.local`. Los tests de integración escriben gimnasios de prueba en
@@ -144,23 +144,29 @@ la ensucia. Todos los scripts `npm run db:prod:*` leen ese archivo.
 
 En el panel de Supabase (solo lo puede hacer quien tiene la cuenta):
 
-1. Crear el proyecto en la región de arriba, con una contraseña de base
-   fuerte guardada en un gestor de contraseñas.
+1. Crear el proyecto, con una contraseña de base fuerte guardada en un
+   gestor de contraseñas. La región tiene que coincidir con `regions` de
+   `vercel.json`: cada consulta cruza esa distancia.
 2. Authentication → Sign In / Providers → **desactivar "Allow new users to
-   sign up"**. Los usuarios los da de alta un administrador, nunca una
-   pantalla pública.
+   sign up"** (o, con token, `PATCH /v1/projects/<ref>/config/auth`
+   `{"disable_signup": true}`). Los usuarios los da de alta un
+   administrador, nunca una pantalla pública.
 3. Authentication → Users → Add user → Create new user, con el email y la
    contraseña del dueño y **"Auto Confirm User" activado**. Copiar su UID.
-4. Botón Connect → **Session pooler** → copiar la cadena y pegarla en
-   `.env.produccion.local` como `DATABASE_URL_ADMIN`, con la contraseña de
-   la base en lugar de `[YOUR-PASSWORD]`.
+4. Una de dos, en `.env.produccion.local`:
+   - `DATABASE_URL_ADMIN`: botón Connect → **Session pooler**, con la
+     contraseña de la base en lugar de `[YOUR-PASSWORD]`; o
+   - `SUPABASE_ACCESS_TOKEN`: token personal (Account → Access Tokens). El
+     SQL de admin va por la Management API y no hace falta la contraseña
+     de la base. **Revocarlo al terminar.**
 
 Desde el repo:
 
 ```bash
-# Roles fn_owner / fn_app / fn_readonly con contraseñas aleatorias,
-# permisos y extensiones. Escribe DATABASE_URL, DATABASE_URL_OWNER y
-# DATABASE_URL_READONLY en .env.produccion.local y borra la cadena admin.
+# Roles fn_owner / fn_app / fn_readonly con contraseñas aleatorias (a
+# Supabase solo le llega el hash SCRAM), permisos y extensiones. Escribe
+# DATABASE_URL, DATABASE_URL_OWNER y DATABASE_URL_READONLY en
+# .env.produccion.local. Con token, agregar: -- --ref <ref del proyecto>
 npm run db:prod:bootstrap
 
 # Las 3 capas: extensiones/roles, esquema (drizzle-kit), RLS y triggers.
@@ -299,5 +305,6 @@ todavía un proyecto real sobre el cual configurarlo. Cuando exista:
 | 2026-09-07 | Test de aislamiento cross-gym (lectura, UPDATE, sin contexto, payments inmutable, activity_log append-only) | ✓ 5/5 casos verificados contra datos reales |
 | 2026-10-01 | Incidente: producción caída. El proyecto Supabase `xppuhabselycpyuocqnz` (Free) se pausó por inactividad; DNS `ENOTFOUND` y pooler "tenant/user not found". No se encontró en qué cuenta estaba | Se decidió un proyecto nuevo, recargado desde los Excel. El viejo queda pausado: si aparece la cuenta, se puede reanudar |
 | 2026-10-01 | `db:prod:bootstrap` (mismos roles/GRANT/extensiones) + `db:prod:migrate` + `db:prod:provision-gym` contra un Postgres 17 temporal con locale UTF-8 | ✓ Migración completa, alta atómica y sus 3 negativas (nombre repetido, UID ya vinculado, nombre DEMO), y 41/41 tests de integración con `fn_app` |
+| 2026-10-01 | Bootstrap de producción en `laaboaprbjegijnoxqpx` vía Management API: roles, migración, registro público desactivado, Data API solo `public`/`graphql_public` (anon/authenticated sin acceso a `app`), RLS en 11/11 tablas | ✓ `db:prod:diagnostico` OK con `fn_app` por el pooler |
 | — | Simulacro de restauración de backup | Pendiente — no hay backups reales todavía |
 | — | Recuperación de cuenta DUENO | Pendiente — no hay usuarios reales todavía |
