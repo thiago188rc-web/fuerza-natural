@@ -17,7 +17,9 @@ import {
   movimientoPorMes,
 } from "@/data/repositories/students-repo";
 import { asistieronEnRango, contarAsistenciasPorAlumno } from "@/data/repositories/attendance-repo";
-import { obtenerGimnasio } from "@/data/repositories/gym-repo";
+import { obtenerConfiguracion, obtenerGimnasio } from "@/data/repositories/gym-repo";
+import { situacionDeLosActivos } from "@/use-cases/cobertura/situacion-de-activos";
+import { resumenDelMes, type ResumenDelMes } from "@/domain/metricas/resumen";
 import { hoyISO } from "@/domain/fechas/hoy";
 import {
   claveDeMes,
@@ -173,6 +175,21 @@ export interface Metricas {
   porFrecuencia: SegmentoDistribucion[];
 
   cumpleanos: AlumnoConCumpleanos[];
+
+  /**
+   * Solo con la vista "mes": el resumen que pidió el dueño — facturación vs
+   * el mes anterior, bajas, activos y qué parte del padrón está al día
+   * (ver domain/metricas/resumen.ts).
+   */
+  resumenDelMes:
+    | (ResumenDelMes & {
+        etiquetaMes: string;
+        etiquetaMesAnterior: string;
+        esMesEnCurso: boolean;
+        /** Con qué se comparó la facturación (a la misma altura si el mes está en curso). */
+        facturadoMesAnterior: number;
+      })
+    | null;
 }
 
 /** Rango del resumen + ventana y granularidad del gráfico de tendencia, según la vista elegida. */
@@ -413,6 +430,63 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
         real: a.real,
       }));
 
+      let resumen: Metricas["resumenDelMes"] = null;
+      if (vista === "mes") {
+        const mes = config.desde;
+        const mesAnterior = sumarMeses(mes, -1);
+        const esMesEnCurso = mes === mesDeHoy;
+
+        // A la MISMA ALTURA si el mes está en curso: al 10 de octubre se
+        // compara con el 1-10 de septiembre, no con septiembre entero —
+        // si no, todo mes en curso "pierde" contra el anterior.
+        const diaDeCorte = esMesEnCurso ? Number(hoy.slice(8, 10)) : 31;
+        const facturadoMesAnterior = totalesMesAnterior
+          .filter((f) => Number(f.periodo.slice(8, 10)) <= diaDeCorte)
+          .reduce((suma, f) => suma + f.total, 0);
+
+        const [finAnterior, finDelMes] = activosAlFinDeCadaMes(fechasDeVinculo, [
+          ultimoDiaDelMes(mesAnterior),
+          ultimoDiaDelMes(mes),
+        ]);
+
+        // "Al día" es la situación de HOY (la misma cuenta que el Panel):
+        // para un mes que ya pasó no existe ese dato.
+        let alDia: { cubiertos: number; total: number } | null = null;
+        if (esMesEnCurso) {
+          const parametros = await obtenerConfiguracion(tx, ctx);
+          if (parametros) {
+            const evaluados = (
+              await situacionDeLosActivos(tx, ctx, hoy, {
+                ventanaPagoHasta: parametros.ventanaPagoHasta,
+                diasGracia: parametros.diasGracia,
+                diasNuevoSinPago: parametros.diasNuevoSinPago,
+              })
+            ).filter((e) => e.situacion.estado !== "NO_APLICA");
+            alDia = {
+              cubiertos: evaluados.filter((e) => e.situacion.estado === "CUBIERTO").length,
+              total: evaluados.length,
+            };
+          }
+        }
+
+        resumen = {
+          etiquetaMes: etiquetaDeMes(mes, { conAnio: true }),
+          etiquetaMesAnterior: etiquetaDeMes(mesAnterior, { conAnio: false }),
+          esMesEnCurso,
+          facturadoMesAnterior,
+          ...resumenDelMes({
+            facturado: cobradoDelPeriodo.total,
+            facturadoMesAnterior,
+            nuevos: movimiento.nuevos,
+            volvieron: movimiento.volvieron,
+            bajas: movimiento.dejaron,
+            activos: esMesEnCurso ? activos.length : (finDelMes?.cantidad ?? 0),
+            activosMesAnterior: finAnterior?.real ? finAnterior.cantidad : null,
+            alDia,
+          }),
+        };
+      }
+
       const asistieronDeActivos = activos.filter((a) => asistieron.has(a.id)).length;
       const diasDelRango = diasEntre(rango.desde, rango.hasta) + 1;
       const porFrecuencia = distribucionPorFrecuencia(
@@ -463,6 +537,8 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
         porFrecuencia,
 
         cumpleanos: cumpleanosDelMes(cumpleanos, hoy),
+
+        resumenDelMes: resumen,
       });
     });
   },

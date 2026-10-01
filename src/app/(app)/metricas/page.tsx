@@ -15,6 +15,7 @@ import { AvisoDeCumpleanos } from "@/components/features/metricas/aviso-de-cumpl
 import { Rueda } from "@/components/features/metricas/rueda";
 import { MovimientoDelPeriodo } from "@/components/features/metricas/movimiento-del-periodo";
 import { SelectorDeVista } from "@/components/features/metricas/selector-de-vista";
+import { ResumenDelMes } from "@/components/features/metricas/resumen-del-mes";
 import { Aparece, NumeroAnimado } from "@/components/motion/primitivas";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Importe } from "@/components/importe";
@@ -130,6 +131,14 @@ export default async function MetricasPage({
           </div>
         </header>
       </Aparece>
+
+      {/* Lo que el dueño quiere leer de un vistazo: arriba de todo, solo en
+          la vista por mes (ver domain/metricas/resumen.ts). */}
+      {m.resumenDelMes ? (
+        <Aparece retraso={0.02}>
+          <ResumenDelMes resumen={m.resumenDelMes} moneda={m.moneda} />
+        </Aparece>
+      ) : null}
 
       <Aparece retraso={0.04}>
         <section className="superficie p-5">

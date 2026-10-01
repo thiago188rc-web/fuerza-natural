@@ -4,12 +4,12 @@ import { conflict, ok, type Result } from "@/use-cases/_kernel/result";
 import {
   contarAlumnosPorVinculo,
   contarMovimientoDelPadron,
-  listarAlumnosActivosParaCobertura,
   listarCumpleanosDeActivos,
   listarEventosRecientes,
 } from "@/data/repositories/students-repo";
+import { situacionDeLosActivos } from "@/use-cases/cobertura/situacion-de-activos";
 import { cumpleanosDelMes, type AlumnoConCumpleanos } from "@/domain/alumnos/cumpleanos";
-import { listarTramosCubiertos, totalCobrado } from "@/data/repositories/payments-repo";
+import { totalCobrado } from "@/data/repositories/payments-repo";
 import { obtenerConfiguracion, obtenerGimnasio } from "@/data/repositories/gym-repo";
 import { hoyISO } from "@/domain/fechas/hoy";
 import {
@@ -17,15 +17,12 @@ import {
   etiquetaDeMes,
   posicionEnElMes,
   primerDiaDelMes,
-  sumarMeses,
   ultimoDiaDelMes,
 } from "@/domain/fechas/calendario";
 import {
   segmentosDelMes,
-  situacionDeCobertura,
   type EstadoDeCobertura,
   type SegmentoDelMes,
-  type TramoCubierto,
 } from "@/domain/pagos/cobertura";
 import { isDevMockAuthEnabled } from "@/lib/auth/config";
 
@@ -145,37 +142,13 @@ export const panelQuery = withAuth<void, Panel>(["DUENO", "STAFF"], async (ctx) 
     const inicioDelMes = primerDiaDelMes(hoy);
     const finDelMes = ultimoDiaDelMes(hoy);
 
-    const [conteo, activos, movimiento, cobrado, actividad, cumpleanosCrudo] = await Promise.all([
+    const [conteo, movimiento, cobrado, actividad, cumpleanosCrudo] = await Promise.all([
       contarAlumnosPorVinculo(tx, ctx),
-      listarAlumnosActivosParaCobertura(tx, ctx),
       contarMovimientoDelPadron(tx, ctx, { desde: inicioDelMes, hasta: finDelMes }),
       totalCobrado(tx, ctx, { desde: inicioDelMes, hasta: finDelMes }),
       listarEventosRecientes(tx, ctx, 8),
       listarCumpleanosDeActivos(tx, ctx),
     ]);
-
-    // La ventana va MUCHO más atrás que el mes en curso, y no es un
-    // exceso: `situacionDeCobertura` necesita el último tramo cubierto para
-    // poder decir "sin cobertura hace 40 días". Con una ventana de un mes,
-    // alguien que pagó hasta junio no tenía ningún tramo visible y la
-    // pantalla lo describía como "nunca registró un pago" — una mentira
-    // sobre un alumno que sí pagó.
-    //
-    // El extremo derecho llega al fin de mes para incluir los tramos que se
-    // derraman al mes siguiente (un 1/2 mes que arrancó el 25).
-    const tramos = await listarTramosCubiertos(
-      tx,
-      ctx,
-      { desde: primerDiaDelMes(sumarMeses(hoy, -14)), hasta: finDelMes },
-      activos.map((a) => a.id),
-    );
-
-    const porAlumno = new Map<string, TramoCubierto[]>();
-    for (const t of tramos) {
-      const lista = porAlumno.get(t.studentId);
-      if (lista) lista.push({ desde: t.desde, hasta: t.hasta });
-      else porAlumno.set(t.studentId, [{ desde: t.desde, hasta: t.hasta }]);
-    }
 
     const parametros = {
       ventanaPagoHasta: config.ventanaPagoHasta,
@@ -183,18 +156,16 @@ export const panelQuery = withAuth<void, Panel>(["DUENO", "STAFF"], async (ctx) 
       diasNuevoSinPago: config.diasNuevoSinPago,
     };
 
+    // La misma cuenta que usa Métricas para "al día" (ver
+    // use-cases/cobertura/situacion-de-activos.ts): una sola implementación.
+    const evaluados = await situacionDeLosActivos(tx, ctx, hoy, parametros);
+
     let cubiertos = 0;
     let enRevision = 0;
     let descubiertos = 0;
     const atencion: AlumnoEnAtencion[] = [];
 
-    for (const alumno of activos) {
-      const suyos = porAlumno.get(alumno.id) ?? [];
-      const situacion = situacionDeCobertura(hoy, suyos, parametros, {
-        vinculo: alumno.vinculo,
-        fechaAltaOriginal: alumno.fechaAltaOriginal,
-      });
-
+    for (const { alumno, situacion, tramos: suyos } of evaluados) {
       if (situacion.estado === "CUBIERTO") cubiertos++;
       else if (situacion.estado === "REVISAR") enRevision++;
       else if (situacion.estado === "DESCUBIERTO") descubiertos++;
