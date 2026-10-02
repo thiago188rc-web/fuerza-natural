@@ -48,6 +48,14 @@ export const students = appSchema.table(
     genero: text("genero"),
     // Igual de opcional y por el mismo motivo que género.
     disciplina: text("disciplina"),
+    // Opcional. Texto libre: la base del gimnasio la escribe como sale
+    // ("B°COMERCIO III CASA 10"), y normalizar direcciones no es tarea de
+    // este sistema.
+    direccion: text("direccion"),
+    // Canales por los que llegó (domain/alumnos/como-conocio.ts). Lista y
+    // no un solo valor: "RECOMENDACIÓN/VIVE CERCA" son dos datos. NULL =
+    // sin dato; nunca un array vacío (el CHECK lo impide).
+    comoConocio: text("como_conocio").array(),
 
     // El único estado persistido. Ninguna transición ocurre automáticamente
     // — cambia solo por una acción humana explícita (alta/pausa/baja/reactivación).
@@ -101,6 +109,11 @@ export const students = appSchema.table(
     check(
       "students_disciplina_check",
       sql`${t.disciplina} is null or ${t.disciplina} in ('MUSCULACION','CALISTENIA')`,
+    ),
+    check("students_direccion_len_check", sql`${t.direccion} is null or length(${t.direccion}) between 1 and 200`),
+    check(
+      "students_como_conocio_check",
+      sql`${t.comoConocio} is null or (cardinality(${t.comoConocio}) between 1 and 5 and ${t.comoConocio} <@ array['RECOMENDACION','VIVE_CERCA','REDES_SOCIALES','YA_VENIA','OTRO']::text[])`,
     ),
 
     // Reglas de integridad exigidas por SPEC V1 §4.5 — se verifican en la

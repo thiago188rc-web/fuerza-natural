@@ -20,6 +20,8 @@ import { Importe } from "@/components/importe";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { esVinculo, etiquetaVinculo } from "@/domain/alumnos/vinculo";
 import { esDisciplina, etiquetaDisciplina } from "@/domain/alumnos/disciplina";
+import { esGenero, etiquetaGenero } from "@/domain/alumnos/genero";
+import { etiquetaCanal, ordenarCanales } from "@/domain/alumnos/como-conocio";
 import { distanciaRelativa } from "@/domain/fechas/calendario";
 import { fechaCompleta } from "@/lib/formato";
 import { cn } from "@/lib/utils";
@@ -225,13 +227,27 @@ export default async function FichaAlumnoPage({
                   <h2 className="t-rotulo">Datos</h2>
                   <dl className="mt-3 space-y-2.5">
                     <Dato etiqueta="Teléfono" valor={alumno.telefono} tabular />
+                    <Dato etiqueta="DNI" valor={alumno.documento} tabular />
+                    <Dato etiqueta="Dirección" valor={alumno.direccion} />
                     <Dato
                       etiqueta="Fecha de nacimiento"
                       valor={alumno.fechaNacimiento ? fechaCompleta(alumno.fechaNacimiento) : null}
                     />
                     <Dato
+                      etiqueta="Género"
+                      valor={esGenero(alumno.genero) ? etiquetaGenero(alumno.genero) : null}
+                    />
+                    <Dato
                       etiqueta="Disciplina"
                       valor={esDisciplina(alumno.disciplina) ? etiquetaDisciplina(alumno.disciplina) : null}
+                    />
+                    <Dato
+                      etiqueta="Cómo nos conoció"
+                      valor={
+                        alumno.comoConocio && alumno.comoConocio.length > 0
+                          ? ordenarCanales(alumno.comoConocio).map(etiquetaCanal).join(" · ")
+                          : null
+                      }
                     />
                     <Dato etiqueta="Alta" valor={fechaCompleta(alumno.fechaAltaOriginal)} />
                     <Dato

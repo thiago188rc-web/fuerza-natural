@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { crearAlumnoAction } from "@/use-cases/alumnos/crear-alumno";
 import { editarAlumnoAction } from "@/use-cases/alumnos/editar-alumno";
 import { cambiarVinculoAction } from "@/use-cases/alumnos/cambiar-vinculo";
+import { asignarGeneroAction } from "@/use-cases/alumnos/asignar-genero";
 import type { Result } from "@/use-cases/_kernel/result";
 // El tipo y el estado inicial viven aparte: un módulo "use server" solo
 // puede exportar funciones async (ver estado-formulario.ts).
@@ -55,6 +56,22 @@ function texto(formData: FormData, campo: string): string {
   return typeof valor === "string" ? valor : "";
 }
 
+/** Lo que llegó en el formulario, para devolvérselo si el guardado falla. */
+function valoresEnviados(formData: FormData): Record<string, string | string[]> {
+  const valores: Record<string, string | string[]> = {};
+  for (const clave of new Set(formData.keys())) {
+    if (clave.startsWith("$")) continue; // metadatos internos de React
+    const todos = formData.getAll(clave).filter((v): v is string => typeof v === "string");
+    valores[clave] = clave === "comoConocio" ? todos : (todos[0] ?? "");
+  }
+  return valores;
+}
+
+/** Los checkboxes con el mismo nombre llegan como varios valores. */
+function lista(formData: FormData, campo: string): string[] {
+  return formData.getAll(campo).filter((v): v is string => typeof v === "string");
+}
+
 export async function crearAlumnoFormAction(
   _prev: EstadoFormulario,
   formData: FormData,
@@ -69,11 +86,16 @@ export async function crearAlumnoFormAction(
     genero: texto(formData, "genero"),
     fechaNacimiento: texto(formData, "fechaNacimiento"),
     disciplina: texto(formData, "disciplina"),
+    documento: texto(formData, "documento"),
+    direccion: texto(formData, "direccion"),
+    comoConocio: lista(formData, "comoConocio"),
     // El schema de Zod ignora cualquier otro campo que llegue: `gymId` no
     // existe en la forma de entrada, así que no hay manera de mandarlo.
   });
 
-  if (!resultado.ok) return aEstadoFormulario(resultado);
+  if (!resultado.ok) {
+    return { ...aEstadoFormulario(resultado), valores: valoresEnviados(formData), intento: Date.now() };
+  }
 
   revalidatePath("/alumnos");
   redirect(`/alumnos/${resultado.data.id}?alta=1`);
@@ -95,9 +117,14 @@ export async function editarAlumnoFormAction(
     genero: texto(formData, "genero"),
     fechaNacimiento: texto(formData, "fechaNacimiento"),
     disciplina: texto(formData, "disciplina"),
+    documento: texto(formData, "documento"),
+    direccion: texto(formData, "direccion"),
+    comoConocio: lista(formData, "comoConocio"),
   });
 
-  if (!resultado.ok) return aEstadoFormulario(resultado);
+  if (!resultado.ok) {
+    return { ...aEstadoFormulario(resultado), valores: valoresEnviados(formData), intento: Date.now() };
+  }
 
   revalidatePath("/alumnos");
   revalidatePath(`/alumnos/${id}`);
@@ -125,4 +152,17 @@ export async function cambiarVinculoFormAction(
   revalidatePath("/dashboard");
   revalidatePath(`/alumnos/${id}`);
   return { ok: true, mensaje: "Estado actualizado.", vinculoAplicado: resultado.data.vinculo };
+}
+
+/**
+ * El atajo de "completar género": un toque por alumno, sin pasar por la
+ * edición completa de la ficha. Devuelve el resultado en vez de redirigir:
+ * la pantalla sigue con el próximo.
+ */
+export async function asignarGeneroAccion(id: string, genero: string): Promise<EstadoFormulario> {
+  const resultado = await asignarGeneroAction({ id, genero });
+  if (!resultado.ok) return aEstadoFormulario(resultado);
+  revalidatePath("/metricas");
+  revalidatePath(`/alumnos/${id}`);
+  return { ok: true };
 }

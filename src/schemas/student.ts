@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { normalizarTelefono, normalizarTexto } from "@/domain/alumnos/identidad";
+import { normalizarTelefono, normalizarTexto, telefonoArgentino } from "@/domain/alumnos/identidad";
+import { CANALES, ordenarCanales } from "@/domain/alumnos/como-conocio";
 import { VINCULOS } from "@/domain/alumnos/vinculo";
 import { GENEROS } from "@/domain/alumnos/genero";
 import { DISCIPLINAS } from "@/domain/alumnos/disciplina";
@@ -36,17 +37,53 @@ const apellido = z
   );
 
 /**
- * Opcional desde Fase 1. Cuando viene, se exige E.164 — el mismo formato
+ * Opcional desde Fase 1. Se GUARDA siempre en E.164 — el mismo formato
  * que el CHECK de la base, para que la app y Postgres nunca discrepen.
+ *
+ * Se ACEPTA también como se escribe en Argentina ("280 400 1234"): el
+ * sistema es para gimnasios de acá, y un número local de 10 dígitos tiene
+ * una sola lectura (+549…, ver `telefonoArgentino`). Lo ambiguo (un dígito
+ * de menos, el 15 en el medio) se sigue rechazando: no se completa a ciegas.
  */
 const telefono = z
   .string()
-  .transform(normalizarTelefono)
+  .transform((valor) => {
+    const limpio = normalizarTelefono(valor);
+    if (limpio.startsWith("+")) return limpio;
+    return telefonoArgentino(limpio) ?? limpio;
+  })
   .pipe(
     z
       .string()
-      .regex(/^\+[1-9]\d{7,14}$/, "Teléfono inválido. Usá formato internacional, ej: +5491155551234."),
+      .regex(
+        /^\+[1-9]\d{7,14}$/,
+        "Teléfono inválido. Escribilo con característica, ej: 280 400 1234 o +54 9 280 400 1234.",
+      ),
   );
+
+/** DNI: se guardan solo los dígitos ("30.123.456" → "30123456"), que es como se busca. */
+const documento = z
+  .string()
+  .transform((valor) => valor.replace(/[\s.-]/g, ""))
+  .pipe(z.string().regex(/^[0-9A-Za-z]{5,15}$/, "DNI inválido."));
+
+const direccion = z
+  .string()
+  .transform(normalizarTexto)
+  .pipe(z.string().max(200, "La dirección no puede superar los 200 caracteres."));
+
+/**
+ * "¿Cómo conoció el gimnasio?" — una o más opciones del catálogo. Llega
+ * como lista (checkboxes); una lista vacía es "sin dato" y se guarda NULL.
+ */
+const comoConocio = z
+  .array(z.string())
+  .max(CANALES.length)
+  .refine((lista) => lista.every((c) => (CANALES as readonly string[]).includes(c)), "Opción inválida.")
+  .transform((lista) => {
+    const ordenada = ordenarCanales(lista);
+    return ordenada.length > 0 ? ordenada : null;
+  });
 
 const notas = z
   .string()
@@ -70,10 +107,12 @@ export const crearAlumnoSchema = z.object({
   fechaAltaOriginal: opcional(fechaCivil),
   notas: opcional(notas),
   email: opcional(z.string().trim().email("Email inválido.")),
-  documento: opcional(z.string().trim().min(1).max(30)),
+  documento: opcional(documento),
   fechaNacimiento: opcional(fechaCivil),
   genero: opcional(genero),
   disciplina: opcional(disciplina),
+  direccion: opcional(direccion),
+  comoConocio: comoConocio.optional(),
 });
 
 /** Lo que sale de validar (normalizado). Lo consume el caso de uso. */
@@ -98,6 +137,9 @@ export const editarAlumnoSchema = z.object({
   genero: opcional(genero),
   fechaNacimiento: opcional(fechaCivil),
   disciplina: opcional(disciplina),
+  documento: opcional(documento),
+  direccion: opcional(direccion),
+  comoConocio: comoConocio.optional(),
 });
 
 export type EditarAlumnoInput = z.infer<typeof editarAlumnoSchema>;

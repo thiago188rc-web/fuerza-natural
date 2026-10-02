@@ -5,6 +5,7 @@ import { withTenantTx } from "@/use-cases/_kernel/with-tenant-tx";
 import { logActivity } from "@/use-cases/_kernel/with-audit";
 import { ok, validationError, type Result } from "@/use-cases/_kernel/result";
 import {
+  alumnoConDocumento,
   crearAlumno,
   existePlanEnGimnasio,
   registrarEventoDeAlumno,
@@ -66,6 +67,15 @@ export const crearAlumnoAction = withAuth<CrearAlumnoRaw, AlumnoCreado>(
         return validationError([{ path: "planId", message: "Elegí un plan válido." }]);
       }
 
+      if (input.documento) {
+        const otro = await alumnoConDocumento(tx, ctx, input.documento);
+        if (otro) {
+          return validationError([
+            { path: "documento", message: `Ese DNI ya es de ${nombreCompleto(otro.nombre, otro.apellido)}.` },
+          ]);
+        }
+      }
+
       const nuevo: NuevoAlumno = {
         nombre: input.nombre,
         apellido: input.apellido,
@@ -80,6 +90,8 @@ export const crearAlumnoAction = withAuth<CrearAlumnoRaw, AlumnoCreado>(
         fechaNacimiento: input.fechaNacimiento ?? null,
         genero: input.genero ?? null,
         disciplina: input.disciplina ?? null,
+        direccion: input.direccion ?? null,
+        comoConocio: input.comoConocio ?? null,
         notas: input.notas ?? null,
         origen: "MANUAL",
       };

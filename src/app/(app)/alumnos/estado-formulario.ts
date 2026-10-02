@@ -19,6 +19,14 @@ export interface EstadoFormulario {
    * sin tener que resetear estado dentro de un efecto.
    */
   vinculoAplicado?: string;
+  /**
+   * Lo que se mandó, cuando el guardado falló. React 19 vacía el formulario
+   * después de cada envío: sin esto, un DNI repetido obligaba a tipear la
+   * ficha entera de nuevo. Con `intento` el formulario se rearma con estos
+   * valores (ver formulario-alumno.tsx).
+   */
+  valores?: Record<string, string | string[]>;
+  intento?: number;
 }
 
 export const ESTADO_FORMULARIO_INICIAL: EstadoFormulario = { ok: false };

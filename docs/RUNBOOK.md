@@ -274,6 +274,31 @@ La base de desarrollo no se limpia entre corridas: los specs generan un
 sufijo único por alumno para no pisarse. Si querés empezar de cero,
 recreá la base con el bootstrap de más arriba.
 
+## Carga inicial desde las planillas del gimnasio
+
+Una sola vez por gimnasio, sobre una base migrada y sin datos cargados a
+mano (el script se niega si encuentra pagos, alumnos manuales o historia
+propia). Las reglas están en `docs/DECISIONES.md` (2026-10-02).
+
+```bash
+# 1. Modo informe: no escribe nada. El informe tiene datos personales:
+#    va FUERA del repositorio.
+npx tsx --env-file=.env.produccion.local scripts/migracion/migrar-planillas.ts \
+  --base "…/BASE DE DATOS GYM.xlsx" --cuotas "…/CONTROL CUOTA GYM - 2026.xlsx" \
+  --reporte "$TEMP/informe.md"
+
+# 2. Revisar el informe: totales por mes contra los del dueño, bajas por
+#    mes contra su hoja BAJAS, emparejados por parecido, avisos.
+
+# 3. Aplicar (una transacción: entra todo o nada).
+npx tsx --env-file=.env.produccion.local scripts/migracion/migrar-planillas.ts \
+  --base … --cuotas … --reporte "$TEMP/informe.md" --aplicar
+```
+
+Usar `./node_modules/.bin/tsx` si `npx` se cuelga en Windows. Si un nombre
+de la planilla de cuotas no se empareja solo, `--alias alias.json`
+(`{"COMO EN CUOTAS": "COMO EN LA BASE"}`), guardado fuera del repo.
+
 ## Scripts de instalación de dependencias (`allowScripts`)
 
 npm 11 avisa ("install scripts not yet covered by allowScripts") por cada

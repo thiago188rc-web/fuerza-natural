@@ -6,6 +6,7 @@ import { logActivity, type CambioCampo } from "@/use-cases/_kernel/with-audit";
 import { notFound, ok, validationError, type Result } from "@/use-cases/_kernel/result";
 import {
   actualizarDatosAlumno,
+  alumnoConDocumento,
   buscarAlumnoPorId,
   existePlanEnGimnasio,
   registrarEventoDeAlumno,
@@ -31,7 +32,16 @@ const ETIQUETAS_DE_CAMPO: Record<string, string> = {
   genero: "Género",
   fechaNacimiento: "Fecha de nacimiento",
   disciplina: "Disciplina",
+  documento: "DNI",
+  direccion: "Dirección",
+  comoConocio: "Cómo conoció el gimnasio",
 };
+
+/** Dos valores de un campo son iguales si dicen lo mismo (las listas, por contenido). */
+function iguales(a: unknown, b: unknown): boolean {
+  if (Array.isArray(a) || Array.isArray(b)) return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+  return a === b;
+}
 
 /**
  * EDICIÓN DE DATOS del alumno. Actualiza la fila existente — nunca crea
@@ -77,6 +87,15 @@ export const editarAlumnoAction = withAuth<EditarAlumnoRaw, AlumnoEditado>(
         ]);
       }
 
+      if (input.documento && input.documento !== actual.documento) {
+        const otro = await alumnoConDocumento(tx, ctx, input.documento, actual.id);
+        if (otro) {
+          return validationError([
+            { path: "documento", message: `Ese DNI ya es de ${nombreCompleto(otro.nombre, otro.apellido)}.` },
+          ]);
+        }
+      }
+
       const planCambio = input.planId !== actual.planId;
       if (planCambio && !(await existePlanEnGimnasio(tx, ctx, input.planId))) {
         return validationError([{ path: "planId", message: "Elegí un plan válido." }]);
@@ -93,13 +112,16 @@ export const editarAlumnoAction = withAuth<EditarAlumnoRaw, AlumnoEditado>(
         genero: input.genero ?? null,
         fechaNacimiento: input.fechaNacimiento ?? null,
         disciplina: input.disciplina ?? null,
+        documento: input.documento ?? null,
+        direccion: input.direccion ?? null,
+        comoConocio: input.comoConocio ?? null,
       };
 
       const cambios: Record<string, CambioCampo> = {};
       for (const campo of Object.keys(ETIQUETAS_DE_CAMPO) as (keyof DatosEditablesAlumno)[]) {
         const antes = actual[campo] ?? null;
         const despues = datos[campo] ?? null;
-        if (antes !== despues) cambios[campo] = { antes, despues };
+        if (!iguales(antes, despues)) cambios[campo] = { antes, despues };
       }
 
       if (Object.keys(cambios).length === 0) {

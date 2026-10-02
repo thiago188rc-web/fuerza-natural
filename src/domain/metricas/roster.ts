@@ -7,15 +7,41 @@
  * columna solo describe el presente. Para saber si alguien estaba activo
  * el 30 de junio, lo único que se puede afirmar con lo que hay es "ya
  * había entrado (`fechaAltaOriginal <= fin de mes`) y todavía no se había
- * ido (`bajaFecha` es null o es posterior)". No usa `student_events`
- * porque ese historial recién empieza a existir cuando el sistema entró en
- * uso real — estas dos columnas, en cambio, se completaron con la fecha
- * real de alta de cada alumno al importarlo.
+ * ido (`bajaFecha` es null o es posterior)".
+ *
+ * Con una salvedad que cambia el número: alguien que se fue y VOLVIÓ ya
+ * no tiene `bajaFecha` (reactivar la limpia), así que con esas dos
+ * columnas solas se lo contaría activo también en los meses en que no
+ * venía. Por eso, cuando el alumno tiene cambios de vínculo registrados
+ * (BAJA / REACTIVACION en `student_events`), mandan esos hechos; las dos
+ * columnas quedan para quien no tiene ninguno (un alumno importado que
+ * nunca cambió de estado).
  */
+
+export interface CambioDeVinculo {
+  tipo: "BAJA" | "REACTIVACION";
+  /** 'YYYY-MM-DD' — desde ese día rige el cambio. */
+  fecha: string;
+}
 
 export interface FechasDeVinculo {
   fechaAltaOriginal: string;
   bajaFecha: string | null;
+  /** Sus BAJA/REACTIVACION, en cualquier orden. Vacío o ausente: no cambió nunca de estado. */
+  cambios?: readonly CambioDeVinculo[];
+}
+
+/** ¿Estaba activo (o pausado: no se había ido) al cierre de ese día? */
+export function estabaActivo(alumno: FechasDeVinculo, dia: string): boolean {
+  if (alumno.fechaAltaOriginal > dia) return false;
+  const cambios = [...(alumno.cambios ?? [])].sort((a, b) => a.fecha.localeCompare(b.fecha));
+  if (cambios.length === 0) return alumno.bajaFecha === null || alumno.bajaFecha > dia;
+
+  const hastaEseDia = cambios.filter((c) => c.fecha <= dia);
+  if (hastaEseDia.length > 0) return hastaEseDia[hastaEseDia.length - 1].tipo === "REACTIVACION";
+  // Ningún cambio todavía: si el primero que viene es una vuelta, es que
+  // antes de eso no estaba (se había ido sin que quedara registrado cuándo).
+  return cambios[0].tipo === "BAJA";
 }
 
 export interface ActivosDelMes {
@@ -39,10 +65,7 @@ export function activosAlFinDeCadaMes(
   );
 
   return finesDeMes.map((finDeMes) => {
-    const cantidad = alumnos.filter(
-      (a) =>
-        a.fechaAltaOriginal <= finDeMes && (a.bajaFecha === null || a.bajaFecha > finDeMes),
-    ).length;
+    const cantidad = alumnos.filter((a) => estabaActivo(a, finDeMes)).length;
 
     return {
       mes: finDeMes,

@@ -42,3 +42,42 @@ describe("activosAlFinDeCadaMes", () => {
     expect(resultado[0].cantidad).toBe(0);
   });
 });
+
+describe("activosAlFinDeCadaMes con bajas y vueltas registradas", () => {
+  // Se fue en abril y volvió en junio: hoy no tiene `bajaFecha` (reactivar
+  // la limpia), pero en abril y mayo no venía.
+  const ida_y_vuelta = {
+    fechaAltaOriginal: "2025-03-10",
+    bajaFecha: null,
+    cambios: [
+      { tipo: "REACTIVACION" as const, fecha: "2026-06-05" },
+      { tipo: "BAJA" as const, fecha: "2026-04-01" },
+    ],
+  };
+
+  it("no lo cuenta en los meses en que estaba de baja", () => {
+    const [marzo, abril, mayo, junio] = activosAlFinDeCadaMes(
+      [ida_y_vuelta],
+      ["2026-03-31", "2026-04-30", "2026-05-31", "2026-06-30"],
+    );
+    expect([marzo.cantidad, abril.cantidad, mayo.cantidad, junio.cantidad]).toEqual([1, 0, 0, 1]);
+  });
+
+  it("si lo primero registrado es una vuelta, antes no estaba (se fue sin que quede la fecha)", () => {
+    const volvio = {
+      fechaAltaOriginal: "2023-01-01",
+      bajaFecha: null,
+      cambios: [{ tipo: "REACTIVACION" as const, fecha: "2026-05-03" }],
+    };
+    const [abril, mayo] = activosAlFinDeCadaMes([volvio], ["2026-04-30", "2026-05-31"]);
+    expect([abril.cantidad, mayo.cantidad]).toEqual([0, 1]);
+  });
+
+  it("sin cambios registrados sigue mandando bajaFecha", () => {
+    const [ene] = activosAlFinDeCadaMes(
+      [{ fechaAltaOriginal: "2024-01-01", bajaFecha: "2025-12-31", cambios: [] }],
+      ["2026-01-31"],
+    );
+    expect(ene.cantidad).toBe(0);
+  });
+});

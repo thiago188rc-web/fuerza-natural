@@ -2,6 +2,7 @@ import { withAuth } from "@/use-cases/_kernel/with-auth";
 import { withTenantTx } from "@/use-cases/_kernel/with-tenant-tx";
 import { conflict, ok, type Result } from "@/use-cases/_kernel/result";
 import {
+  primerPagoRegistrado,
   totalCobrado,
   totalesPorMetodo,
   totalesPorModalidad,
@@ -10,6 +11,7 @@ import {
 } from "@/data/repositories/payments-repo";
 import {
   contarMovimientoDelPadron,
+  datosDeCaptacion,
   datosDemograficosDeActivos,
   listarAlumnosActivosParaCobertura,
   listarCumpleanosDeActivos,
@@ -52,6 +54,12 @@ import {
 } from "@/domain/metricas/facturacion";
 import { cumpleanosDelMes, type AlumnoConCumpleanos } from "@/domain/alumnos/cumpleanos";
 import { activosAlFinDeCadaMes } from "@/domain/metricas/roster";
+import {
+  captacionPorCanal,
+  iniciosPorMesDelAnio,
+  type CaptacionPorCanal,
+  type IniciosPorMes,
+} from "@/domain/metricas/captacion";
 import type { VistaMetricas } from "@/domain/metricas/vista";
 import { ETIQUETA_MODALIDAD } from "@/domain/pagos/modalidad";
 import { METODOS_PAGO, ETIQUETA_METODO, MODALIDADES_PAGO } from "@/schemas/payment";
@@ -109,8 +117,8 @@ export interface PuntoDeHistorial {
   real: boolean;
 }
 
-/** Cuántos meses hacia atrás muestra el historial de altas/bajas (incluye el actual). */
-const MESES_DE_HISTORIAL = 7;
+/** Cuántos meses hacia atrás muestra el historial de altas/bajas (incluye el actual): un año. */
+const MESES_DE_HISTORIAL = 12;
 
 export interface MetricasInput {
   vista?: VistaMetricas;
@@ -175,6 +183,11 @@ export interface Metricas {
   porFrecuencia: SegmentoDistribucion[];
 
   cumpleanos: AlumnoConCumpleanos[];
+
+  /** Cómo conocieron el gimnasio todos los alumnos que pasaron por él (ver domain/metricas/captacion.ts). */
+  porCanal: CaptacionPorCanal;
+  /** En qué mes del año empezó cada uno, sumando todos los años, abierto por canal. */
+  iniciosPorMes: IniciosPorMes;
 
   /**
    * Solo con la vista "mes": el resumen que pidió el dueño — facturación vs
@@ -321,6 +334,8 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
         movimientoCrudo,
         facturacionMensualCruda,
         fechasDeVinculo,
+        captacion,
+        primerPago,
       ] = await Promise.all([
         totalesPorPeriodo(tx, ctx, rangoTendencia, config.granularidad),
         totalCobrado(tx, ctx, rango),
@@ -338,6 +353,8 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
         movimientoPorMes(tx, ctx, rangoHistorial),
         totalesPorPeriodo(tx, ctx, rangoHistorial, "mes"),
         listarFechasDeVinculo(tx, ctx),
+        datosDeCaptacion(tx, ctx),
+        primerPagoRegistrado(tx, ctx),
       ]);
 
       const buckets = bucketsEsperados(vista, hoy, input?.mes, input?.semana);
@@ -386,6 +403,17 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
         (min, a) => (min === null || a.fechaAltaOriginal < min ? a.fechaAltaOriginal : min),
         null,
       );
+      // Y si hay pagos, el registro del negocio empieza en el mes del primero:
+      // un gimnasio que cargó su padrón con altas de 2022 pero recién cobra
+      // por el sistema desde 2026 no sabe cuántos activos o bajas tuvo en
+      // 2025 — mostrar esos meses como dato real sería inventarlos.
+      const inicioDelHistorial =
+        altaMasVieja === null
+          ? null
+          : primerPago !== null && primerDiaDelMes(primerPago) > altaMasVieja
+            ? primerDiaDelMes(primerPago)
+            : altaMasVieja;
+      const esReal = (finDeMes: string) => inicioDelHistorial !== null && finDeMes >= inicioDelHistorial;
 
       const finesDeMes = Array.from({ length: MESES_DE_HISTORIAL }, (_, i) =>
         ultimoDiaDelMes(primerDiaDelMes(sumarMeses(mesDeHoy, -(MESES_DE_HISTORIAL - 1 - i)))),
@@ -405,7 +433,7 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
           volvieron,
           dejaron,
           altas: nuevos + volvieron,
-          real: altaMasVieja !== null && finDeMes >= altaMasVieja,
+          real: esReal(finDeMes),
         };
       });
 
@@ -416,7 +444,7 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
           mes,
           etiqueta: etiquetaDeMes(mes, { conAnio: false }),
           valor: porMesFacturacion.get(mes) ?? 0,
-          real: altaMasVieja !== null && finDeMes >= altaMasVieja,
+          real: esReal(finDeMes),
         };
       });
 
@@ -427,7 +455,7 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
         mes: primerDiaDelMes(a.mes),
         etiqueta: etiquetaDeMes(a.mes, { conAnio: false }),
         valor: a.cantidad,
-        real: a.real,
+        real: a.real && esReal(a.mes),
       }));
 
       let resumen: Metricas["resumenDelMes"] = null;
@@ -451,7 +479,7 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
 
         // "Al día" es la situación de HOY (la misma cuenta que el Panel):
         // para un mes que ya pasó no existe ese dato.
-        let alDia: { cubiertos: number; total: number } | null = null;
+        let alDia: { cubiertos: number; enPlazo: number; total: number } | null = null;
         if (esMesEnCurso) {
           const parametros = await obtenerConfiguracion(tx, ctx);
           if (parametros) {
@@ -464,6 +492,7 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
             ).filter((e) => e.situacion.estado !== "NO_APLICA");
             alDia = {
               cubiertos: evaluados.filter((e) => e.situacion.estado === "CUBIERTO").length,
+              enPlazo: evaluados.filter((e) => e.situacion.estado === "REVISAR").length,
               total: evaluados.length,
             };
           }
@@ -481,7 +510,8 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
             volvieron: movimiento.volvieron,
             bajas: movimiento.dejaron,
             activos: esMesEnCurso ? activos.length : (finDelMes?.cantidad ?? 0),
-            activosMesAnterior: finAnterior?.real ? finAnterior.cantidad : null,
+            activosMesAnterior:
+              finAnterior?.real && esReal(finAnterior.mes) ? finAnterior.cantidad : null,
             alDia,
           }),
         };
@@ -536,6 +566,8 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
         },
         porFrecuencia,
 
+        porCanal: captacionPorCanal(captacion),
+        iniciosPorMes: iniciosPorMesDelAnio(captacion),
         cumpleanos: cumpleanosDelMes(cumpleanos, hoy),
 
         resumenDelMes: resumen,

@@ -86,6 +86,9 @@ export default async function EditarAlumnoPage({ params }: { params: Promise<{ i
               genero: alumno.genero ?? "",
               fechaNacimiento: alumno.fechaNacimiento ?? "",
               disciplina: alumno.disciplina ?? "",
+              documento: alumno.documento ?? "",
+              direccion: alumno.direccion ?? "",
+              comoConocio: alumno.comoConocio ?? [],
             }}
           />
         </CardContent>

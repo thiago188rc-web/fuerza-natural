@@ -1,0 +1,4 @@
+ALTER TABLE "app"."students" ADD COLUMN "direccion" text;--> statement-breakpoint
+ALTER TABLE "app"."students" ADD COLUMN "como_conocio" text[];--> statement-breakpoint
+ALTER TABLE "app"."students" ADD CONSTRAINT "students_direccion_len_check" CHECK ("app"."students"."direccion" is null or length("app"."students"."direccion") between 1 and 200);--> statement-breakpoint
+ALTER TABLE "app"."students" ADD CONSTRAINT "students_como_conocio_check" CHECK ("app"."students"."como_conocio" is null or (cardinality("app"."students"."como_conocio") between 1 and 5 and "app"."students"."como_conocio" <@ array['RECOMENDACION','VIVE_CERCA','REDES_SOCIALES','YA_VENIA','OTRO']::text[]));

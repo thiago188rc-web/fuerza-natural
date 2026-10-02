@@ -61,14 +61,22 @@ describe("crearAlumnoSchema", () => {
     if (r.success) expect(r.data.telefono).toBe("+5491155551234");
   });
 
-  it("rechaza un teléfono sin prefijo internacional", () => {
+  it("acepta un número argentino escrito sin prefijo y lo guarda como celular E.164", () => {
     const r = crearAlumnoSchema.safeParse({
       nombre: "Ana",
       apellido: "Gómez",
       planId: UUID,
-      telefono: "1155551234",
+      telefono: "280 400-1234",
     });
-    expect(r.success).toBe(false);
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.telefono).toBe("+5492804001234");
+  });
+
+  it("rechaza un teléfono ambiguo: con un dígito de menos o con el 15 en el medio", () => {
+    for (const telefono of ["280400123", "0280 15 4001234", "28040012345"]) {
+      const r = crearAlumnoSchema.safeParse({ nombre: "Ana", apellido: "Gómez", planId: UUID, telefono });
+      expect(r.success, telefono).toBe(false);
+    }
   });
 
   it("rechaza un plan que no es un uuid", () => {

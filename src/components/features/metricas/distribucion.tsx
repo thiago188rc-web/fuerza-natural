@@ -1,10 +1,12 @@
 import type { SegmentoDistribucion } from "@/domain/metricas/demografia";
 import { BarraProgreso } from "@/components/motion/primitivas";
 
-/** Mismo semáforo verde/ámbar/rojo que `Rueda` — se cicla por posición
- *  para que cada franja se distinga de la de al lado. "Sin dato" queda
- *  aparte, en gris: no es una categoría real, es la ausencia de una. */
-const COLORES = ["bg-cubierto", "bg-revisar", "bg-descubierto"];
+/** Un solo color para todas las franjas: cada barra ya tiene su nombre
+ *  escrito, y el largo es lo que se compara. El semáforo verde/ámbar/rojo
+ *  queda para los estados de pago — una franja de edad en rojo se leía
+ *  como una alarma. "Sin dato" va aparte, en gris: no es una categoría
+ *  real, es la ausencia de una. */
+const COLOR = "bg-verde";
 
 /**
  * Una distribución (edad, género) como lista de barras horizontales
@@ -28,17 +30,12 @@ export function Distribucion({
     );
   }
 
-  let colorSiguiente = 0;
-
   return (
     <div>
       <p className="t-rotulo">{titulo}</p>
       <ul className="mt-3 space-y-3">
         {segmentos.map((s, i) => {
-          const colorClassName =
-            s.clave === "SIN_DATO"
-              ? "bg-muted-foreground/30"
-              : COLORES[colorSiguiente++ % COLORES.length];
+          const colorClassName = s.clave === "SIN_DATO" ? "bg-muted-foreground/30" : COLOR;
           return (
             <li key={s.clave}>
               <div className="mb-1.5 flex items-baseline justify-between gap-3 text-sm">

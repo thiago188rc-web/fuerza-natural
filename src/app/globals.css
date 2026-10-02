@@ -108,6 +108,14 @@
   --color-descubierto: var(--descubierto);
   --color-descubierto-suave: var(--descubierto-suave);
 
+  /* --- Series categóricas de Métricas (canales de captación) ---------- */
+  --color-serie-1: var(--serie-1);
+  --color-serie-2: var(--serie-2);
+  --color-serie-3: var(--serie-3);
+  --color-serie-4: var(--serie-4);
+  --color-serie-5: var(--serie-5);
+  --color-serie-neutra: var(--serie-neutra);
+
   /* --- Rail de operaciones (la barra lateral negra) ------------------- */
   --color-rail: var(--rail);
   --color-rail-foreground: var(--rail-foreground);
@@ -197,6 +205,19 @@
   --descubierto: oklch(0.545 0.163 27);
   --descubierto-suave: oklch(0.956 0.026 27);
 
+  /* Series CATEGÓRICAS — identidad de una categoría (un canal de
+     captación), no un estado. Por eso no reusan el semáforo de arriba: un
+     "Redes sociales" en rojo se leería como un problema. Orden fijo,
+     validado contra daltonismo (adyacentes ΔE ≥ 8.4, visión normal ≥ 19)
+     en claro y en oscuro; tres pasos quedan bajo 3:1 sobre blanco, así
+     que todo gráfico que los use lleva el número escrito al lado. */
+  --serie-1: #2a78d6;
+  --serie-2: #eb6834;
+  --serie-3: #1baf7a;
+  --serie-4: #eda100;
+  --serie-5: #e87ba4;
+  --serie-neutra: oklch(0.72 0.008 162);
+
   /* EL RAIL. Negro de carbón con una traza de verde en la sombra: no es
      #000 (el negro puro con texto blanco vibra y cansa a las ocho horas)
      pero es lo bastante oscuro para leerse como negro y no como "gris
@@ -271,6 +292,13 @@
   --revisar-suave: oklch(0.298 0.048 80);
   --descubierto: oklch(0.678 0.152 27);
   --descubierto-suave: oklch(0.298 0.05 27);
+
+  --serie-1: #3987e5;
+  --serie-2: #d95926;
+  --serie-3: #199e70;
+  --serie-4: #c98500;
+  --serie-5: #d55181;
+  --serie-neutra: oklch(0.5 0.01 162);
 
   --rail: oklch(0.128 0.009 162);
   --rail-foreground: oklch(0.962 0.003 160);

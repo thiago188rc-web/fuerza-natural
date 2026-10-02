@@ -20,13 +20,18 @@ describe("bucketDeEdad", () => {
 
   it("cumpleaños ya pasó este año", () => {
     // Nació el 2008-09-06: ya cumplió 18.
-    expect(bucketDeEdad("2008-09-06", HOY)).toBe("18_25");
+    expect(bucketDeEdad("2008-09-06", HOY)).toBe("18_24");
   });
 
-  it("bordes de cada franja", () => {
-    expect(bucketDeEdad("2001-09-07", HOY)).toBe("18_25"); // cumple 25 hoy
-    expect(bucketDeEdad("2000-09-06", HOY)).toBe("26_35"); // cumplió 26 ayer
-    expect(bucketDeEdad("1970-01-01", HOY)).toBe("56_MAS");
+  it("bordes de cada franja (los rangos de Instagram: 18-24, 25-34…)", () => {
+    expect(bucketDeEdad("2002-09-07", HOY)).toBe("18_24"); // cumple 24 hoy
+    expect(bucketDeEdad("2001-09-07", HOY)).toBe("25_34"); // cumple 25 hoy
+    expect(bucketDeEdad("1991-09-08", HOY)).toBe("25_34"); // 34, cumple 35 mañana
+    expect(bucketDeEdad("1991-09-07", HOY)).toBe("35_44");
+    expect(bucketDeEdad("1981-09-07", HOY)).toBe("45_54");
+    expect(bucketDeEdad("1970-01-01", HOY)).toBe("55_64");
+    expect(bucketDeEdad("1961-09-08", HOY)).toBe("55_64"); // 64, cumple 65 mañana
+    expect(bucketDeEdad("1961-09-07", HOY)).toBe("65_MAS");
   });
 });
 
@@ -34,14 +39,14 @@ describe("distribucionPorEdad", () => {
   it("no excluye 'sin dato' del total", () => {
     const alumnos = [
       { fechaNacimiento: null },
-      { fechaNacimiento: "2008-09-06" }, // 18_25
-      { fechaNacimiento: "2008-09-06" }, // 18_25
+      { fechaNacimiento: "2008-09-06" }, // 18_24
+      { fechaNacimiento: "2008-09-06" }, // 18_24
     ];
     const dist = distribucionPorEdad(alumnos, HOY);
     const total = dist.reduce((acc, s) => acc + s.cantidad, 0);
     expect(total).toBe(3);
     expect(dist.find((s) => s.clave === "SIN_DATO")?.cantidad).toBe(1);
-    expect(dist.find((s) => s.clave === "18_25")?.porcentaje).toBe(67);
+    expect(dist.find((s) => s.clave === "18_24")?.porcentaje).toBe(67);
   });
 
   it("lista vacía no produce NaN", () => {
@@ -51,7 +56,7 @@ describe("distribucionPorEdad", () => {
   it("omite segmentos sin ningún alumno", () => {
     const dist = distribucionPorEdad([{ fechaNacimiento: "2008-09-06" }], HOY);
     expect(dist).toHaveLength(1);
-    expect(dist[0].clave).toBe("18_25");
+    expect(dist[0].clave).toBe("18_24");
   });
 });
 
@@ -67,18 +72,18 @@ describe("distribucionPorGenero", () => {
 describe("distribucionPorEdadYGenero", () => {
   it("el género se calcula DENTRO de cada rango etario, no sobre el total", () => {
     const alumnos = [
-      { fechaNacimiento: "2008-09-06", genero: "FEMENINO" }, // 18_25
-      { fechaNacimiento: "2008-09-06", genero: "FEMENINO" }, // 18_25
-      { fechaNacimiento: "2008-09-06", genero: "MASCULINO" }, // 18_25
-      { fechaNacimiento: "1970-01-01", genero: "MASCULINO" }, // 56_MAS
+      { fechaNacimiento: "2008-09-06", genero: "FEMENINO" }, // 18_24
+      { fechaNacimiento: "2008-09-06", genero: "FEMENINO" }, // 18_24
+      { fechaNacimiento: "2008-09-06", genero: "MASCULINO" }, // 18_24
+      { fechaNacimiento: "1970-01-01", genero: "MASCULINO" }, // 55_64
     ];
     const dist = distribucionPorEdadYGenero(alumnos, HOY);
 
-    const jovenes = dist.find((s) => s.bucket === "18_25");
+    const jovenes = dist.find((s) => s.bucket === "18_24");
     expect(jovenes?.total).toBe(3);
     expect(jovenes?.porGenero.find((g) => g.clave === "FEMENINO")?.porcentaje).toBe(67);
 
-    const mayores = dist.find((s) => s.bucket === "56_MAS");
+    const mayores = dist.find((s) => s.bucket === "55_64");
     expect(mayores?.total).toBe(1);
     expect(mayores?.porGenero.find((g) => g.clave === "MASCULINO")?.porcentaje).toBe(100);
   });
@@ -89,7 +94,7 @@ describe("distribucionPorEdadYGenero", () => {
       HOY,
     );
     expect(dist).toHaveLength(1);
-    expect(dist[0].bucket).toBe("18_25");
+    expect(dist[0].bucket).toBe("18_24");
   });
 
   it("lista vacía no produce NaN", () => {

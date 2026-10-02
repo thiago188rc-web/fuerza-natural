@@ -19,6 +19,7 @@ import {
 } from "@/app/(app)/alumnos/estado-formulario";
 import { GENEROS, etiquetaGenero, type Genero } from "@/domain/alumnos/genero";
 import { DISCIPLINAS, etiquetaDisciplina, type Disciplina } from "@/domain/alumnos/disciplina";
+import { CANALES, etiquetaCanal } from "@/domain/alumnos/como-conocio";
 
 export interface PlanOpcion {
   id: string;
@@ -37,6 +38,9 @@ export interface ValoresAlumno {
   genero: string;
   fechaNacimiento: string;
   disciplina: string;
+  documento: string;
+  direccion: string;
+  comoConocio: string[];
 }
 
 interface Props {
@@ -64,7 +68,7 @@ interface Props {
  */
 export function FormularioAlumno({
   accion,
-  valores,
+  valores: inicial,
   planes,
   hoy,
   textoEnviar,
@@ -72,9 +76,22 @@ export function FormularioAlumno({
 }: Props) {
   const [estado, formAction, pendiente] = useActionState(accion, ESTADO_FORMULARIO_INICIAL);
   const errores = estado.errores ?? {};
+  // Si el guardado falló, lo que se había escrito (React 19 vacía el
+  // formulario después de cada envío); si no, los valores de la ficha.
+  const enviado = estado.valores;
+  const valores: ValoresAlumno = enviado
+    ? {
+        ...inicial,
+        ...Object.fromEntries(
+          Object.entries(enviado).filter(([clave]) => clave !== "comoConocio" && clave in inicial),
+        ),
+        comoConocio: Array.isArray(enviado.comoConocio) ? enviado.comoConocio : [],
+      }
+    : inicial;
 
   return (
-    <form action={formAction} className="flex flex-col gap-5">
+    // `key`: cada intento fallido rearma el formulario con esos valores.
+    <form key={estado.intento ?? 0} action={formAction} className="flex flex-col gap-5">
       {valores.id ? <input type="hidden" name="id" value={valores.id} /> : null}
 
       {estado.mensaje && !estado.ok ? (
@@ -115,14 +132,14 @@ export function FormularioAlumno({
           id="telefono"
           etiqueta="Teléfono"
           error={errores.telefono}
-          ayuda="Opcional. Formato internacional, ej: +5491155551234"
+          ayuda="Opcional. Con característica, ej: 280 400 1234"
         >
           <Input
             id="telefono"
             name="telefono"
             type="tel"
             defaultValue={valores.telefono}
-            placeholder="+54 9 11 5555 1234"
+            placeholder="280 400 1234"
             autoComplete="off"
             aria-invalid={Boolean(errores.telefono)}
           />
@@ -196,6 +213,29 @@ export function FormularioAlumno({
           />
         </Campo>
 
+        <Campo id="documento" etiqueta="DNI" error={errores.documento} ayuda="Opcional. Solo números.">
+          <Input
+            id="documento"
+            name="documento"
+            inputMode="numeric"
+            defaultValue={valores.documento}
+            maxLength={15}
+            autoComplete="off"
+            aria-invalid={Boolean(errores.documento)}
+          />
+        </Campo>
+
+        <Campo id="direccion" etiqueta="Dirección" error={errores.direccion} ayuda="Opcional.">
+          <Input
+            id="direccion"
+            name="direccion"
+            defaultValue={valores.direccion}
+            maxLength={200}
+            autoComplete="off"
+            aria-invalid={Boolean(errores.direccion)}
+          />
+        </Campo>
+
         <Campo id="disciplina" etiqueta="Disciplina" error={errores.disciplina} ayuda="Opcional.">
           <Select
             name="disciplina"
@@ -215,6 +255,34 @@ export function FormularioAlumno({
           </Select>
         </Campo>
       </div>
+
+      <fieldset className="flex flex-col gap-2">
+        <legend className="text-sm font-medium">¿Cómo conoció el gimnasio?</legend>
+        <div className="flex flex-wrap gap-2">
+          {CANALES.map((canal) => (
+            <label
+              key={canal}
+              className="flex cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-sm transition-colors has-[:checked]:border-verde has-[:checked]:bg-verde-suave dark:has-[:checked]:bg-verde/15"
+            >
+              <input
+                type="checkbox"
+                name="comoConocio"
+                value={canal}
+                defaultChecked={valores.comoConocio.includes(canal)}
+                className="size-3.5 accent-[var(--verde)]"
+              />
+              {etiquetaCanal(canal)}
+            </label>
+          ))}
+        </div>
+        {errores.comoConocio ? (
+          <p role="alert" className="text-sm text-destructive">
+            {errores.comoConocio}
+          </p>
+        ) : (
+          <p className="text-xs text-muted-foreground">Opcional. Se puede marcar más de una.</p>
+        )}
+      </fieldset>
 
       <Campo
         id="notas"

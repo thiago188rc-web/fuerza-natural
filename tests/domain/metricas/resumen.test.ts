@@ -43,8 +43,13 @@ describe("resumenDelMes", () => {
       bajas: 7,
       activos: 193,
       diferenciaActivos: 7,
-      alDia: { porcentaje: 93, cubiertos: 180, total: 193 },
+      alDia: { porcentaje: 93, cubiertos: 180, enPlazo: 0, vencidos: 13, total: 193 },
     });
+  });
+
+  it("'al día' cuenta también a los que están en sus días de gracia: el 2 del mes no es una crisis", () => {
+    const r = resumenDelMes({ ...base, alDia: { cubiertos: 12, enPlazo: 186, total: 203 } });
+    expect(r.alDia).toEqual({ porcentaje: 97, cubiertos: 12, enPlazo: 186, vencidos: 5, total: 203 });
   });
 
   it("sin el mes anterior en el sistema no hay comparación (ni de facturación ni de activos)", () => {

@@ -38,6 +38,8 @@ export interface NuevoAlumno {
   fechaNacimiento?: string | null;
   genero?: string | null;
   disciplina?: string | null;
+  direccion?: string | null;
+  comoConocio?: string[] | null;
   notas?: string | null;
   origen?: "MANUAL" | "IMPORTACION";
 }
@@ -58,6 +60,8 @@ export async function crearAlumno(tx: TxClient, ctx: AuthContext, input: NuevoAl
       fechaNacimiento: input.fechaNacimiento ?? null,
       genero: input.genero ?? null,
       disciplina: input.disciplina ?? null,
+      direccion: input.direccion ?? null,
+      comoConocio: input.comoConocio ?? null,
       notas: input.notas ?? null,
       origen: input.origen ?? "MANUAL",
     })
@@ -85,6 +89,9 @@ export async function obtenerFichaAlumno(tx: TxClient, ctx: AuthContext, id: str
       genero: students.genero,
       disciplina: students.disciplina,
       fechaNacimiento: students.fechaNacimiento,
+      documento: students.documento,
+      direccion: students.direccion,
+      comoConocio: students.comoConocio,
       vinculo: students.vinculo,
       planId: students.planId,
       planNombre: plans.nombre,
@@ -158,7 +165,14 @@ export async function listarAlumnos(tx: TxClient, ctx: AuthContext, filtros: Fil
       .from(students)
       .innerJoin(plans, eq(plans.id, students.planId))
       .where(where)
-      .orderBy(asc(students.apellido), asc(students.nombre))
+      // Activos primero, después pausados, al final las bajas: con la base
+      // histórica cargada hay más bajas que activos, y "Todos" ordenado solo
+      // por apellido escondería el padrón de hoy entre gente que ya no viene.
+      .orderBy(
+        sql`case ${students.vinculo} when 'ACTIVO' then 0 when 'PAUSADO' then 1 else 2 end`,
+        asc(students.apellido),
+        asc(students.nombre),
+      )
       .limit(ALUMNOS_POR_PAGINA)
       .offset(offset),
     tx.select({ total: count() }).from(students).where(where),
@@ -196,6 +210,59 @@ export interface DatosEditablesAlumno {
   genero: string | null;
   fechaNacimiento: string | null;
   disciplina: string | null;
+  documento: string | null;
+  direccion: string | null;
+  comoConocio: string[] | null;
+}
+
+/**
+ * ¿Otro alumno del gimnasio ya tiene este DNI? La base lo impide igual
+ * (índice único), pero preguntarlo antes deja devolverle al dueño "ese DNI
+ * ya es de X" en el campo, en vez de un error genérico de guardado.
+ */
+export async function alumnoConDocumento(
+  tx: TxClient,
+  ctx: AuthContext,
+  documento: string,
+  exceptoId?: string,
+) {
+  const [row] = await tx
+    .select({ id: students.id, nombre: students.nombre, apellido: students.apellido })
+    .from(students)
+    .where(
+      and(
+        eq(students.gymId, ctx.gymId),
+        eq(students.documento, documento),
+        exceptoId ? sql`${students.id} <> ${exceptoId}` : undefined,
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
+/** Escribe SOLO el género (el atajo de "completar género", ver asignar-genero.ts). */
+export async function asignarGeneroAlumno(tx: TxClient, ctx: AuthContext, id: string, genero: string) {
+  const [row] = await tx
+    .update(students)
+    .set({ genero, updatedAt: new Date() })
+    .where(and(eq(students.id, id), eq(students.gymId, ctx.gymId)))
+    .returning({ id: students.id, nombre: students.nombre, apellido: students.apellido });
+  return row ?? null;
+}
+
+/** Alumnos sin género cargado, activos primero y por apellido. */
+export async function listarSinGenero(tx: TxClient, ctx: AuthContext, incluirBajas: boolean) {
+  return tx
+    .select({ id: students.id, nombre: students.nombre, apellido: students.apellido, vinculo: students.vinculo })
+    .from(students)
+    .where(
+      and(
+        eq(students.gymId, ctx.gymId),
+        sql`${students.genero} is null`,
+        incluirBajas ? undefined : sql`${students.vinculo} <> 'BAJA'`,
+      ),
+    )
+    .orderBy(sql`${students.vinculo} = 'BAJA'`, asc(students.apellido), asc(students.nombre));
 }
 
 export async function actualizarDatosAlumno(
@@ -352,6 +419,18 @@ export async function datosDemograficosDeActivos(tx: TxClient, ctx: AuthContext)
     .where(and(eq(students.gymId, ctx.gymId), eq(students.vinculo, "ACTIVO")));
 }
 
+/**
+ * Cómo conoció el gimnasio y cuándo empezó, de TODOS los alumnos (activos
+ * y de baja): la captación se mira sobre la historia entera, no sobre el
+ * padrón de hoy (ver `src/domain/metricas/captacion.ts`).
+ */
+export async function datosDeCaptacion(tx: TxClient, ctx: AuthContext) {
+  return tx
+    .select({ fechaAltaOriginal: students.fechaAltaOriginal, comoConocio: students.comoConocio })
+    .from(students)
+    .where(eq(students.gymId, ctx.gymId));
+}
+
 /** Nombre y fecha de nacimiento de los activos que la cargaron, para el aviso de cumpleaños. */
 export async function listarCumpleanosDeActivos(tx: TxClient, ctx: AuthContext) {
   return tx
@@ -425,13 +504,39 @@ export async function contarMovimientoDelPadron(
  * cuenta por mes es aritmética de dominio, no una consulta agregada.
  */
 export async function listarFechasDeVinculo(tx: TxClient, ctx: AuthContext) {
-  return tx
-    .select({
-      fechaAltaOriginal: students.fechaAltaOriginal,
-      bajaFecha: students.bajaFecha,
-    })
-    .from(students)
-    .where(eq(students.gymId, ctx.gymId));
+  const [alumnos, cambios] = await Promise.all([
+    tx
+      .select({
+        id: students.id,
+        fechaAltaOriginal: students.fechaAltaOriginal,
+        bajaFecha: students.bajaFecha,
+      })
+      .from(students)
+      .where(eq(students.gymId, ctx.gymId)),
+    // Sus bajas y vueltas: sin esto, quien se fue y volvió contaría como
+    // activo también en los meses en que no venía (ver domain/metricas/roster.ts).
+    tx
+      .select({ studentId: studentEvents.studentId, tipo: studentEvents.tipo, fecha: studentEvents.ocurridoEl })
+      .from(studentEvents)
+      .where(
+        and(
+          eq(studentEvents.gymId, ctx.gymId),
+          sql`${studentEvents.tipo} in ('BAJA', 'REACTIVACION')`,
+        ),
+      ),
+  ]);
+
+  const porAlumno = new Map<string, { tipo: "BAJA" | "REACTIVACION"; fecha: string }[]>();
+  for (const c of cambios) {
+    const lista = porAlumno.get(c.studentId) ?? [];
+    lista.push({ tipo: c.tipo as "BAJA" | "REACTIVACION", fecha: c.fecha });
+    porAlumno.set(c.studentId, lista);
+  }
+  return alumnos.map((a) => ({
+    fechaAltaOriginal: a.fechaAltaOriginal,
+    bajaFecha: a.bajaFecha,
+    cambios: porAlumno.get(a.id) ?? [],
+  }));
 }
 
 /**

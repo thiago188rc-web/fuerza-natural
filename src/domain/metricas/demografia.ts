@@ -8,14 +8,20 @@ import { GENEROS, esGenero, etiquetaGenero, type Genero } from "@/domain/alumnos
  * no explican el 100%.
  */
 
+/**
+ * Los rangos estándar de las estadísticas de audiencia (los de Instagram,
+ * que es lo que el dueño mira): así un número de acá se compara directo
+ * con uno de allá.
+ */
 export const BUCKETS_EDAD = [
   "SIN_DATO",
   "MENOR_18",
-  "18_25",
-  "26_35",
-  "36_45",
-  "46_55",
-  "56_MAS",
+  "18_24",
+  "25_34",
+  "35_44",
+  "45_54",
+  "55_64",
+  "65_MAS",
 ] as const;
 
 export type BucketEdad = (typeof BUCKETS_EDAD)[number];
@@ -23,11 +29,12 @@ export type BucketEdad = (typeof BUCKETS_EDAD)[number];
 const ETIQUETAS_BUCKET_EDAD: Record<BucketEdad, string> = {
   SIN_DATO: "Sin dato",
   MENOR_18: "Menos de 18",
-  "18_25": "18 a 25",
-  "26_35": "26 a 35",
-  "36_45": "36 a 45",
-  "46_55": "46 a 55",
-  "56_MAS": "56 o más",
+  "18_24": "18 a 24",
+  "25_34": "25 a 34",
+  "35_44": "35 a 44",
+  "45_54": "45 a 54",
+  "55_64": "55 a 64",
+  "65_MAS": "65 o más",
 };
 
 export function etiquetaBucketEdad(bucket: BucketEdad): string {
@@ -38,11 +45,12 @@ export function bucketDeEdad(fechaNacimiento: string | null, hoy: string): Bucke
   if (!fechaNacimiento) return "SIN_DATO";
   const edad = edadEnAnios(fechaNacimiento, hoy);
   if (edad < 18) return "MENOR_18";
-  if (edad <= 25) return "18_25";
-  if (edad <= 35) return "26_35";
-  if (edad <= 45) return "36_45";
-  if (edad <= 55) return "46_55";
-  return "56_MAS";
+  if (edad <= 24) return "18_24";
+  if (edad <= 34) return "25_34";
+  if (edad <= 44) return "35_44";
+  if (edad <= 54) return "45_54";
+  if (edad <= 64) return "55_64";
+  return "65_MAS";
 }
 
 export interface SegmentoDistribucion {

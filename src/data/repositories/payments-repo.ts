@@ -239,6 +239,19 @@ export async function listarPagos(tx: TxClient, ctx: AuthContext, filtros: Filtr
   };
 }
 
+/**
+ * La fecha del primer pago vigente registrado, o null. Marca desde cuándo
+ * el sistema tiene registro del negocio: antes de eso, un mes con $0 o
+ * sin bajas no es "no pasó nada", es "no está cargado".
+ */
+export async function primerPagoRegistrado(tx: TxClient, ctx: AuthContext): Promise<string | null> {
+  const [fila] = await tx
+    .select({ primero: sql<string | null>`min(${payments.fechaPago})::text` })
+    .from(payments)
+    .where(and(eq(payments.gymId, ctx.gymId), isNull(payments.anuladoEn)));
+  return fila?.primero ?? null;
+}
+
 /** Lo cobrado en un rango de FECHAS DE PAGO (no de cobertura). */
 export async function totalCobrado(
   tx: TxClient,

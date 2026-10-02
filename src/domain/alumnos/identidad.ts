@@ -33,6 +33,36 @@ export function normalizarTelefono(valor: string): string {
   return valor.replace(/[\s().-]/g, "");
 }
 
+/**
+ * Un número argentino escrito como se escribe acá ("2804001234",
+ * "0280 4001234") → E.164 de celular (+549…).
+ *
+ * Solo para un gimnasio que está en Argentina: ahí el país NO se adivina,
+ * es el del gimnasio. Lo que sí sería adivinar es el resto, así que la
+ * regla acepta únicamente la forma inequívoca:
+ *
+ *  · 10 dígitos (característica sin 0 + número, sin 15) → +549 + dígitos.
+ *    El 9 es el de celular, que es lo que el gimnasio usa (WhatsApp).
+ *  · 11 dígitos empezando con 0 → se saca el 0 de la característica.
+ *  · Ya viene con 54 adelante (12 o 13 dígitos) → se respeta.
+ *
+ * Cualquier otra cosa (9 dígitos, 11 sin 0, el 15 metido en el medio)
+ * devuelve null: un número con un dígito de menos no se completa.
+ */
+export function telefonoArgentino(valor: string): string | null {
+  const digitos = valor.replace(/\D/g, "");
+  if (/^549\d{10}$/.test(digitos)) return `+${digitos}`;
+  if (/^54\d{10}$/.test(digitos)) return `+549${digitos.slice(2)}`;
+  if (/^0\d{10}$/.test(digitos)) return `+549${digitos.slice(1)}`;
+  if (/^[1-9]\d{9}$/.test(digitos)) return `+549${digitos}`;
+  return null;
+}
+
+/** Si el gimnasio está en Argentina (lo dice su zona horaria). */
+export function esGimnasioArgentino(timezone: string): boolean {
+  return timezone.startsWith("America/Argentina/");
+}
+
 export function nombreCompleto(nombre: string, apellido: string): string {
   return `${nombre} ${apellido}`.trim();
 }

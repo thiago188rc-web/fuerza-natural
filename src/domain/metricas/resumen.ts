@@ -7,8 +7,11 @@
  *
  * "Ocupación" se traduce como "al día con la cuota": en un gimnasio de
  * horario libre, sin cupos ni turnos, no hay lugares que ocupar. Lo que el
- * dueño necesita saber es qué parte del padrón tiene el mes cubierto — la
- * misma cuenta que el Panel (cubiertos sobre activos), no otra versión.
+ * dueño necesita saber es qué parte del padrón NO debe nada vencido — los
+ * que tienen el mes cubierto más los que están dentro de sus días de
+ * gracia, con la misma situación de cobertura que usa el Panel. Contar
+ * solo a los que ya pagaron haría que el día 2 de cada mes el gimnasio
+ * pareciera en crisis (casi nadie pagó todavía, y está bien).
  *
  * Funciones puras: los números llegan ya calculados del caso de uso.
  */
@@ -28,7 +31,12 @@ export interface EntradaDelResumen {
   activos: number;
   activosMesAnterior: number | null;
   /** Solo para el mes en curso: la situación de cobertura es de HOY. */
-  alDia: { cubiertos: number; total: number } | null;
+  alDia: {
+    cubiertos: number;
+    /** Sin cubrir pero dentro de los días de gracia (o alta reciente): todavía no deben. */
+    enPlazo?: number;
+    total: number;
+  } | null;
 }
 
 export interface ResumenDelMes {
@@ -41,7 +49,7 @@ export interface ResumenDelMes {
   activos: number;
   /** Diferencia absoluta contra el fin del mes anterior, o null. */
   diferenciaActivos: number | null;
-  alDia: { porcentaje: number; cubiertos: number; total: number } | null;
+  alDia: { porcentaje: number; cubiertos: number; enPlazo: number; vencidos: number; total: number } | null;
 }
 
 /**
@@ -69,8 +77,10 @@ export function resumenDelMes(e: EntradaDelResumen): ResumenDelMes {
         ? {
             // Hacia abajo: con 249 de 250 al día, decir "100%" escondería al
             // único que falta, que es justo el que hay que ir a buscar.
-            porcentaje: Math.floor((e.alDia.cubiertos / e.alDia.total) * 100),
+            porcentaje: Math.floor(((e.alDia.cubiertos + (e.alDia.enPlazo ?? 0)) / e.alDia.total) * 100),
             cubiertos: e.alDia.cubiertos,
+            enPlazo: e.alDia.enPlazo ?? 0,
+            vencidos: e.alDia.total - e.alDia.cubiertos - (e.alDia.enPlazo ?? 0),
             total: e.alDia.total,
           }
         : null,

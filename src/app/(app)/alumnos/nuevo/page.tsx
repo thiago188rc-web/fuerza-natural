@@ -62,6 +62,9 @@ export default async function NuevoAlumnoPage() {
               genero: "",
               fechaNacimiento: "",
               disciplina: "",
+              documento: "",
+              direccion: "",
+              comoConocio: [],
             }}
           />
         </CardContent>

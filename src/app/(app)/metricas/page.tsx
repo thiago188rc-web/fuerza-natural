@@ -16,6 +16,7 @@ import { Rueda } from "@/components/features/metricas/rueda";
 import { MovimientoDelPeriodo } from "@/components/features/metricas/movimiento-del-periodo";
 import { SelectorDeVista } from "@/components/features/metricas/selector-de-vista";
 import { ResumenDelMes } from "@/components/features/metricas/resumen-del-mes";
+import { IniciosPorMesDelAnio, TortaDeCanales } from "@/components/features/metricas/captacion";
 import { Aparece, NumeroAnimado } from "@/components/motion/primitivas";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Importe } from "@/components/importe";
@@ -62,6 +63,7 @@ export default async function MetricasPage({
   }
 
   const m = resultado.data;
+  const sinGenero = m.porGenero.find((s) => s.clave === "SIN_DATO")?.cantidad ?? 0;
   // El mes que se está viendo de verdad, resuelto por el servidor (no lo
   // que vino crudo de la URL): así el mes por defecto (sin `?mes=`) sigue
   // navegando bien.
@@ -271,6 +273,15 @@ export default async function MetricasPage({
         <Aparece retraso={0.16} className="min-w-0">
           <section className="superficie p-5">
             <Distribucion titulo="Género" segmentos={m.porGenero} />
+            {sinGenero > 0 ? (
+              <Link
+                href="/alumnos/completar-genero"
+                className="mt-4 inline-flex items-center gap-1 text-xs font-medium text-verde-fuerte underline-offset-4 hover:underline dark:text-verde-claro"
+              >
+                Completar género · {sinGenero} sin dato
+                <ChevronRight className="size-3.5" />
+              </Link>
+            ) : null}
           </section>
         </Aparece>
       </div>
@@ -280,6 +291,21 @@ export default async function MetricasPage({
           <DistribucionEdadGenero titulo="Edad y género" segmentos={m.porEdadYGenero} />
         </section>
       </Aparece>
+
+      {/* Captación: cómo llegan y en qué época del año empiezan — sobre
+          todos los que pasaron por el gimnasio, no solo los activos. */}
+      <div className="grid gap-5 lg:grid-cols-5">
+        <Aparece retraso={0.175} className="min-w-0 lg:col-span-2">
+          <section className="superficie h-full p-5">
+            <TortaDeCanales captacion={m.porCanal} />
+          </section>
+        </Aparece>
+        <Aparece retraso={0.18} className="min-w-0 lg:col-span-3">
+          <section className="superficie h-full p-5">
+            <IniciosPorMesDelAnio inicios={m.iniciosPorMes} />
+          </section>
+        </Aparece>
+      </div>
 
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         <Aparece retraso={0.18} className="min-w-0">

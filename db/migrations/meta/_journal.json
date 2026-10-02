@@ -57,6 +57,13 @@
       "when": 1789447609427,
       "tag": "0007_fancy_mole_man",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790916852314,
+      "tag": "0008_direccion_y_como_conocio",
+      "breakpoints": true
     }
   ]
 }

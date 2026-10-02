@@ -486,3 +486,101 @@ introdujo una paleta nueva pese a que las capturas de referencia del
 dueño (su planilla Excel) usaban amarillo/rojo vivos. Ver la entrada del
 2026-09-08 sobre por qué el producto no se ve "como un dashboard SaaS
 genérico".
+
+## 2026-10-02 — Carga inicial desde las planillas del dueño (base general + control de cuotas)
+
+**Decisión:** el gimnasio arranca con su historia real, cargada por
+`scripts/migracion/migrar-planillas.ts` desde los dos Excel que mandó el
+dueño: la base general (una hoja por letra, ~450 personas con DNI,
+nacimiento, teléfono, dirección, "cómo conoció el gym" e inicio) y el
+control de cuotas 2026 (una hoja por mes con los pagos). Es una carga
+inicial y no un importador de uso diario: se niega a correr si el
+gimnasio ya tiene pagos, alumnos cargados a mano o historia propia.
+
+Las reglas, todas tomadas de cómo cuenta el dueño en su planilla:
+
+- **Pagos:** cada fila con fecha dentro del mes de su hoja. Las que no
+  (la hoja de octubre arrastra abajo el listado de septiembre) son
+  recordatorios, no pagos. "1-Jan" guardado como 2025 en la hoja de enero
+  se corrige a 2026. "5O000" (letra O) es 50000. El método no está en la
+  planilla: se guarda `OTRO` con una nota que lo dice.
+- **Quién está activo:** el que figura en la hoja de septiembre (el último
+  mes cerrado) o ya pagó octubre. El resto queda de BAJA, listo para
+  reactivarse si vuelve (pedido explícito del dueño).
+- **Altas, bajas y vueltas por mes:** "dejó" es pagar un mes y el
+  siguiente no (BAJA el día 1 del mes que no pagó); "volvió" es pagar
+  después de un mes sin pagar (REACTIVACION el día del pago). Las bajas de
+  enero salen de la hoja BAJAS del dueño (no hay diciembre). Resultado
+  verificado contra esa hoja: coincide en 7 de 9 meses; las diferencias
+  son casos explicables (un medio mes, un pago adelantado a fin de mes).
+- **Quien está en la base y no en el control de 2026:** BAJA con fecha
+  31/12/2025 y una observación que dice que la fecha exacta no se conoce.
+  No se crea un evento de baja (no hay mes real al que imputarlo).
+- **Plan:** el del último pago. Quien no tiene ninguno queda en "2 días"
+  con una observación para confirmarlo si vuelve.
+- **Nombres:** la planilla de cuotas escribe "ROMERO, FEDE" o "CARLOS
+  QUIROZ"; se emparejan con la base por apellido + nombre tolerando apodos,
+  tipeos y orden invertido, siempre con candidato único. Lo ambiguo no se
+  adivina. Los alias puntuales, si hicieran falta, van en un JSON local que
+  no entra al repositorio (tiene nombres de personas).
+- **Fuera de la carga:** los paneles de calistenia (otra actividad,
+  con la recaudación partida) y las columnas de salud, altura y
+  peso de la base vieja: dato sensible que el sistema no necesita.
+
+## 2026-10-02 — Teléfono argentino sin prefijo: se acepta y se guarda como +549
+
+**Decisión:** un número de 10 dígitos (característica sin 0 + número),
+con 0 adelante o con 54 adelante se guarda como celular E.164 (+549…). Lo
+ambiguo — un dígito de menos o de más, el 15 metido en el medio — se
+sigue rechazando. Vale para el formulario y para la carga inicial.
+
+**Motivo:** la regla anterior ("no inventar el prefijo") suponía que el
+país no se conoce. El sistema es para gimnasios de Argentina: el país no
+se inventa, es el del gimnasio. El 9 de celular es el que necesita
+WhatsApp, que es para lo que el dueño usa el teléfono.
+
+## 2026-10-02 — "Cómo conoció el gimnasio": catálogo cerrado y lista, no texto libre
+
+**Decisión:** `students.como_conocio text[]` con un CHECK sobre el
+catálogo (Recomendación, Vive cerca, Redes sociales, Ya venía antes,
+Otro). Lista porque la base del dueño tiene "RECOMENDACIÓN/VIVE CERCA";
+en la torta de Métricas quien marcó más de una va a su propia porción
+("Más de una") en vez de repartirse, para que los porcentajes describan
+personas y sumen 100. También se agregó `direccion` (texto libre).
+
+## 2026-10-02 — Métricas: activos por mes con bajas y vueltas, y corte en el primer pago
+
+**Decisión:** "Alumnos activos a fin de cada mes" deja de contarse solo
+con `fecha_alta_original`/`baja_fecha`. Cuando el alumno tiene BAJA o
+REACTIVACION registradas, mandan esos hechos.
+
+**Motivo:** reactivar limpia `baja_fecha`, así que quien se fue y volvió
+se contaba como activo también en los meses en que no venía (con la
+historia real cargada, enero daba 160 activos cuando pagaron 121; con el
+cambio da 121). No es un problema de la carga: pasa igual con el uso
+normal de "Reactivar".
+
+Además, el historial de Métricas considera "dato real" recién desde el
+mes del primer pago registrado: un gimnasio que cargó altas de 2022 pero
+cobra por el sistema desde 2026 no sabe cuántos activos ni bajas tuvo en
+2025, y mostrar ceros o números ahí sería inventarlos.
+
+## 2026-10-02 — "Al día con la cuota" cuenta a los que están en sus días de gracia
+
+**Decisión:** el indicador del Resumen del mes es (cubiertos + "para
+revisar") sobre activos, con el desglose escrito: "12 ya pagaron · 189 en
+plazo · 2 vencidos". Antes contaba solo cubiertos.
+
+**Motivo:** el 2 de cada mes casi nadie pagó todavía y está bien; un "5%
+al día" se leía como una crisis que no existe. Lo que importa es cuántos
+deben algo VENCIDO, que es lo que el dueño persigue.
+
+## 2026-10-02 — Rangos de edad estándar y colores categóricos aparte del semáforo
+
+**Decisión:** las franjas de edad pasan a 18-24, 25-34, 35-44, 45-54,
+55-64 y 65+ (las de las estadísticas de Instagram que mira el dueño). Las
+barras de distribución usan un solo color: el semáforo verde/ámbar/rojo
+queda reservado para estados de pago (una franja de edad en rojo se leía
+como alarma). Los gráficos por categoría (canales de captación) usan una
+paleta categórica propia (`--serie-*`), validada contra daltonismo en
+claro y oscuro, siempre con el número escrito al lado.

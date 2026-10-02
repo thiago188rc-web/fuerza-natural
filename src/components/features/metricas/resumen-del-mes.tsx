@@ -92,7 +92,14 @@ export function ResumenDelMes({ resumen, moneda }: { resumen: Resumen; moneda: s
               </span>
             </dd>
             <dd className="mt-1 text-xs text-muted-foreground">
-              {alDia.cubiertos} de {alDia.total} activos tienen el mes cubierto hoy
+              {alDia.cubiertos} ya pagaron
+              {alDia.enPlazo > 0 ? ` · ${alDia.enPlazo} en plazo` : ""}
+              {alDia.vencidos > 0 ? (
+                <>
+                  {" · "}
+                  <span className="text-descubierto">{alDia.vencidos} vencidos</span>
+                </>
+              ) : null}
             </dd>
           </Indicador>
         ) : null}
