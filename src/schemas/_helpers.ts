@@ -12,3 +12,11 @@ export function opcional<T extends z.ZodType>(schema: T) {
     schema.optional(),
   );
 }
+
+/**
+ * ¿Es un UUID? Para los ids que llegan por la URL: uno malformado es "no
+ * existe" (404), no un error de base de datos.
+ */
+export function esUuid(valor: unknown): boolean {
+  return z.string().uuid().safeParse(valor).success;
+}

@@ -487,3 +487,40 @@ export async function listarPagosDeAlumno(
     .orderBy(desc(payments.fechaPago), desc(payments.createdAt))
     .limit(limite);
 }
+
+/**
+ * El pago que se quiere anular, con lo que hace falta para auditarlo.
+ * Filtra por gimnasio además de RLS: el id de un pago de otro gimnasio no
+ * existe para esta sesión.
+ */
+export async function obtenerPagoParaAnular(tx: TxClient, ctx: AuthContext, paymentId: string) {
+  const [fila] = await tx
+    .select({
+      id: payments.id,
+      studentId: payments.studentId,
+      fechaPago: payments.fechaPago,
+      monto: payments.monto,
+      anuladoEn: payments.anuladoEn,
+      nombre: students.nombre,
+      apellido: students.apellido,
+    })
+    .from(payments)
+    .innerJoin(students, eq(students.id, payments.studentId))
+    .where(and(eq(payments.id, paymentId), eq(payments.gymId, ctx.gymId)));
+  return fila ?? null;
+}
+
+/**
+ * Marca un pago como anulado. Toca solo las tres columnas que el trigger
+ * `payments_guard_update` deja cambiar; el resto del pago queda como se
+ * registró. La condición `anulado_en is null` hace que dos anulaciones
+ * simultáneas del mismo pago no se pisen: la segunda no encuentra la fila
+ * y el caso de uso responde que ya estaba anulado.
+ */
+export async function anularPago(tx: TxClient, ctx: AuthContext, paymentId: string, motivo: string) {
+  return tx
+    .update(payments)
+    .set({ anuladoEn: sql`now()`, anuladoPor: ctx.userId, anuladoMotivo: motivo })
+    .where(and(eq(payments.id, paymentId), eq(payments.gymId, ctx.gymId), isNull(payments.anuladoEn)))
+    .returning({ id: payments.id });
+}

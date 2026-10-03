@@ -10,6 +10,7 @@ import { buscarAlumnoPorId } from "@/data/repositories/students-repo";
 import { obtenerGimnasio } from "@/data/repositories/gym-repo";
 import { nombreCompleto } from "@/domain/alumnos/identidad";
 import { hoyISO } from "@/domain/fechas/hoy";
+import { esUuid } from "@/schemas/_helpers";
 
 export interface AsistenciaInput {
   studentId: string;
@@ -28,6 +29,7 @@ export interface AsistenciaRegistrada {
 export const marcarAsistenciaAction = withAuth<AsistenciaInput, AsistenciaRegistrada>(
   ["DUENO", "STAFF"],
   async (ctx, input) => {
+    if (!esUuid(input?.studentId)) return notFound();
     return withTenantTx<Result<AsistenciaRegistrada>>(ctx, async (tx) => {
       const gym = await obtenerGimnasio(tx, ctx);
       if (!gym) return notFound();
@@ -54,6 +56,7 @@ export const marcarAsistenciaAction = withAuth<AsistenciaInput, AsistenciaRegist
 export const desmarcarAsistenciaAction = withAuth<AsistenciaInput, AsistenciaRegistrada>(
   ["DUENO", "STAFF"],
   async (ctx, input) => {
+    if (!esUuid(input?.studentId)) return notFound();
     return withTenantTx<Result<AsistenciaRegistrada>>(ctx, async (tx) => {
       const gym = await obtenerGimnasio(tx, ctx);
       if (!gym) return notFound();

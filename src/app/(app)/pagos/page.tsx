@@ -103,7 +103,12 @@ export default async function PagosPage({
       </Aparece>
 
       <Aparece retraso={0.08}>
-        <TablaDePagos pagos={datos.filas} moneda={datos.moneda} hoy={datos.hoy} />
+        <TablaDePagos
+          pagos={datos.filas}
+          moneda={datos.moneda}
+          hoy={datos.hoy}
+          puedeAnular={datos.puedeAnularPagos}
+        />
       </Aparece>
     </div>
   );

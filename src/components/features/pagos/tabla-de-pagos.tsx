@@ -12,6 +12,7 @@ import { BotonLink } from "@/components/boton-link";
 import { BotonWhatsapp } from "@/components/boton-whatsapp";
 import { mensajeConfirmacionDePago } from "@/lib/mensajes-whatsapp";
 import { Importe } from "@/components/importe";
+import { AnularPago } from "@/components/features/pagos/anular-pago";
 import { cn } from "@/lib/utils";
 
 /**
@@ -32,15 +33,18 @@ import { cn } from "@/lib/utils";
  *
  * Un pago anulado NO desaparece: se muestra tachado y con su motivo. El
  * historial es un registro contable, no una lista de lo que quedó lindo.
+ * Quien puede anular (hoy, el DUENO) ve "Anular" debajo del importe.
  */
 export function TablaDePagos({
   pagos,
   moneda,
   hoy,
+  puedeAnular = false,
 }: {
   pagos: PagoDelHistorial[];
   moneda: string;
   hoy: string;
+  puedeAnular?: boolean;
 }) {
   const quieto = useReducedMotion();
 
@@ -90,16 +94,15 @@ export function TablaDePagos({
               <motion.tr
                 key={pago.id}
                 initial={quieto || i > 14 ? false : { opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
+                // La opacidad va en `animate`: motion la fija en línea y una
+                // clase `opacity-*` quedaba sin efecto.
+                animate={{ opacity: pago.anulado ? 0.55 : 1, y: 0 }}
                 transition={{
                   duration: DURACION.rapido,
                   ease: SALIDA,
                   delay: quieto ? 0 : Math.min(i, 14) * 0.016,
                 }}
-                className={cn(
-                  "fila border-b border-border last:border-0",
-                  pago.anulado && "opacity-55",
-                )}
+                className="fila border-b border-border last:border-0"
               >
                 <td className="tabular py-3 pl-5 align-top font-mono text-xs whitespace-nowrap text-muted-foreground">
                   {etiquetaCorta(pago.fechaPago, hoy)}
@@ -169,6 +172,15 @@ export function TablaDePagos({
                   )}
                 >
                   <Importe valor={pago.monto} moneda={moneda} simboloClassName="text-xs" />
+                  {puedeAnular && !pago.anulado ? (
+                    <div className="mt-1 flex justify-end font-sans">
+                      <AnularPago
+                        pago={pago}
+                        moneda={moneda}
+                        alumno={`${pago.nombre} ${pago.apellido}`}
+                      />
+                    </div>
+                  ) : null}
                 </td>
 
                 <td className="py-3 pr-5 align-top">

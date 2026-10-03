@@ -11,6 +11,7 @@ import { DURACION, SALIDA } from "@/components/motion/tokens";
 import { BotonLink } from "@/components/boton-link";
 import { Importe } from "@/components/importe";
 import { IrAPestana } from "@/components/pestanas";
+import { AnularPago } from "@/components/features/pagos/anular-pago";
 import { cn } from "@/lib/utils";
 
 const VISIBLES_AL_PRINCIPIO = 6;
@@ -27,6 +28,9 @@ const VISIBLES_EN_RESUMEN = 4;
  * Los pagos anulados quedan a la vista, tachados y con su motivo. El
  * historial es un registro contable: no se reescribe para que quede
  * prolijo.
+ *
+ * En la pestaña completa, quien puede anular (hoy, el DUENO) ve "Anular"
+ * en cada pago vigente. En el resumen no: anular no es una acción de paso.
  */
 export function PagosDelAlumno({
   pagos,
@@ -35,6 +39,7 @@ export function PagosDelAlumno({
   total,
   alumnoId,
   puedeCobrar,
+  puedeAnular = false,
   resumen = false,
 }: {
   pagos: PagoDeLaFicha[];
@@ -43,6 +48,7 @@ export function PagosDelAlumno({
   total: number;
   alumnoId: string;
   puedeCobrar: boolean;
+  puedeAnular?: boolean;
   resumen?: boolean;
 }) {
   const quieto = useReducedMotion();
@@ -89,16 +95,15 @@ export function PagosDelAlumno({
                   key={pago.id}
                   layout={!quieto}
                   initial={quieto || i < tope ? false : { opacity: 0, y: -5 }}
-                  animate={{ opacity: 1, y: 0 }}
+                  // La opacidad va en `animate` y no como clase: motion la fija
+                  // en línea y una clase `opacity-*` quedaba sin efecto.
+                  animate={{ opacity: pago.anulado ? 0.55 : 1, y: 0 }}
                   transition={{
                     duration: DURACION.rapido,
                     ease: SALIDA,
                     delay: quieto ? 0 : Math.min(6, i - tope) * 0.02,
                   }}
-                  className={cn(
-                    "fila flex flex-wrap items-baseline gap-x-3 gap-y-1 px-5 py-3",
-                    pago.anulado && "opacity-55",
-                  )}
+                  className="fila flex flex-wrap items-baseline gap-x-3 gap-y-1 px-5 py-3"
                 >
                   <span className="tabular w-14 shrink-0 font-mono text-xs text-muted-foreground">
                     {etiquetaCorta(pago.fechaPago, hoy)}
@@ -138,6 +143,10 @@ export function PagosDelAlumno({
                   <span className={cn("font-mono text-sm", pago.anulado && "line-through")}>
                     <Importe valor={pago.monto} moneda={moneda} simboloClassName="text-xs" />
                   </span>
+
+                  {puedeAnular && !resumen && !pago.anulado ? (
+                    <AnularPago pago={pago} moneda={moneda} />
+                  ) : null}
                 </motion.li>
               ))}
             </AnimatePresence>

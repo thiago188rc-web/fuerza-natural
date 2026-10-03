@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { registrarPagoAction } from "@/use-cases/pagos/registrar-pago";
-import type { EstadoPago } from "./estado-formulario";
+import { anularPagoAction } from "@/use-cases/pagos/anular-pago";
+import type { EstadoAnulacion, EstadoPago } from "./estado-formulario";
 
 /**
  * La frontera entre la pantalla de cobro y el caso de uso. Traduce
@@ -61,5 +62,48 @@ export async function registrarPagoFormAction(
       return { ok: false, mensaje: "No encontramos ese alumno." };
     case "FORBIDDEN":
       return { ok: false, mensaje: "No tenés permiso para hacer esto, o tu sesión venció." };
+  }
+}
+
+/**
+ * Anular un pago cargado por error. La autorización (solo DUENO), el
+ * motivo obligatorio y el "ya estaba anulado" viven en el caso de uso.
+ */
+export async function anularPagoFormAction(
+  _prev: EstadoAnulacion,
+  formData: FormData,
+): Promise<EstadoAnulacion> {
+  const resultado = await anularPagoAction({
+    paymentId: texto(formData, "paymentId"),
+    motivo: texto(formData, "motivo"),
+  });
+
+  if (resultado.ok) {
+    // Cambian la cobertura y lo cobrado: todo lo que se deriva de eso.
+    revalidatePath("/dashboard");
+    revalidatePath("/pagos");
+    revalidatePath("/alumnos");
+    revalidatePath("/metricas");
+    revalidatePath("/actividad");
+    revalidatePath(`/alumnos/${resultado.data.studentId}`);
+    return { ok: true, anulado: resultado.data.id, mensaje: "Pago anulado." };
+  }
+
+  switch (resultado.kind) {
+    case "VALIDATION": {
+      const errores: Record<string, string> = {};
+      for (const issue of resultado.issues) {
+        if (!errores[issue.path]) errores[issue.path] = issue.message;
+      }
+      return { ok: false, errores, mensaje: errores.paymentId ?? "Revisá el motivo." };
+    }
+    case "CONFLICT":
+      return { ok: false, mensaje: resultado.message };
+    case "NOT_FOUND":
+      return { ok: false, mensaje: "No encontramos ese pago." };
+    case "FORBIDDEN":
+      return { ok: false, mensaje: "Solo el dueño puede anular pagos, o tu sesión venció." };
+    case "CONFIRMACION_REQUERIDA":
+      return { ok: false, mensaje: "Esta operación necesita una confirmación." };
   }
 }

@@ -81,3 +81,25 @@ export const registrarPagoSchema = z.object({
 
 export type RegistrarPagoInput = z.infer<typeof registrarPagoSchema>;
 export type RegistrarPagoRaw = z.input<typeof registrarPagoSchema>;
+
+/**
+ * Anular un pago cargado por error: otro alumno, otro importe, otro mes.
+ *
+ * El pago NO se borra ni se edita: queda en el historial, tachado y con
+ * este motivo, y deja de contar para la cobertura y para lo cobrado (todas
+ * las consultas filtran `anulado_en is null`). Si la persona pagó de
+ * verdad, se vuelve a registrar bien. Es la regla de
+ * docs/REGLAS-DE-NEGOCIO.md: "corregir un pago = anular + volver a
+ * registrar". El motivo es obligatorio porque es lo único que explica
+ * después por qué falta esa plata.
+ */
+export const anularPagoSchema = z.object({
+  paymentId: z.string().uuid("Pago inválido."),
+  motivo: z
+    .string({ error: "Escribí por qué se anula." })
+    .trim()
+    .min(5, "Escribí por qué se anula (al menos 5 caracteres).")
+    .max(300, "El motivo no puede superar los 300 caracteres."),
+});
+
+export type AnularPagoRaw = z.input<typeof anularPagoSchema>;

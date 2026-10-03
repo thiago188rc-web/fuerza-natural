@@ -31,3 +31,14 @@ export interface EstadoPago {
 }
 
 export const ESTADO_PAGO_INICIAL: EstadoPago = { ok: false };
+
+/** El contrato entre la anulación de un pago y su diálogo. */
+export interface EstadoAnulacion {
+  ok: boolean;
+  mensaje?: string;
+  errores?: Record<string, string>;
+  /** El pago que quedó anulado: el diálogo lo usa para saber que ya terminó. */
+  anulado?: string;
+}
+
+export const ESTADO_ANULACION_INICIAL: EstadoAnulacion = { ok: false };

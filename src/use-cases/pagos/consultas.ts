@@ -12,6 +12,7 @@ import {
 import { listarAlumnosActivosParaCobertura } from "@/data/repositories/students-repo";
 import { obtenerConfiguracion, obtenerGimnasio } from "@/data/repositories/gym-repo";
 import { hoyISO } from "@/domain/fechas/hoy";
+import { puedeAnularPagos } from "@/use-cases/pagos/anular-pago";
 import {
   primerDiaDelMes,
   sumarDias,
@@ -220,6 +221,8 @@ export interface HistorialDePagos {
   /** Lo cobrado en el rango consultado, no en el mes calendario. */
   cobradoEnElRango: { total: number; cantidad: number };
   rango: { desde: string; hasta: string };
+  /** Si la sesión puede anular pagos (hoy, solo el DUENO). */
+  puedeAnularPagos: boolean;
 }
 
 export const historialDePagosQuery = withAuth<Partial<FiltrosDePagos>, HistorialDePagos>(
@@ -265,6 +268,7 @@ export const historialDePagosQuery = withAuth<Partial<FiltrosDePagos>, Historial
         porPagina: listado.porPagina,
         cobradoEnElRango: cobrado,
         rango: { desde, hasta },
+        puedeAnularPagos: puedeAnularPagos(ctx.rol),
       });
     });
   },

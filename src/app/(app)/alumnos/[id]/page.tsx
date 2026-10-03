@@ -311,6 +311,7 @@ export default async function FichaAlumnoPage({
             total={datos.totalPagado}
             alumnoId={alumno.id}
             puedeCobrar={alumno.vinculo !== "BAJA"}
+            puedeAnular={datos.puedeAnularPagos}
           />
         </PanelDePestana>
 

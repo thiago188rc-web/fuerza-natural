@@ -9,6 +9,8 @@ import {
 import { listarPagosDeAlumno, listarTramosDeAlumno } from "@/data/repositories/payments-repo";
 import { obtenerConfiguracion, obtenerGimnasio } from "@/data/repositories/gym-repo";
 import { hoyISO } from "@/domain/fechas/hoy";
+import { esUuid } from "@/schemas/_helpers";
+import { puedeAnularPagos } from "@/use-cases/pagos/anular-pago";
 import {
   claveDeMes,
   primerDiaDelMes,
@@ -73,6 +75,8 @@ export interface FichaCompleta {
   pagos: PagoDeLaFicha[];
   totalPagado: number;
   eventos: Awaited<ReturnType<typeof listarEventosDeAlumno>>;
+  /** Si la sesión puede anular pagos (hoy, solo el DUENO). */
+  puedeAnularPagos: boolean;
 }
 
 /** Cuántos meses de historia muestra la tira. */
@@ -81,6 +85,9 @@ const MESES_DE_LA_TIRA = 12;
 export const fichaCompletaQuery = withAuth<string, FichaCompleta>(
   ["DUENO", "STAFF"],
   async (ctx, id) => {
+    // Un id malformado en la URL es "no existe", no un error de base.
+    if (!esUuid(id)) return notFound();
+
     return withTenantTx<Result<FichaCompleta>>(ctx, async (tx) => {
       const gym = await obtenerGimnasio(tx, ctx);
       const config = await obtenerConfiguracion(tx, ctx);
@@ -158,6 +165,7 @@ export const fichaCompletaQuery = withAuth<string, FichaCompleta>(
         })),
         totalPagado,
         eventos,
+        puedeAnularPagos: puedeAnularPagos(ctx.rol),
       });
     });
   },

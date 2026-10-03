@@ -11,6 +11,7 @@ import {
 } from "@/data/repositories/students-repo";
 import { ESTADO_FILTRO_TODOS, type FiltrosAlumnos } from "@/schemas/student";
 import { esVinculo } from "@/domain/alumnos/vinculo";
+import { esUuid } from "@/schemas/_helpers";
 
 /**
  * LECTURAS del módulo de alumnos.
@@ -55,6 +56,7 @@ export interface FichaCompleta {
 export const obtenerFichaAlumnoQuery = withAuth<string, FichaCompleta>(
   ["DUENO", "STAFF"],
   async (ctx, id) => {
+    if (!esUuid(id)) return notFound();
     return withTenantTx<Result<FichaCompleta>>(ctx, async (tx) => {
       const alumno = await obtenerFichaAlumno(tx, ctx, id);
       if (!alumno) return notFound();
