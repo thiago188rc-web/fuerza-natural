@@ -75,29 +75,40 @@ function informe(plan: PlanDeMigracion): string {
   return lineas.join("\n") + "\n";
 }
 
+/**
+ * La guarda de la carga inicial: solo se reemplaza una importación previa
+ * sin nada encima. Devuelve el motivo para no aplicar, o null si se puede
+ * (y cuántos alumnos importados reemplazaría). Solo lee: corre igual en el
+ * modo informe, para saber ANTES si --aplicar va a pasar.
+ */
+async function evaluarGuarda(tx: postgres.TransactionSql, gymId: string) {
+  const [dueno] = await tx<{ id: string; email: string; rol: string }[]>`
+    select id, email, rol from app.app_users where gym_id = ${gymId} and rol = 'DUENO' and activo order by created_at limit 1`;
+  const [estado] = await tx<{ pagos: number; manuales: number; eventos: number; asistencias: number; importados: number }[]>`
+    select
+      (select count(*) from app.payments)::int as pagos,
+      (select count(*) from app.students where origen <> 'IMPORTACION')::int as manuales,
+      (select count(*) from app.student_events
+         where not (tipo = 'ALTA' and coalesce(datos->>'origen','') = 'IMPORTACION'))::int as eventos,
+      (select count(*) from app.attendance)::int as asistencias,
+      (select count(*) from app.students where origen = 'IMPORTACION')::int as importados`;
+  let motivo: string | null = null;
+  if (!dueno) motivo = "El gimnasio no tiene un DUEÑO activo: los pagos necesitan a alguien que los registre.";
+  else if (estado.pagos || estado.manuales || estado.eventos || estado.asistencias) {
+    motivo =
+      `El gimnasio ya tiene datos que no son de una importación (pagos ${estado.pagos}, ` +
+      `alumnos manuales ${estado.manuales}, eventos ${estado.eventos}, asistencias ${estado.asistencias}). ` +
+      "Esta migración es solo para la carga inicial: no se aplica.";
+  }
+  return { dueno, motivo, importados: estado.importados };
+}
+
 async function aplicar(sql: postgres.Sql, gymId: string, plan: PlanDeMigracion, planIds: Map<string, { id: string; dias: number }>) {
   await sql.begin(async (tx) => {
     await tx`select set_config('app.gym_id', ${gymId}, true)`;
 
-    const [dueno] = await tx<{ id: string; email: string; rol: string }[]>`
-      select id, email, rol from app.app_users where gym_id = ${gymId} and rol = 'DUENO' and activo order by created_at limit 1`;
-    if (!dueno) throw new Error("El gimnasio no tiene un DUEÑO activo: los pagos necesitan a alguien que los registre.");
-
-    // Guarda: solo se reemplaza una importación previa sin nada encima.
-    const [estado] = await tx<{ pagos: number; manuales: number; eventos: number; asistencias: number }[]>`
-      select
-        (select count(*) from app.payments)::int as pagos,
-        (select count(*) from app.students where origen <> 'IMPORTACION')::int as manuales,
-        (select count(*) from app.student_events
-           where not (tipo = 'ALTA' and coalesce(datos->>'origen','') = 'IMPORTACION'))::int as eventos,
-        (select count(*) from app.attendance)::int as asistencias`;
-    if (estado.pagos || estado.manuales || estado.eventos || estado.asistencias) {
-      throw new Error(
-        `El gimnasio ya tiene datos que no son de una importación (pagos ${estado.pagos}, ` +
-          `alumnos manuales ${estado.manuales}, eventos ${estado.eventos}, asistencias ${estado.asistencias}). ` +
-          "Esta migración es solo para la carga inicial: no se aplica.",
-      );
-    }
+    const { dueno, motivo } = await evaluarGuarda(tx, gymId);
+    if (motivo || !dueno) throw new Error(motivo ?? "Sin DUEÑO activo.");
 
     const previos = await tx`select count(*)::int as n from app.students`;
     await tx`delete from app.student_events`;
@@ -243,7 +254,19 @@ async function main() {
     console.log(`Alumnos ${plan.alumnos.length} · activos ${plan.alumnos.filter((x) => x.vinculo === "ACTIVO").length} · pagos ${plan.alumnos.reduce((s, x) => s + x.pagos.length, 0)} · avisos ${plan.avisos.length}`);
 
     if (args.has("aplicar")) await aplicar(sql, gymId, plan, planIds);
-    else console.log("(modo reporte: no se escribió nada; agregá --aplicar para cargar)");
+    else {
+      // Misma guarda que --aplicar, en una transacción de solo lectura.
+      const guarda = await sql.begin("read only", async (tx) => {
+        await tx`select set_config('app.gym_id', ${gymId}, true)`;
+        return evaluarGuarda(tx, gymId);
+      });
+      console.log(
+        guarda.motivo
+          ? `✗ --aplicar se va a negar: ${guarda.motivo}`
+          : `✓ --aplicar va a pasar la guarda: reemplazaría ${guarda.importados} alumnos importados antes.`,
+      );
+      console.log("(modo reporte: no se escribió nada; agregá --aplicar para cargar)");
+    }
   } finally {
     await sql.end({ timeout: 5 });
   }
