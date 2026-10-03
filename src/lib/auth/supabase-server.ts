@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import { supabaseAnonKey, supabaseUrl } from "./config";
+import { OPCIONES_COOKIE_DE_SESION, supabaseAnonKey, supabaseUrl } from "./config";
 
 /**
  * Cliente de Supabase Auth para Server Components / Server Actions.
@@ -21,6 +21,7 @@ export async function createSupabaseServerClient() {
   const anonKey = supabaseAnonKey();
 
   return createServerClient(url, anonKey, {
+    cookieOptions: OPCIONES_COOKIE_DE_SESION,
     cookies: {
       getAll() {
         return cookieStore.getAll();

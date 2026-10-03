@@ -24,6 +24,8 @@ export const MENSAJES_LOGIN = {
     "Tu usuario todavía no está habilitado en este gimnasio. Pedile al administrador que te dé acceso.",
   inactivo: "Tu usuario está desactivado. Contactá al administrador del gimnasio.",
   sinConexion: "No pudimos conectar con el sistema. Probá de nuevo en un momento.",
+  demasiadosIntentos:
+    "Demasiados intentos fallidos. Esperá 15 minutos y probá de nuevo, o recuperá tu contraseña.",
 } as const;
 
 /**

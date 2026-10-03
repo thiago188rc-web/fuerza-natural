@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
-import { LogOut } from "lucide-react";
+import { KeyRound, LogOut } from "lucide-react";
 import { esRutaActiva, ETIQUETA_ROL, GRUPOS_NAV } from "./navegacion";
 import { DURACION, SALIDA } from "@/components/motion/tokens";
 import { cn } from "@/lib/utils";
@@ -177,6 +177,14 @@ function Cuenta({
             {ETIQUETA_ROL[rol] ?? rol}
           </span>
         </span>
+        <Link
+          href="/cuenta/contrasena"
+          title="Cambiar contraseña"
+          aria-label="Cambiar contraseña"
+          className="grid size-7 shrink-0 place-items-center rounded-md text-rail-muted transition-colors duration-150 hover:bg-rail-hover hover:text-rail-foreground focus-visible:ring-2 focus-visible:ring-verde-claro focus-visible:outline-none"
+        >
+          <KeyRound className="size-3.5" strokeWidth={1.75} />
+        </Link>
         {cerrarSesion}
       </div>
 

@@ -22,20 +22,37 @@ import { MENSAJES_LOGIN, esFalloDeInfraestructuraAuth } from "@/lib/auth/flujo-l
  * `unstable_rethrow` en la documentación de Next 16.
  */
 
-const { getUserMock, signInMock, signOutMock, crearClienteMock, buscarAppUserMock } = vi.hoisted(
-  () => ({
-    getUserMock: vi.fn(),
-    signInMock: vi.fn(),
-    signOutMock: vi.fn(),
-    crearClienteMock: vi.fn(),
-    buscarAppUserMock: vi.fn(),
-  }),
-);
+const {
+  getUserMock,
+  signInMock,
+  signOutMock,
+  crearClienteMock,
+  buscarAppUserMock,
+  bloqueadoHastaMock,
+  registrarFalloMock,
+} = vi.hoisted(() => ({
+  getUserMock: vi.fn(),
+  signInMock: vi.fn(),
+  signOutMock: vi.fn(),
+  crearClienteMock: vi.fn(),
+  buscarAppUserMock: vi.fn(),
+  bloqueadoHastaMock: vi.fn(async (): Promise<Date | null> => null),
+  registrarFalloMock: vi.fn(async (): Promise<Date | null> => null),
+}));
 
 vi.mock("@/lib/auth/supabase-server", () => ({ createSupabaseServerClient: crearClienteMock }));
 vi.mock("@/lib/auth/app-user", () => ({ buscarAppUserPorAuthId: buscarAppUserMock }));
 vi.mock("next/headers", () => ({
   cookies: async () => ({ get: () => undefined, getAll: () => [], set: () => {}, delete: () => {} }),
+  headers: async () => new Headers({ "x-real-ip": "203.0.113.7" }),
+}));
+// El límite de intentos vive en Postgres: acá se simula (su comportamiento
+// real lo cubre tests/integration/limite-de-intentos.test.ts).
+vi.mock("@/lib/auth/limite-de-intentos", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/auth/limite-de-intentos")>()),
+  bloqueadoHasta: bloqueadoHastaMock,
+  registrarFallo: registrarFalloMock,
+  limpiarFallos: async () => {},
 }));
 
 const { getAuthContext } = await import("@/lib/auth/context");
@@ -71,6 +88,8 @@ beforeEach(() => {
   signInMock.mockReset();
   signOutMock.mockReset().mockResolvedValue({ error: null });
   buscarAppUserMock.mockReset().mockResolvedValue(FILA_DUENO);
+  bloqueadoHastaMock.mockReset().mockResolvedValue(null);
+  registrarFalloMock.mockReset().mockResolvedValue(null);
   crearClienteMock
     .mockReset()
     .mockResolvedValue({ auth: { getUser: getUserMock, signInWithPassword: signInMock, signOut: signOutMock } });
@@ -211,5 +230,30 @@ describe("login: un Supabase caído no se informa como contraseña incorrecta", 
     buscarAppUserMock.mockRejectedValue(new Error("connect ECONNREFUSED"));
     await expect(login({}, formulario())).resolves.toEqual({ error: MENSAJES_LOGIN.sinConexion });
     expect(signOutMock).toHaveBeenCalledOnce();
+  });
+});
+
+describe("login: límite de intentos", () => {
+  it("con la cuenta bloqueada no le pregunta a Supabase y lo dice", async () => {
+    bloqueadoHastaMock.mockResolvedValueOnce(new Date(Date.now() + 60_000));
+    await expect(login({}, formulario())).resolves.toEqual({ error: MENSAJES_LOGIN.demasiadosIntentos });
+    expect(signInMock).not.toHaveBeenCalled();
+  });
+
+  it("una contraseña mal suma un fallo por cuenta y otro por IP; una caída de Supabase no suma", async () => {
+    signInMock.mockResolvedValue({
+      data: { user: null, session: null },
+      error: new AuthApiError("Invalid login credentials", 400, "invalid_credentials"),
+    });
+    await login({}, formulario());
+    expect(registrarFalloMock).toHaveBeenCalledTimes(2);
+
+    registrarFalloMock.mockClear();
+    signInMock.mockResolvedValue({
+      data: { user: null, session: null },
+      error: new AuthRetryableFetchError("fetch failed", 0),
+    });
+    await login({}, formulario());
+    expect(registrarFalloMock).not.toHaveBeenCalled();
   });
 });

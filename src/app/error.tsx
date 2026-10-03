@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { registrarError } from "@/lib/registro-seguro";
 
 /**
  * Error boundary de toda la app (no cubre errores del root layout mismo
@@ -16,7 +17,7 @@ export default function ErrorPage({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  console.error(error);
+  registrarError("[ui] error en pantalla:", error);
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">

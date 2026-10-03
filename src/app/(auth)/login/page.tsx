@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useEffect } from "react";
 import { CircleAlert, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -44,7 +45,15 @@ export default function LoginPage() {
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="password">Contraseña</Label>
+          <div className="flex items-baseline justify-between gap-3">
+            <Label htmlFor="password">Contraseña</Label>
+            <Link
+              href="/recuperar"
+              className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            >
+              ¿La olvidaste?
+            </Link>
+          </div>
           <Input
             id="password"
             name="password"

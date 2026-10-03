@@ -1,7 +1,15 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { createSupabaseServerClient } from "@/lib/auth/supabase-server";
+import {
+  LIMITES,
+  bloqueadoHasta,
+  claveDeIntento,
+  ipDelPedido,
+  limpiarFallos,
+  registrarFallo,
+} from "@/lib/auth/limite-de-intentos";
 import { DEV_MOCK_AUTH_COOKIE, isDevMockAuthEnabled } from "@/lib/auth/config";
 import { buscarAppUserPorAuthId, type AppUser } from "@/lib/auth/app-user";
 import {
@@ -9,6 +17,7 @@ import {
   esFalloDeInfraestructuraAuth,
   resolverDestinoLogin,
 } from "@/lib/auth/flujo-login";
+import { registrarError } from "@/lib/registro-seguro";
 
 export interface LoginState {
   error?: string;
@@ -65,6 +74,17 @@ export async function login(_prevState: LoginState, formData: FormData): Promise
       return { redirectTo: "/dashboard" };
     }
 
+    // Límite de intentos: por cuenta+IP (5 en 15 min) y por IP (20 en 15
+    // min). Se consulta ANTES de preguntarle a Supabase, para que un
+    // bloqueo corte de verdad el intento. El mensaje no dice si la cuenta
+    // existe: la clave se arma igual exista o no.
+    const ip = ipDelPedido(await headers());
+    const claveCuenta = claveDeIntento("login", ip, email);
+    const claveIp = claveDeIntento("login-ip", ip);
+    if (await bloqueadoHasta([claveCuenta, claveIp])) {
+      return { error: MENSAJES_LOGIN.demasiadosIntentos };
+    }
+
     let supabase;
     try {
       supabase = await createSupabaseServerClient();
@@ -82,26 +102,34 @@ export async function login(_prevState: LoginState, formData: FormData): Promise
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 6000)),
       ]);
     } catch (err) {
-      console.error("[login] Supabase Auth no respondió:", err);
+      registrarError("[login] Supabase Auth no respondió:", err);
       return { error: MENSAJES_LOGIN.sinConexion };
     }
     const { data: sesion, error: errorDeIngreso } = ingreso;
 
     if (errorDeIngreso && esFalloDeInfraestructuraAuth(errorDeIngreso)) {
-      console.error("[login] Supabase Auth no respondió:", errorDeIngreso);
+      registrarError("[login] Supabase Auth no respondió:", errorDeIngreso);
       return { error: MENSAJES_LOGIN.sinConexion };
     }
 
     if (errorDeIngreso || !sesion?.user) {
+      // Solo cuenta lo que es "contraseña mal" (no las caídas de Supabase,
+      // que ya salieron arriba con su propio mensaje).
+      await Promise.all([
+        registrarFallo(claveCuenta, LIMITES.loginPorCuenta),
+        registrarFallo(claveIp, LIMITES.loginPorIp),
+      ]);
       return { error: MENSAJES_LOGIN.credenciales };
     }
+
+    await limpiarFallos(claveCuenta);
 
     // El puente Supabase Auth → sistema.
     let appUser: AppUser | null;
     try {
       appUser = await buscarAppUserPorAuthId(sesion.user.id);
     } catch (err) {
-      console.error("[login] no se pudo leer app_users:", err);
+      registrarError("[login] no se pudo leer app_users:", err);
       await supabase.auth.signOut();
       return { error: MENSAJES_LOGIN.sinConexion };
     }
@@ -114,7 +142,7 @@ export async function login(_prevState: LoginState, formData: FormData): Promise
 
     return { redirectTo: decision.a };
   } catch (err) {
-    console.error("[login] error inesperado en Server Action:", err);
+    registrarError("[login] error inesperado en Server Action:", err);
     return { error: MENSAJES_LOGIN.credenciales };
   }
 }

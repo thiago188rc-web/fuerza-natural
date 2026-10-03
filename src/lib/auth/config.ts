@@ -13,6 +13,41 @@ export const SUPABASE_ANON_KEY_PLACEHOLDER = "placeholder-key";
 /** Nombre de la cookie de sesión simulada de desarrollo. */
 export const DEV_MOCK_AUTH_COOKIE = "dev_mock_auth_id";
 
+/**
+ * Opciones de las cookies de sesión de Supabase. El default de
+ * `@supabase/ssr` es `httpOnly: false`, pensado para apps que también usan
+ * Supabase desde el navegador. Esta no: toda llamada a Supabase sale del
+ * servidor (proxy, Server Components, Server Actions), así que el
+ * JavaScript de la página no tiene por qué poder leer el token — y si
+ * algún día se colara un script, no se lo podría llevar. `secure` en
+ * producción: la cookie solo viaja por HTTPS.
+ */
+export const OPCIONES_COOKIE_DE_SESION = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax" as const,
+  path: "/",
+};
+
+/**
+ * La URL pública de la app, para los enlaces que salen por email (la
+ * recuperación de contraseña). `APP_URL` si está configurada; si no, el
+ * `Origin` del pedido, que en una Server Action Next.js ya verificó contra
+ * el Host. Supabase además solo acepta destinos de su lista de "Redirect
+ * URLs": esto no es la única barrera.
+ */
+export function urlDeLaApp(origen: string | null): string {
+  const configurada = process.env.APP_URL?.trim();
+  const candidata = configurada || origen || "http://localhost:3000";
+  try {
+    const url = new URL(candidata);
+    if (url.protocol !== "https:" && url.hostname !== "localhost") return "http://localhost:3000";
+    return url.origin;
+  } catch {
+    return "http://localhost:3000";
+  }
+}
+
 /** `true` solo si hay un proyecto Supabase real configurado (no el placeholder). */
 export function isSupabaseConfigured(): boolean {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();

@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from "./supabase-server";
 import { DEV_MOCK_AUTH_COOKIE, isDevMockAuthEnabled, isSupabaseConfigured } from "./config";
 import { buscarAppUserPorAuthId } from "./app-user";
 import { esAppUserUtilizable, esFalloDeInfraestructuraAuth } from "./flujo-login";
+import { registrarError } from "@/lib/registro-seguro";
 
 export type Rol = "DUENO" | "STAFF";
 
@@ -184,7 +185,7 @@ export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
     if (err && typeof err === "object" && ("code" in err || "severity" in err || err.constructor?.name === "PostgresError")) {
       throw err;
     }
-    console.error("getAuthContext failed gracefully:", err);
+    registrarError("getAuthContext failed gracefully:", err);
     return null;
   }
 });

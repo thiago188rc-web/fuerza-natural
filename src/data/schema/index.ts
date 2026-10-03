@@ -10,3 +10,4 @@ export { studentEvents } from "./studentEvents";
 export { attentionDismissals } from "./attentionDismissals";
 export { activityLog } from "./activityLog";
 export { attendance } from "./attendance";
+export { accessAttempts } from "./accessAttempts";

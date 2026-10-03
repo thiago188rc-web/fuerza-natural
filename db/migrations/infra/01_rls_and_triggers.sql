@@ -226,3 +226,92 @@ CREATE TRIGGER payments_guard_update
   BEFORE UPDATE ON app.payments
   FOR EACH ROW
   EXECUTE FUNCTION app.guard_payment_update();
+
+-- --- access_attempts: límite de intentos de acceso (agregado 2026-10) -------
+-- Contador de intentos fallidos de login, recuperación de contraseña y
+-- verificación de la contraseña actual. Compartido entre instancias (en
+-- Vercel un contador en memoria no sirve). NO es por gimnasio: el intento
+-- ocurre antes de saber quién es. La clave es un SHA-256 (64 hex, lo exige
+-- un CHECK), así que la tabla no guarda emails ni IPs legibles.
+--
+-- Nadie la lee ni la escribe directo. RLS encendido SIN FORCE y SIN
+-- policies: cualquier rol que no sea el owner ve y toca cero filas, aunque
+-- tenga GRANT (los GRANT de arriba y los DEFAULT PRIVILEGES se lo dan a
+-- fn_app; se revocan acá igual, defensa en profundidad). El único camino
+-- son las tres funciones SECURITY DEFINER de abajo, del owner, con
+-- search_path fijo, ejecutables solo por fn_app — el mismo patrón que
+-- get_app_user_by_auth_id.
+ALTER TABLE app.access_attempts ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON app.access_attempts FROM fn_app, fn_readonly, PUBLIC;
+
+-- ¿Alguna de estas claves está bloqueada ahora? Devuelve hasta cuándo, o NULL.
+CREATE OR REPLACE FUNCTION app.acceso_bloqueado_hasta(p_claves text[])
+RETURNS timestamptz
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = app, pg_temp
+AS $$
+  SELECT max(bloqueado_hasta)
+  FROM app.access_attempts
+  WHERE clave = ANY(p_claves) AND bloqueado_hasta > now();
+$$;
+
+-- Suma un fallo a la clave dentro de su ventana (o abre una ventana nueva
+-- si la anterior venció). Al llegar a p_maximo, bloquea la clave por una
+-- ventana entera y devuelve hasta cuándo; si no, NULL. De paso borra las
+-- filas sin movimiento hace más de un día: la tabla no crece sin límite.
+CREATE OR REPLACE FUNCTION app.registrar_fallo_de_acceso(p_clave text, p_maximo int, p_ventana_segundos int)
+RETURNS timestamptz
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = app, pg_temp
+AS $$
+DECLARE
+  v_fallos int;
+  v_hasta timestamptz;
+BEGIN
+  IF p_maximo < 1 OR p_ventana_segundos < 1 THEN
+    RAISE EXCEPTION 'registrar_fallo_de_acceso: parametros invalidos';
+  END IF;
+
+  DELETE FROM app.access_attempts WHERE actualizado_en < now() - interval '1 day';
+
+  INSERT INTO app.access_attempts AS a (clave, ventana_desde, fallos, actualizado_en)
+  VALUES (p_clave, now(), 1, now())
+  ON CONFLICT (clave) DO UPDATE SET
+    fallos = CASE
+      WHEN a.ventana_desde > now() - make_interval(secs => p_ventana_segundos) THEN a.fallos + 1
+      ELSE 1
+    END,
+    ventana_desde = CASE
+      WHEN a.ventana_desde > now() - make_interval(secs => p_ventana_segundos) THEN a.ventana_desde
+      ELSE now()
+    END,
+    actualizado_en = now()
+  RETURNING fallos INTO v_fallos;
+
+  IF v_fallos >= p_maximo THEN
+    v_hasta := now() + make_interval(secs => p_ventana_segundos);
+    UPDATE app.access_attempts SET bloqueado_hasta = v_hasta WHERE clave = p_clave;
+  END IF;
+  RETURN v_hasta;
+END;
+$$;
+
+-- Un acceso correcto limpia el contador de esa clave.
+CREATE OR REPLACE FUNCTION app.limpiar_fallos_de_acceso(p_clave text)
+RETURNS void
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = app, pg_temp
+AS $$
+  DELETE FROM app.access_attempts WHERE clave = p_clave;
+$$;
+
+REVOKE ALL ON FUNCTION app.acceso_bloqueado_hasta(text[]) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.registrar_fallo_de_acceso(text, int, int) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.limpiar_fallos_de_acceso(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION app.acceso_bloqueado_hasta(text[]) TO fn_app;
+GRANT EXECUTE ON FUNCTION app.registrar_fallo_de_acceso(text, int, int) TO fn_app;
+GRANT EXECUTE ON FUNCTION app.limpiar_fallos_de_acceso(text) TO fn_app;

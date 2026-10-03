@@ -1,7 +1,16 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { buildCsp, SECURITY_HEADERS } from "@/lib/security/headers";
-import { isSupabaseConfigured, supabaseAnonKey, supabaseUrl } from "@/lib/auth/config";
+import {
+  DEV_MOCK_AUTH_COOKIE,
+  OPCIONES_COOKIE_DE_SESION,
+  isDevMockAuthEnabled,
+  isSupabaseConfigured,
+  supabaseAnonKey,
+  supabaseUrl,
+} from "@/lib/auth/config";
+import { esFalloDeInfraestructuraAuth } from "@/lib/auth/flujo-login";
+import { esRutaPublica } from "@/lib/auth/rutas-publicas";
 
 /**
  * DOS responsabilidades, y ninguna de las dos es autorizar (SPEC V1 §3.15):
@@ -18,8 +27,14 @@ import { isSupabaseConfigured, supabaseAnonKey, supabaseUrl } from "@/lib/auth/c
  * entero). La autorización real vive en cada layout de servidor y en cada
  * Server Action, vía withAuth()/getAuthContext() — nunca acá. Lo único
  * que este middleware hace "para el usuario" es una redirección de
- * conveniencia si no hay ninguna cookie de sesión — nunca la decisión
- * final.
+ * conveniencia cuando SABE que no hay sesión — nunca la decisión final.
+ *
+ * Por qué existe esa redirección: sin ella, una ruta privada pedida sin
+ * sesión respondía 200 (el layout redirige dentro del streaming, después
+ * de que el `loading.tsx` raíz ya mandó la respuesta), y un monitor por
+ * código HTTP no podía distinguir "anda" de "no deja entrar". Ahora
+ * responde 307 a /login. Si Supabase no contestó, no se sabe si hay
+ * sesión: no se redirige y decide el layout, como siempre.
  */
 export async function proxy(request: NextRequest) {
   const nonce = crypto.randomUUID().replace(/-/g, "");
@@ -42,6 +57,7 @@ export async function proxy(request: NextRequest) {
   // habilita.
 
   const supabase = createServerClient(url, anonKey, {
+    cookieOptions: OPCIONES_COOKIE_DE_SESION,
     cookies: {
       getAll() {
         return request.cookies.getAll();
@@ -61,15 +77,32 @@ export async function proxy(request: NextRequest) {
   // ni rechaza (Supabase caído a medias, red cortada) no lo agarra un
   // try/catch — sin esto, TODA página (el middleware corre en cada
   // request) se queda cargando hasta que Vercel corte la función.
+  // `sinSesion` es true solo si SABEMOS que no hay sesión: un timeout o
+  // una caída de Supabase dejan la decisión al layout.
+  let sinSesion = false;
   if (isSupabaseConfigured()) {
     try {
-      await Promise.race([
+      const { data, error } = await Promise.race([
         supabase.auth.getUser(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000)),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000)),
       ]);
+      sinSesion = !data?.user && !(error && esFalloDeInfraestructuraAuth(error));
     } catch {
       // Ignorar si Supabase falla, no responde, o tarda demasiado.
     }
+  } else if (isDevMockAuthEnabled()) {
+    sinSesion = !request.cookies.get(DEV_MOCK_AUTH_COOKIE)?.value;
+  }
+
+  const esNavegacion =
+    (request.method === "GET" || request.method === "HEAD") && !request.headers.has("next-action");
+  if (sinSesion && esNavegacion && !esRutaPublica(request.nextUrl.pathname)) {
+    const redireccion = NextResponse.redirect(new URL("/login", request.url));
+    // Si Supabase limpió una cookie vencida, la limpieza viaja igual.
+    for (const cookie of response.cookies.getAll()) redireccion.cookies.set(cookie);
+    for (const [key, value] of SECURITY_HEADERS) redireccion.headers.set(key, value);
+    redireccion.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
+    return redireccion;
   }
 
   response.headers.set("Content-Security-Policy", csp);

@@ -1,4 +1,5 @@
 import { getAuthContext, type AuthContext, type Rol } from "@/lib/auth/context";
+import { registrarError } from "@/lib/registro-seguro";
 import { forbidden, type Result } from "./result";
 
 /**
@@ -30,8 +31,10 @@ export function withAuth<TInput, TData, TConfirmacion = unknown>(
     try {
       return await handler(ctx, input);
     } catch (err) {
-      // Nunca filtrar el error interno (stack trace, SQL) al cliente.
-      console.error("[use-case] error inesperado:", err);
+      // Nunca filtrar el error interno (stack trace, SQL) al cliente, y
+      // tampoco al log: un error de Drizzle trae los parámetros de la
+      // consulta, que son los datos del alumno (ver registro-seguro.ts).
+      registrarError("[use-case] error inesperado:", err);
       return { ok: false, kind: "CONFLICT", message: "Ocurrió un error inesperado. Intentá de nuevo." };
     }
   };
