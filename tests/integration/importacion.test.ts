@@ -11,6 +11,8 @@ import { seedTestGym } from "./helpers";
  * verificar acá es que el servidor NO confía en el análisis del navegador:
  * vuelve a validar cada fila, resuelve el plan por nombre dentro del
  * gimnasio de la sesión y vuelve a buscar duplicados contra el padrón.
+ *
+ * Se salta entero si no hay DATABASE_URL, como el resto de integración.
  */
 
 const sesion = vi.hoisted(() => ({ ctx: null as AuthContext | null }));
@@ -50,7 +52,7 @@ async function alumnosDelGimnasio(ctx: AuthContext) {
   return withTenantTx(ctx, (tx) => tx.select().from(students).where(eq(students.gymId, ctx.gymId)));
 }
 
-describe("importar alumnos (Postgres real)", () => {
+describe.skipIf(!process.env.DATABASE_URL)("importar alumnos (Postgres real)", () => {
   let ctx: AuthContext;
   let planId: string;
 

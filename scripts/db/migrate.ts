@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
+import { exigirBaseLocal } from "./destino";
 
 // Carga .env.local si existe (no lo pisa si ya hay algo seteado por el shell/CI).
 if (existsSync(resolve(process.cwd(), ".env.local"))) {
@@ -36,6 +37,18 @@ async function main() {
         "tiene privilegios de DDL. Ver .env.example.",
     );
     process.exit(1);
+  }
+
+  // Una migración de desarrollo nunca sale de esta máquina: `.env.local`
+  // llegó a apuntar a una producción. Contra una base remota hay que
+  // decirlo explícitamente, y solo lo hace `npm run db:prod:migrate`.
+  if (!process.argv.includes("--produccion")) {
+    try {
+      exigirBaseLocal(ownerUrl, "db:migrate");
+    } catch (err) {
+      console.error((err as Error).message);
+      process.exit(1);
+    }
   }
 
   const sql = postgres(ownerUrl, { max: 1 });

@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:aislado": "tsx scripts/db/tests-aislados.ts",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "db:generate": "drizzle-kit generate",
@@ -19,11 +20,11 @@
     "db:provision-owner": "tsx scripts/db/provision-owner.ts",
     "db:diagnostico": "tsx scripts/db/diagnostico.ts",
     "db:prod:bootstrap": "tsx --env-file=.env.produccion.local scripts/db/bootstrap-supabase.ts",
-    "db:prod:migrate": "tsx --env-file=.env.produccion.local scripts/db/migrate.ts",
+    "db:prod:migrate": "tsx --env-file=.env.produccion.local scripts/db/migrate.ts --produccion",
     "db:prod:provision-gym": "tsx --env-file=.env.produccion.local scripts/db/provision-gym.ts",
     "db:prod:provision-owner": "tsx --env-file=.env.produccion.local scripts/db/provision-owner.ts",
     "db:prod:diagnostico": "tsx --env-file=.env.produccion.local scripts/db/diagnostico.ts",
-    "verify": "npm run typecheck && npm run lint && npm run test && npm run build"
+    "verify": "npm run typecheck && npm run lint && npm run test:aislado && npm run build"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

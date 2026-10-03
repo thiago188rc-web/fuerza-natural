@@ -8,6 +8,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { gyms, gymSettings, plans, appUsers } from "@/data/schema";
 import { eq, sql } from "drizzle-orm";
 import { CATALOGO_PLANES_INICIAL, PRECIO_MEDIO_MES_INICIAL } from "./_compartido";
+import { exigirBaseLocal } from "./destino";
 
 if (existsSync(resolve(process.cwd(), ".env.local"))) {
   loadEnv({ path: resolve(process.cwd(), ".env.local"), override: false, quiet: true });
@@ -43,6 +44,13 @@ async function main() {
   const url = process.env.DATABASE_URL_OWNER;
   if (!url) {
     console.error("Falta DATABASE_URL_OWNER — no se puede seedear sin una conexión con privilegios.");
+    process.exit(1);
+  }
+  // Un gimnasio DEMO no tiene nada que hacer fuera de esta máquina.
+  try {
+    exigirBaseLocal(url, "semilla de desarrollo");
+  } catch (err) {
+    console.error((err as Error).message);
     process.exit(1);
   }
 

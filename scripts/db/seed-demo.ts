@@ -26,6 +26,7 @@ import {
   ultimoDiaDelMes,
 } from "@/domain/fechas/calendario";
 import { coberturaDe, tramosImputados, type Modalidad } from "@/domain/pagos/modalidad";
+import { exigirBaseLocal } from "./destino";
 
 if (existsSync(resolve(process.cwd(), ".env.local"))) {
   loadEnv({ path: resolve(process.cwd(), ".env.local"), override: false, quiet: true });
@@ -161,6 +162,13 @@ async function main() {
     console.error("Falta DATABASE_URL_OWNER — no se puede seedear sin una conexión con privilegios.");
     process.exit(1);
   }
+  // Un padrón ficticio no tiene nada que hacer fuera de esta máquina.
+  try {
+    exigirBaseLocal(url, "semilla de desarrollo");
+  } catch (err) {
+    console.error((err as Error).message);
+    process.exit(1);
+  }
 
   const client = postgres(url, { max: 1 });
   const db = drizzle(client);
@@ -262,14 +270,14 @@ async function main() {
       return `+5491${entre(10, 99)}${String(entre(100000, 999999)).padStart(6, "0")}`;
     }
 
-    /** Género ficticio — campo opcional, no todos lo completan. */
+    /**
+     * Género ficticio — campo opcional, no todos lo completan. Solo los
+     * dos valores que acepta `students_genero_check`; antes también
+     * generaba OTRO y PREFIERO_NO_DECIR, y la semilla entera fallaba.
+     */
     function generoFicticio(): string | null {
       if (azar() < 0.2) return null;
-      const r = azar();
-      if (r < 0.48) return "FEMENINO";
-      if (r < 0.94) return "MASCULINO";
-      if (r < 0.98) return "OTRO";
-      return "PREFIERO_NO_DECIR";
+      return azar() < 0.5 ? "FEMENINO" : "MASCULINO";
     }
 
     for (let i = 0; i < CANTIDAD_ACTIVOS; i++) {
