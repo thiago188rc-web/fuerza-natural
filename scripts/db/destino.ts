@@ -9,7 +9,7 @@
  * escribía datos de prueba en una producción. La regla ahora es estructural:
  * tests, semillas y migraciones de desarrollo solo aceptan una base en esta
  * máquina. Producción se toca únicamente con los scripts `db:prod:*`, que
- * leen `.env.produccion.local` y lo declaran con `--produccion`.
+ * leen `~/.fuerza-natural/produccion.env` y lo declaran con `--produccion`.
  *
  * Nunca imprime la URL completa (lleva la contraseña): solo el host.
  */

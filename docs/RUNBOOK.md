@@ -151,7 +151,7 @@ nunca registró dónde se había creado. Ver la tabla de historial al final.
 | Región | West US (Oregon), `us-west-2`. Las funciones de Vercel corren en `pdx1` (Portland, `vercel.json`) para quedar al lado de la base |
 | Plan | _(a confirmar: Free se pausa a los 7 días sin uso; Pro no)_ |
 
-Credenciales de producción: en `.env.produccion.local` (fuera de git), **no**
+Credenciales de producción: en `~/.fuerza-natural/produccion.env` (fuera de git), **no**
 en `.env.local`. Todos los scripts `npm run db:prod:*` leen ese archivo.
 **Ese archivo no puede vivir en una carpeta sincronizada** (OneDrive,
 Dropbox, Google Drive): tiene las contraseñas de los tres roles de la
@@ -168,7 +168,7 @@ En el panel de Supabase (solo lo puede hacer quien tiene la cuenta):
    administrador, nunca una pantalla pública.
 3. Authentication → Users → Add user → Create new user, con el email y la
    contraseña del dueño y **"Auto Confirm User" activado**. Copiar su UID.
-4. Una de dos, en `.env.produccion.local`:
+4. Una de dos, en `~/.fuerza-natural/produccion.env`:
    - `DATABASE_URL_ADMIN`: botón Connect → **Session pooler**, con la
      contraseña de la base en lugar de `[YOUR-PASSWORD]`; o
    - `SUPABASE_ACCESS_TOKEN`: token personal (Account → Access Tokens). El
@@ -181,7 +181,7 @@ Desde el repo:
 # Roles fn_owner / fn_app / fn_readonly con contraseñas aleatorias (a
 # Supabase solo le llega el hash SCRAM), permisos y extensiones. Escribe
 # DATABASE_URL, DATABASE_URL_OWNER y DATABASE_URL_READONLY en
-# .env.produccion.local. Con token, agregar: -- --ref <ref del proyecto>
+# ~/.fuerza-natural/produccion.env. Con token, agregar: -- --ref <ref del proyecto>
 npm run db:prod:bootstrap
 
 # Las 3 capas: extensiones/roles, esquema (drizzle-kit), RLS y triggers.
@@ -199,7 +199,7 @@ npm run db:prod:diagnostico
 En Vercel (Production): `NEXT_PUBLIC_SUPABASE_URL` (`https://<ref>.supabase.co`),
 `NEXT_PUBLIC_SUPABASE_ANON_KEY` (la **publishable key** `sb_publishable_…`
 de Settings → API Keys; los proyectos nuevos ya no traen la anon key
-legacy) y `DATABASE_URL` (la de `.env.produccion.local`, rol `fn_app`,
+legacy) y `DATABASE_URL` (la de `~/.fuerza-natural/produccion.env`, rol `fn_app`,
 puerto 6543). Después, redeploy: las `NEXT_PUBLIC_*` se fijan al compilar.
 
 **Segunda cuenta `DUENO` de emergencia** (SPEC V1 §3.11): mismo paso 3
@@ -242,7 +242,7 @@ Se niega a usar el `auth_user_id` de la sesión simulada, y se niega a mover
 un usuario ya vinculado a otro gimnasio.
 
 Contra producción se corre como `npm run db:prod:provision-owner`, que toma
-`DATABASE_URL_OWNER` de `.env.produccion.local`: así `.env.local` nunca
+`DATABASE_URL_OWNER` de `~/.fuerza-natural/produccion.env`: así `.env.local` nunca
 tiene que apuntar a producción.
 
 ### El segundo factor del dueño
@@ -300,7 +300,7 @@ propia). Las reglas están en `docs/DECISIONES.md` (2026-10-02).
 #    va FUERA del repositorio. Al final dice si --aplicar va a pasar la
 #    guarda ("✓ --aplicar va a pasar la guarda: reemplazaría N alumnos
 #    importados antes"), evaluada en una transacción de solo lectura.
-npx tsx --env-file=.env.produccion.local scripts/migracion/migrar-planillas.ts \
+npx tsx scripts/db/produccion.ts scripts/migracion/migrar-planillas.ts \
   --base "…/BASE DE DATOS GYM.xlsx" --cuotas "…/CONTROL CUOTA GYM - 2026.xlsx" \
   --reporte "$TEMP/informe.md"
 
@@ -310,7 +310,7 @@ npx tsx --env-file=.env.produccion.local scripts/migracion/migrar-planillas.ts \
 #    1315 pagos, 1 aviso (conciliación en docs/DECISIONES.md).
 
 # 3. Aplicar (una transacción: entra todo o nada).
-npx tsx --env-file=.env.produccion.local scripts/migracion/migrar-planillas.ts \
+npx tsx scripts/db/produccion.ts scripts/migracion/migrar-planillas.ts \
   --base … --cuotas … --reporte "$TEMP/informe.md" --aplicar
 ```
 
@@ -405,10 +405,10 @@ ella.
 # Opción A (preferida): rol postgres de Supabase, que saltea RLS. En la
 # terminal (nunca en el chat): export DATABASE_URL_BACKUP="<Session
 # pooler, puerto 5432, del botón Connect>"
-npx tsx --env-file=.env.produccion.local scripts/db/backup.ts --salida "<carpeta>"
-# Opción B: con fn_owner (ya está en .env.produccion.local), fijando el
+npx tsx scripts/db/produccion.ts scripts/db/backup.ts --salida "<carpeta>"
+# Opción B: con fn_owner (ya está en ~/.fuerza-natural/produccion.env), fijando el
 # gimnasio — las tablas tienen FORCE RLS:
-npx tsx --env-file=.env.produccion.local scripts/db/backup.ts --salida "<carpeta>" \
+npx tsx scripts/db/produccion.ts scripts/db/backup.ts --salida "<carpeta>" \
   --gym de62a012-…   # el gym_id completo de Fuerza Natural
 ```
 
@@ -455,15 +455,18 @@ Orden, cada paso con su verificación antes del siguiente:
 1. **Revocar el token `sbp_…`** que quedó en una conversación
    (supabase.com/dashboard/account/tokens, en la cuenta con acceso a la
    organización del proyecto). Se considera comprometido.
-2. **Mover `.env.produccion.local` fuera de OneDrive** (y de cualquier
-   carpeta sincronizada) a una carpeta local, o mejor a un gestor de
-   contraseñas. Si OneDrive ya lo subió, rotar las contraseñas de
-   `fn_owner`, `fn_app` y `fn_readonly`: `npm run db:prod:bootstrap --
-   --rotar`, con `DATABASE_URL_ADMIN` (rol `postgres`, del botón Connect)
-   definida solo en esa terminal. Reescribe las tres URLs en
-   `.env.produccion.local`; después actualizar `DATABASE_URL` en Vercel
-   (Production) y volver a publicar, porque el deployment publicado sigue
-   con la contraseña vieja hasta entonces.
+2. **Credenciales fuera de OneDrive y rotadas** (hecho el 2026-10-02).
+   El archivo pasó de `.env.produccion.local` (dentro del repo, que
+   OneDrive sincroniza) a `~/.fuerza-natural/produccion.env`, en una
+   carpeta con permisos solo para el usuario; `scripts/db/produccion.ts`
+   se niega a usar uno dentro del repo o de OneDrive. Las contraseñas de
+   `fn_readonly`, `fn_owner` y `fn_app` se rotaron con `npm run
+   db:prod:rotar` (cada rol cambia la suya con la credencial vigente; no
+   hace falta el rol `postgres`), y `DATABASE_URL` se actualizó en Vercel.
+   Para volver a rotar: el mismo comando, después actualizar
+   `DATABASE_URL` en Vercel (por stdin: `… | vercel env update
+   DATABASE_URL production --sensitive --yes`) y volver a publicar —
+   cada deployment guarda las variables del momento en que se construyó.
 3. **Confirmar la organización de Supabase** (nombre, cuenta dueña, al
    menos dos administradores de NEXA) y el plan. Completar la tabla de
    "Bootstrap en Supabase".
@@ -487,7 +490,7 @@ Orden, cada paso con su verificación antes del siguiente:
 10. **Prueba real con Diego**: que entre con su usuario, cambie la
     contraseña que le dio NEXA, recorra Panel, Alumnos, una ficha, Pagos y
     Métricas, y registre su primer pago real. Recién ahí se borra
-    `DUENO_PASSWORD_INICIAL` de `.env.produccion.local`.
+    `DUENO_PASSWORD_INICIAL` de `~/.fuerza-natural/produccion.env`.
 
 **Volver atrás si la versión nueva falla:** Deployments → el deployment
 anterior que funcionaba → ⋯ → Promote to Production (Instant Rollback).

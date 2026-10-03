@@ -9,7 +9,7 @@ import { binario } from "./postgres-descartable";
 /**
  * BACKUP CIFRADO de los datos del gimnasio, fuera de Supabase.
  *
- *   npx tsx --env-file=.env.produccion.local scripts/db/backup.ts \
+ *   npx tsx scripts/db/produccion.ts scripts/db/backup.ts \
  *     --salida "D:/Backups/fuerza-natural" [--gym <uuid>] [--variable DATABASE_URL_BACKUP]
  *
  * Qué hace, en orden:

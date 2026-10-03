@@ -1,8 +1,10 @@
-import { createHash, createHmac, pbkdf2Sync, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import postgres from "postgres";
 import { enmascarar, leerArgumentos } from "./_compartido";
+import { rutaEnvProduccion } from "./produccion";
+import { verificadorScram } from "./scram";
 
 /**
  * Prepara un proyecto Supabase NUEVO para que `db:prod:migrate` pueda
@@ -11,7 +13,7 @@ import { enmascarar, leerArgumentos } from "./_compartido";
  * db/migrations/infra/00_extensions_and_roles.sql documenta y no puede
  * hacer solo (fn_owner no puede crearse a sí mismo).
  *
- * Dos formas de llegar como admin, leídas de .env.produccion.local:
+ * Dos formas de llegar como admin, leídas de ~/.fuerza-natural/produccion.env:
  *
  *   npm run db:prod:bootstrap
  *     con DATABASE_URL_ADMIN: la cadena del "Session pooler" del botón
@@ -120,23 +122,6 @@ async function adminPorManagementApi(token: string, ref: string): Promise<Admin>
   };
 }
 
-/**
- * El verificador SCRAM-SHA-256 que Postgres guarda en pg_authid, calculado
- * acá (RFC 5802/7677, mismo formato que genera Postgres). `CREATE ROLE …
- * PASSWORD 'SCRAM-SHA-256$…'` lo guarda tal cual: la contraseña en texto
- * plano nunca viaja a Supabase — ni por la API ni a los logs de Postgres,
- * que con `log_statement = ddl` registrarían el CREATE ROLE entero.
- */
-function verificadorScram(password: string): string {
-  const salt = randomBytes(16);
-  const iteraciones = 4096;
-  const salted = pbkdf2Sync(password, salt, iteraciones, 32, "sha256");
-  const clientKey = createHmac("sha256", salted).update("Client Key").digest();
-  const storedKey = createHash("sha256").update(clientKey).digest();
-  const serverKey = createHmac("sha256", salted).update("Server Key").digest();
-  return `SCRAM-SHA-256$${iteraciones}:${salt.toString("base64")}$${storedKey.toString("base64")}:${serverKey.toString("base64")}`;
-}
-
 function cadenaDe(admin: Admin, rol: RolApp, password: string): string {
   const url = new URL(`postgresql://${admin.poolerHost}`);
   url.username = `${rol}.${admin.ref}`;
@@ -170,7 +155,7 @@ function actualizarEnv(ruta: string, valores: Record<string, string>, borrar: st
 async function main() {
   const args = leerArgumentos(process.argv.slice(2));
   const rotar = args.has("rotar");
-  const archivo = resolve(process.cwd(), args.get("archivo") || ".env.produccion.local");
+  const archivo = args.get("archivo") ? resolve(process.cwd(), args.get("archivo")!) : rutaEnvProduccion();
 
   const cadenaAdmin = process.env.DATABASE_URL_ADMIN?.trim();
   const token = process.env.SUPABASE_ACCESS_TOKEN?.trim();
@@ -182,7 +167,7 @@ async function main() {
   } else {
     throw new ErrorDeUso(
       "Falta cómo entrar como admin: DATABASE_URL_ADMIN (cadena del Session pooler) o " +
-        "SUPABASE_ACCESS_TOKEN + --ref, en .env.produccion.local.",
+        "SUPABASE_ACCESS_TOKEN + --ref, en ~/.fuerza-natural/produccion.env.",
     );
   }
 

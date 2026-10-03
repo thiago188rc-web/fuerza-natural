@@ -10,7 +10,7 @@ import { levantarPostgresDescartable } from "./postgres-descartable";
  * (NOBYPASSRLS: RLS se aplica de verdad) y al final apaga el cluster y
  * borra la carpeta, falle lo que falle.
  *
- * No lee `.env.local` ni `.env.produccion.local`: la única base que toca es
+ * No lee `.env.local` ni `~/.fuerza-natural/produccion.env`: la única base que toca es
  * la que crea. Los argumentos extra pasan a vitest:
  * `npm run test:aislado -- tests/integration`.
  */

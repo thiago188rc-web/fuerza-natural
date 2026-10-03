@@ -53,7 +53,7 @@ async function main() {
   if (!url) {
     throw new ErrorDeUso(
       "Falta DATABASE_URL_OWNER. En producción se corre con `npm run db:prod:provision-gym`, " +
-        "que la toma de .env.produccion.local.",
+        "que la toma de ~/.fuerza-natural/produccion.env.",
     );
   }
 
