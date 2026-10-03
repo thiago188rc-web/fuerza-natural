@@ -441,6 +441,74 @@ carpeta privada de Google Drive o Backblaze B2, con acceso de dos personas
 de NEXA)_. Frecuencia sugerida: semanal y antes de cualquier operación
 masiva (importación, migración).
 
+## Estado de producción (2026-10-03)
+
+**Publicado el 2026-10-03:** `fuerza-natural.vercel.app` →
+`dpl_9wtWtPx7gu3ADAcaHkztaFDz4aK9` (`fuerza-natural-4ul81e1sy`, commit
+`1a72c0d`, pdx1). Los pushes posteriores a `main` se publican solos: el
+commit vigente lo dice `/api/salud` (`version`). `/api/salud` →
+`{"estado":"ok","base":"ok","auth":"ok","version":"1a72c0d"}`.
+`autoAssignCustomDomains` volvió a `true` con el promote: **cada push a
+`main` se publica solo**. Login real del dueño probado (entrar, Panel,
+Alumnos, Pagos, Métricas, una ficha, pantalla de contraseña, salir), sin
+registrar nada.
+
+**Base:** 466 alumnos (203 activos, 263 de baja), 1315 pagos ($64.045.000,
+cada mes igual a la planilla), 1317 tramos, 746 eventos. Migraciones
+aplicadas: 0000–0009.
+
+**Credenciales:** `~/.fuerza-natural/produccion.env` (fuera del repo y de
+OneDrive, permisos solo del usuario). Contraseñas de `fn_readonly`,
+`fn_owner` y `fn_app` rotadas el 2026-10-03; `DATABASE_URL` actualizada en
+Vercel (Production). Variables de Production: `DATABASE_URL`,
+`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `APP_URL`.
+Las credenciales del proyecto viejo quedaron en
+`~/.fuerza-natural/proyecto-viejo.env` (rotarlas si ese proyecto reaparece).
+
+**Backups** (en `C:\Users\Thiago\FuerzaNatural-Backups`, fuera de OneDrive,
+cifrados con la frase de `~/.fuerza-natural/backup-gpg.pass`):
+
+| Archivo | Estado de la base | Simulacro |
+|---|---|---|
+| `fuerza-natural-2026-10-03T04-42-53.sql.gpg` | Antes de migrar y cargar (119 alumnos, 0 pagos) | ✓ 11/11 tablas, conteo y contenido |
+| `fuerza-natural-2026-10-03T05-00-42.sql.gpg` | Con la carga aplicada | ✓ 12/12 tablas, conteo y contenido |
+
+Pendiente: guardar la frase en un gestor de contraseñas, y una segunda
+copia de los backups fuera de esta computadora (destino y responsable a
+definir).
+
+**Volver atrás:**
+- *La app:* Vercel → Deployments → `dpl_9DsJyo9NjdfbtTRj6cndxmBNRWvB`
+  (commit `dca378c`, reconstruido el 2026-10-03 con las variables
+  actuales) → ⋯ → Promote. Es compatible con la base migrada y cargada
+  (no usa `access_attempts`); pierde anulación de pagos y contraseñas.
+  **No** volver a `dpl_9c3J7` ni a ningún deploy anterior al 2026-10-03:
+  tienen grabadas credenciales que ya no sirven.
+- *Los datos:* restaurar el backup que corresponda en un Postgres limpio
+  (el simulacro muestra cómo) y, recién comprobado, reemplazar. Nunca
+  encima de la base actual sin antes hacer otro backup.
+
+**Pendiente (cuentas externas, lo hace Thiago en el panel):**
+1. Revocar el token `sbp_…` (supabase.com/dashboard/account/tokens, en la
+   cuenta con acceso a la organización `acnbct…`). Nada lo usa: ni el
+   archivo de credenciales, ni Vercel, ni ningún script.
+2. Supabase Auth: Site URL, Redirect URLs, SMTP propio y plantilla de
+   recuperación (sección "Contraseñas" de arriba). Hasta entonces, el
+   cambio de contraseña funciona; la recuperación por email, no.
+3. Confirmar organización, administradores y plan; segunda cuenta DUENO
+   de emergencia; monitor externo sobre `/api/salud`.
+4. Prueba de Diego: entra, cambia su contraseña, revisa sus datos sin
+   cargar operaciones. Después se borra `DUENO_PASSWORD_INICIAL` del
+   archivo de credenciales.
+
+**Acceso de emergencia hoy:** si Diego no puede entrar, un administrador
+del proyecto Supabase le asigna una contraseña temporal desde
+Authentication → Users (verificando su identidad por otra vía) y él la
+cambia al entrar. Mientras no exista la segunda cuenta DUENO, el único
+camino de emergencia es ese panel.
+
+**Soporte:** _(contacto a definir por NEXA)_.
+
 ## Puesta en producción (octubre 2026)
 
 Estado verificado el 2026-10-02 (solo lectura): el dominio
@@ -522,5 +590,13 @@ las alertas.
 | 2026-10-02 | Auditoría de solo lectura de producción: RLS 11/11 tablas (10 con FORCE), una sola función SECURITY DEFINER con `search_path` fijo y EXECUTE solo para `fn_app`, ningún rol con BYPASSRLS, `app` no expuesto a la Data API (PGRST106), 0 buckets, signup desactivado | ✓ Sin hallazgos en la base. El dominio seguía en `dpl_9c3J7` (Supabase viejo) y la base con 119 alumnos / 0 pagos |
 | 2026-10-02 | Simulacro de backup y restauración con DATOS SINTÉTICOS (`backup.ts` con `fn_owner --gym` → gpg → `simulacro-restauracion.ts`), todo en Postgres descartables locales | ✓ 12/12 tablas iguales (48 alumnos, 379 pagos, 683 asistencias, 438 de auditoría), 6 s. Sin `--gym`, el dump falla por FORCE RLS, como se esperaba |
 | 2026-10-02 | Carga de las planillas reales en una base local descartable (informe → `--aplicar` → segundo `--aplicar`), y con 3 "importados antes" simulados | ✓ 466 alumnos, 203 activos, 1315 pagos, $64.045.000; reemplazó los 3; la segunda corrida se negó. Base e informe borrados |
-| — | Simulacro de restauración de un backup de PRODUCCIÓN | Pendiente — requiere aprobación (copia datos reales fuera de Supabase) |
+| 2026-10-03 | Rotación de `fn_readonly`, `fn_owner` y `fn_app` (`db:prod:rotar`) y `DATABASE_URL` en Vercel | ✓ Las nuevas conectan, las anteriores ya no; el deploy nuevo dio `base: ok` |
+| 2026-10-03 | Primer backup de producción con `pg_dump` + PGOPTIONS | ✗ El pooler ignora PGOPTIONS: tablas con FORCE RLS vacías. El simulacro lo detectó y se descartó. Se cambió el método (JSON por tabla con set_config) |
+| 2026-10-03 | Backup + simulacro, estado previo (`…04-42-53`) | ✓ 11/11 tablas, conteo y huella del contenido, 6 s |
+| 2026-10-03 | `db:prod:migrate` (0009 + funciones de límite de intentos) | ✓ 10 migraciones; `access_attempts` sin acceso directo; 4 funciones DEFINER con search_path fijo |
+| 2026-10-03 | Carga de planillas: 1er `--aplicar` | ✗ Cortado a los 10 min (un pago por viaje contra us-west-2); revertido entero, verificado. Se pasó a lotes |
+| 2026-10-03 | Carga de planillas: 2º `--aplicar` | ✓ 466/203/1315, reemplazó 119; cada mes = planilla; $64.045.000 |
+| 2026-10-03 | Backup + simulacro, estado cargado (`…05-00-42`) | ✓ 12/12 tablas, conteo y contenido, 6 s |
+| 2026-10-03 | Push `1a72c0d`, redeploy de `dca378c` como respaldo, promote de `dpl_9wtWtPx7gu3ADAcaHkztaFDz4aK9` | ✓ Dominio en `1a72c0d`; `/api/salud` ok; login real del dueño ok; rutas privadas 307 sin sesión |
 | — | Recuperación de contraseña de punta a punta en producción | Pendiente — requiere configurar URLs y SMTP en Supabase Auth |
+| — | Prueba del dueño (cambio de contraseña y revisión de datos) | Pendiente — presencial con Diego |
