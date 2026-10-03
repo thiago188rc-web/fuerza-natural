@@ -49,13 +49,27 @@ pg_ctl -D "$HOME/pgdev/data" -l "$HOME/pgdev/logfile.txt" start
 pg_isready -h localhost -p 5433     # debe decir "aceptando conexiones"
 ```
 
-**Ojo con `npm run verify` y el cluster apagado.** Los tests de integración
-se saltan si NO existe `DATABASE_URL`, pero si la variable existe (o sea,
-si hay `.env.local`) y la base no responde, fallan con `ECONNREFUSED` — no
-se saltan. Es deliberado: saltarse en silencio los tests de aislamiento por
-gym_id, que son los más importantes del sistema, sería peor que fallar
-ruidosamente. Si `verify` falla con `ECONNREFUSED ::1:5433`, no hay nada
-roto en el código: levantá el cluster con el comando de arriba.
+### Tests: siempre contra una base descartable (desde 2026-10-02)
+
+Los tests de integración escriben gimnasios de prueba en la base de
+`DATABASE_URL`. Hasta el 2026-10-02 la leían de `.env.local`, que llegó a
+apuntar a una producción. Ahora:
+
+- **`npm run test:aislado`** (y `npm run verify`, que lo usa) levanta un
+  Postgres nuevo en una carpeta temporal y en un puerto libre, aplica las
+  tres capas de migración, corre toda la suite como `fn_app` y lo borra
+  al terminar. No lee ningún `.env`. Es la forma normal de correr los
+  tests: no hace falta tener el cluster `pgdev` levantado.
+- **`npm test`** ya no lee `.env.local`. Sin base, los tests de
+  integración se saltan y corren los unitarios. Para correrlos contra el
+  cluster propio, crear `.env.test.local` (ignorado por git) con
+  `DATABASE_URL=postgres://fn_app:…@localhost:5433/<una base de tests>`.
+- **Cualquier base que no sea de esta máquina se rechaza** antes de
+  conectar (`scripts/db/destino.ts`): tests, `db:seed`, `db:seed:demo` y
+  `db:migrate` sin `--produccion`. Solo los `db:prod:*` tocan producción.
+
+`.env.local` sigue siendo la configuración del servidor de desarrollo
+(`npm run dev`). Apuntalo al cluster propio, nunca a un Supabase.
 
 ### Por qué un cluster propio y no el servicio de Windows
 
@@ -138,9 +152,10 @@ nunca registró dónde se había creado. Ver la tabla de historial al final.
 | Plan | _(a confirmar: Free se pausa a los 7 días sin uso; Pro no)_ |
 
 Credenciales de producción: en `.env.produccion.local` (fuera de git), **no**
-en `.env.local`. Los tests de integración escriben gimnasios de prueba en
-la base de `.env.local` sin limpiarlos; con producción ahí, un `npm test`
-la ensucia. Todos los scripts `npm run db:prod:*` leen ese archivo.
+en `.env.local`. Todos los scripts `npm run db:prod:*` leen ese archivo.
+**Ese archivo no puede vivir en una carpeta sincronizada** (OneDrive,
+Dropbox, Google Drive): tiene las contraseñas de los tres roles de la
+base. Ver "Puesta en producción" más abajo.
 
 En el panel de Supabase (solo lo puede hacer quien tiene la cuenta):
 
@@ -282,13 +297,17 @@ propia). Las reglas están en `docs/DECISIONES.md` (2026-10-02).
 
 ```bash
 # 1. Modo informe: no escribe nada. El informe tiene datos personales:
-#    va FUERA del repositorio.
+#    va FUERA del repositorio. Al final dice si --aplicar va a pasar la
+#    guarda ("✓ --aplicar va a pasar la guarda: reemplazaría N alumnos
+#    importados antes"), evaluada en una transacción de solo lectura.
 npx tsx --env-file=.env.produccion.local scripts/migracion/migrar-planillas.ts \
   --base "…/BASE DE DATOS GYM.xlsx" --cuotas "…/CONTROL CUOTA GYM - 2026.xlsx" \
   --reporte "$TEMP/informe.md"
 
 # 2. Revisar el informe: totales por mes contra los del dueño, bajas por
-#    mes contra su hoja BAJAS, emparejados por parecido, avisos.
+#    mes contra su hoja BAJAS, emparejados por parecido, avisos. Con las
+#    planillas del 2026-10-02 tiene que dar: 466 alumnos, 203 activos,
+#    1315 pagos, 1 aviso (conciliación en docs/DECISIONES.md).
 
 # 3. Aplicar (una transacción: entra todo o nada).
 npx tsx --env-file=.env.produccion.local scripts/migracion/migrar-planillas.ts \
@@ -297,7 +316,16 @@ npx tsx --env-file=.env.produccion.local scripts/migracion/migrar-planillas.ts \
 
 Usar `./node_modules/.bin/tsx` si `npx` se cuelga en Windows. Si un nombre
 de la planilla de cuotas no se empareja solo, `--alias alias.json`
-(`{"COMO EN CUOTAS": "COMO EN LA BASE"}`), guardado fuera del repo.
+(`{"COMO EN CUOTAS": "COMO EN LA BASE"}`), guardado fuera del repo. Es
+también la forma de aplicar lo que confirme el dueño sobre los casos
+dudosos (por ejemplo, si "BARRERA, YOKO" de las cuotas es "BARRERA,
+YOHANA" de la base).
+
+Es idempotente en el sentido que importa: todo corre en UNA transacción
+(si algo falla no queda nada escrito y se puede volver a correr), y una
+segunda aplicación se niega porque ya hay pagos. Probado el 2026-10-02 en
+una base local descartable: con 3 alumnos "importados antes" la guarda
+pasa, los reemplaza y quedan 466/203/1315; una segunda corrida se niega.
 
 ## Scripts de instalación de dependencias (`allowScripts`)
 
@@ -322,26 +350,159 @@ decidir, y registrar la decisión con `npm install-scripts approve <pkg>`
 (queda fijada a esa versión) o `npm install-scripts deny <pkg>`. Nunca
 `approve --all`.
 
-## Recuperación de cuenta (DUENO pierde el segundo factor)
+## Contraseñas: cambio y recuperación (desde 2026-10-02)
 
-Ver SPEC V1 §3.11 — sin cambios respecto a lo diseñado ahí: segundo factor
-en otro dispositivo (instantáneo) → cuenta de emergencia (paso 8 arriba) →
-procedimiento manual con verificación fuera de banda, nunca por email/chat.
-No hay nada de esto automatizado en Fase 0, ni debe estarlo.
+Sin verificación en dos pasos (ver docs/DECISIONES.md). Lo que hay:
 
-## Backups (pendiente — sin proyecto Supabase real todavía)
+- **Cambiar la contraseña** (`/cuenta/contrasena`, ícono de llave al pie
+  del menú): pide la actual, la nueva de 10 a 72 caracteres, y al
+  guardarla cierra las sesiones abiertas en otros dispositivos. Queda en
+  Actividad que se cambió (nunca la contraseña).
+- **Recuperarla** ("¿La olvidaste?" en el login → `/recuperar`): manda un
+  enlace por email. El enlace vuelve por `/auth/confirm` y deja elegir una
+  nueva sin la actual, durante 15 minutos. La pantalla dice lo mismo
+  exista o no la cuenta. Límite: 5 pedidos por hora desde la misma IP.
 
-El diseño (Nivel 1: backups automáticos del proveedor; Nivel 2: `pg_dump`
-cifrado a un proveedor distinto, vía un job programado) está en SPEC V1
-§3.12 y no cambia. **No ejecutado ni configurado en Fase 0** — no hay
-todavía un proyecto real sobre el cual configurarlo. Cuando exista:
+**Configuración que hace falta en Supabase** (Authentication), una vez,
+desde el panel — sin esto el código funciona pero el email no llega o el
+enlace no vuelve:
 
-1. Confirmar backups automáticos activados en el plan de Supabase.
-2. Configurar el job de `pg_dump` + cifrado + subida a un segundo
-   proveedor (Backblaze B2 / Cloudflare R2), fuera de este repo.
-3. Registrar acá, con fecha real, el primer simulacro de restauración
-   (§3.13 de la SPEC) — duración, resultado, incidencias. **Sin un
-   simulacro registrado, no hay backup: solo una hipótesis.**
+1. **URL Configuration**: *Site URL* = `https://fuerza-natural.vercel.app`;
+   en *Redirect URLs* agregar `https://fuerza-natural.vercel.app/auth/confirm`.
+2. **SMTP propio** (Authentication → Emails → SMTP Settings). El servicio de
+   email que trae Supabase solo manda a las direcciones del equipo de la
+   organización y con un límite bajo por hora: a Diego no le llegaría.
+   Hace falta una cuenta en un proveedor (Resend, Brevo, Amazon SES…) con
+   el dominio o remitente verificado. Es un servicio externo: decisión y
+   costo a confirmar.
+3. **Plantilla "Reset Password"** (Authentication → Emails → Templates):
+   reemplazar el enlace por
+   `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/cuenta/contrasena`.
+   Con la plantilla por defecto el enlace solo funciona en el mismo
+   navegador donde se pidió (flujo PKCE); con esta, también si Diego lo
+   abre en el celular. `/auth/confirm` acepta las dos formas.
+4. Verificar en Authentication → Rate Limits que los límites de envío de
+   emails y de inicio de sesión estén en valores razonables, y en
+   Providers → Email el largo mínimo de contraseña (la app ya pide 10).
+
+**Si Diego pierde el acceso al email**, no hay recuperación automática: un
+administrador de NEXA, verificando su identidad por otra vía (en persona o
+por teléfono, nunca solo por chat), le pone una contraseña temporal desde
+Authentication → Users y Diego la cambia al entrar.
+
+## Backups y simulacro de restauración (desde 2026-10-02)
+
+**Nivel 1 — el del proveedor.** Depende del plan de Supabase: confirmarlo
+en el panel (Database → Backups). No es un reemplazo del nivel 2: si se
+pierde el acceso a la cuenta (lo que pasó el 2026-10-01), se pierden con
+ella.
+
+**Nivel 2 — backup propio, cifrado, fuera de Supabase:**
+
+```bash
+# La contraseña de gpg la pide gpg en la terminal: guardarla en un gestor
+# de contraseñas. La carpeta de salida no puede estar dentro del repo.
+# Opción A (preferida): rol postgres de Supabase, que saltea RLS. En la
+# terminal (nunca en el chat): export DATABASE_URL_BACKUP="<Session
+# pooler, puerto 5432, del botón Connect>"
+npx tsx --env-file=.env.produccion.local scripts/db/backup.ts --salida "<carpeta>"
+# Opción B: con fn_owner (ya está en .env.produccion.local), fijando el
+# gimnasio — las tablas tienen FORCE RLS:
+npx tsx --env-file=.env.produccion.local scripts/db/backup.ts --salida "<carpeta>" \
+  --gym de62a012-…   # el gym_id completo de Fuerza Natural
+```
+
+Deja `fuerza-natural-<fecha>.dump.gpg` (esquemas `app` y `drizzle`,
+cifrado AES-256) y `…conteos.json` (filas por tabla + SHA-256 del
+cifrado, sin datos personales). No incluye `auth`: el usuario y la
+contraseña de Diego los guarda Supabase Auth; si hubiera que rearmar todo
+en otro proyecto, se lo vuelve a crear y se vincula con
+`db:prod:provision-owner`. **La opción B depende de que el pooler de
+Supabase respete el parámetro de sesión del gym_id: no está probado
+contra producción. Si el dump sale sin filas o falla con "row-level
+security", usar la opción A.** El simulacro lo detecta.
+
+**Simulacro** (obligatorio después de cada backup que se quiera dar por
+bueno):
+
+```bash
+npx tsx scripts/db/simulacro-restauracion.ts \
+  --backup "<carpeta>/fuerza-natural-<fecha>.dump.gpg" \
+  --conteos "<carpeta>/fuerza-natural-<fecha>.conteos.json"
+```
+
+Verifica la huella, descifra en una carpeta temporal, restaura en un
+Postgres descartable local, compara el conteo de cada tabla y que RLS siga
+encendido, y borra todo. Anotar resultado y duración en el historial de
+abajo. **Sin un simulacro registrado, no hay backup: solo una hipótesis.**
+
+Destino y responsable del archivo cifrado: _(a definir — por ejemplo, una
+carpeta privada de Google Drive o Backblaze B2, con acceso de dos personas
+de NEXA)_. Frecuencia sugerida: semanal y antes de cualquier operación
+masiva (importación, migración).
+
+## Puesta en producción (octubre 2026)
+
+Estado verificado el 2026-10-02 (solo lectura): el dominio
+`fuerza-natural.vercel.app` sirve `dpl_9c3J7` (commit `984e3b4`, 17/09),
+que apunta al proyecto Supabase viejo (DNS `ENOTFOUND`): **el login no
+puede funcionar**. `autoAssignCustomDomains=false` (quedó así por un
+Instant Rollback): los deploys nuevos no toman el dominio solos. La base
+nueva tiene 119 alumnos importados por error y 0 pagos.
+
+Orden, cada paso con su verificación antes del siguiente:
+
+1. **Revocar el token `sbp_…`** que quedó en una conversación
+   (supabase.com/dashboard/account/tokens, en la cuenta con acceso a la
+   organización del proyecto). Se considera comprometido.
+2. **Mover `.env.produccion.local` fuera de OneDrive** (y de cualquier
+   carpeta sincronizada) a una carpeta local, o mejor a un gestor de
+   contraseñas. Si OneDrive ya lo subió, rotar las contraseñas de
+   `fn_owner`, `fn_app` y `fn_readonly`: `npm run db:prod:bootstrap --
+   --rotar`, con `DATABASE_URL_ADMIN` (rol `postgres`, del botón Connect)
+   definida solo en esa terminal. Reescribe las tres URLs en
+   `.env.produccion.local`; después actualizar `DATABASE_URL` en Vercel
+   (Production) y volver a publicar, porque el deployment publicado sigue
+   con la contraseña vieja hasta entonces.
+3. **Confirmar la organización de Supabase** (nombre, cuenta dueña, al
+   menos dos administradores de NEXA) y el plan. Completar la tabla de
+   "Bootstrap en Supabase".
+4. **Backup + simulacro** del estado actual (nivel 2). Es chico, pero
+   prueba la cadena completa antes de cargar lo importante.
+5. **Migración de esquema** (`npm run db:prod:migrate`): agrega
+   `app.access_attempts` y sus tres funciones (límite de intentos de
+   login). Sin ella el sistema funciona igual —el límite falla abierto y
+   lo registra en el log— pero sin protección propia contra intentos.
+6. **Carga de las planillas**: informe (verificar 466/203/1315 y la línea
+   "✓ --aplicar va a pasar la guarda: reemplazaría 119…"), resolver con
+   Diego los casos dudosos (alias), y `--aplicar`.
+7. **Backup + simulacro** de nuevo, ya con los datos reales.
+8. **Publicar en Vercel**: el deployment del commit que tenga todo lo de
+   arriba (no `dca378c`, que no trae anulación ni contraseñas). Deployments
+   → ⋯ → **Promote to Production** (o "Undo Rollback"; nunca "Redeploy").
+   Después: `vercel inspect fuerza-natural.vercel.app` tiene que mostrar
+   ese deployment, y `GET https://fuerza-natural.vercel.app/api/salud` →
+   `{"estado":"ok","base":"ok","auth":"ok","version":"<commit>"}`.
+9. **Supabase Auth** (sección "Contraseñas" arriba): URLs, SMTP, plantilla.
+10. **Prueba real con Diego**: que entre con su usuario, cambie la
+    contraseña que le dio NEXA, recorra Panel, Alumnos, una ficha, Pagos y
+    Métricas, y registre su primer pago real. Recién ahí se borra
+    `DUENO_PASSWORD_INICIAL` de `.env.produccion.local`.
+
+**Volver atrás si la versión nueva falla:** Deployments → el deployment
+anterior que funcionaba → ⋯ → Promote to Production (Instant Rollback).
+Ojo: el anterior a este es `dpl_9c3J7`, que apunta a un Supabase que ya
+no existe — volver a él no sirve. Entre los deploys hechos con las
+variables nuevas, el de `dca378c` (`go7hb9cja`) es el respaldo razonable:
+funciona con la misma base, sin anulación ni contraseñas. Un rollback de
+Vercel no toca la base: si el problema son los datos, se restaura el
+backup del paso 7 en un proyecto nuevo, nunca encima del actual sin
+antes otro backup.
+
+**Monitoreo:** `GET /api/salud` (público, sin datos) en un monitor externo
+gratuito (UptimeRobot, Better Stack) que avise por email o WhatsApp si
+deja de dar 200. Es un servicio externo: a crear por quien vaya a recibir
+las alertas.
 
 ---
 
@@ -355,5 +516,8 @@ todavía un proyecto real sobre el cual configurarlo. Cuando exista:
 | 2026-10-01 | `db:prod:bootstrap` (mismos roles/GRANT/extensiones) + `db:prod:migrate` + `db:prod:provision-gym` contra un Postgres 17 temporal con locale UTF-8 | ✓ Migración completa, alta atómica y sus 3 negativas (nombre repetido, UID ya vinculado, nombre DEMO), y 41/41 tests de integración con `fn_app` |
 | 2026-10-01 | Bootstrap de producción en `laaboaprbjegijnoxqpx` vía Management API: roles, migración, registro público desactivado, Data API solo `public`/`graphql_public` (anon/authenticated sin acceso a `app`), RLS en 11/11 tablas | ✓ `db:prod:diagnostico` OK con `fn_app` por el pooler |
 | 2026-10-01 | `allowScripts`: negar los `postinstall` de `esbuild` y `unrs-resolver` (ver sección arriba), probado con npm 11.21 y `npm ci` desde cero | ✓ Sin el aviso; lint, typecheck, 237 tests unitarios y build OK |
-| — | Simulacro de restauración de backup | Pendiente — no hay backups reales todavía |
-| — | Recuperación de cuenta DUENO | Pendiente — no hay usuarios reales todavía |
+| 2026-10-02 | Auditoría de solo lectura de producción: RLS 11/11 tablas (10 con FORCE), una sola función SECURITY DEFINER con `search_path` fijo y EXECUTE solo para `fn_app`, ningún rol con BYPASSRLS, `app` no expuesto a la Data API (PGRST106), 0 buckets, signup desactivado | ✓ Sin hallazgos en la base. El dominio seguía en `dpl_9c3J7` (Supabase viejo) y la base con 119 alumnos / 0 pagos |
+| 2026-10-02 | Simulacro de backup y restauración con DATOS SINTÉTICOS (`backup.ts` con `fn_owner --gym` → gpg → `simulacro-restauracion.ts`), todo en Postgres descartables locales | ✓ 12/12 tablas iguales (48 alumnos, 379 pagos, 683 asistencias, 438 de auditoría), 6 s. Sin `--gym`, el dump falla por FORCE RLS, como se esperaba |
+| 2026-10-02 | Carga de las planillas reales en una base local descartable (informe → `--aplicar` → segundo `--aplicar`), y con 3 "importados antes" simulados | ✓ 466 alumnos, 203 activos, 1315 pagos, $64.045.000; reemplazó los 3; la segunda corrida se negó. Base e informe borrados |
+| — | Simulacro de restauración de un backup de PRODUCCIÓN | Pendiente — requiere aprobación (copia datos reales fuera de Supabase) |
+| — | Recuperación de contraseña de punta a punta en producción | Pendiente — requiere configurar URLs y SMTP en Supabase Auth |

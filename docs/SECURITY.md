@@ -168,6 +168,28 @@ para operar la cuenta completa (alta/edición/pagos/bajas). No hay una
 capa de "aal2" ni un flag de una línea para reactivarlo — reintroducir
 MFA implica reconstruir el enrolamiento TOTP desde cero.
 
+### 8.1 Agregado el 2026-10-02
+
+- **Límite de intentos** compartido entre instancias, en Postgres
+  (`app.access_attempts`, solo por funciones SECURITY DEFINER, claves
+  SHA-256): login 5/15 min por cuenta+IP y 20/15 min por IP; recuperación
+  5/hora por IP; contraseña actual 5/15 min por usuario. Falla abierto si
+  la base no responde (queda en el log). Ver `src/lib/auth/limite-de-intentos.ts`.
+- **Cambio de contraseña** con la actual (o con una sesión de recuperación
+  de menos de 15 minutos, verificada por el AMR del token), 10–72
+  caracteres, y cierre de las demás sesiones (`signOut({ scope: "others" })`).
+- **Recuperación** por email: misma respuesta exista o no la cuenta;
+  `/auth/confirm` solo redirige a destinos de una lista fija.
+- **Cookie de sesión de Supabase** con `httpOnly` y `secure` (el default
+  de `@supabase/ssr` es `httpOnly: false`; acá no hay cliente de navegador).
+- **Proxy:** sin sesión (y solo cuando lo sabe con certeza), las rutas
+  privadas responden 307 a /login en vez de 200 con una redirección dentro
+  del HTML. Sigue sin ser la barrera: esa es `getAuthContext()`/`withAuth()`.
+- **Logs:** `registrarError` (src/lib/registro-seguro.ts) — nunca la
+  consulta, sus parámetros, el mensaje de Postgres ni `detail`.
+- **`/api/salud`:** público, sin datos; solo "ok"/"error" por pieza y el
+  commit publicado.
+
 ## 9. Headers de seguridad y CSP
 
 `src/proxy.ts` (Next 16 renombró `middleware.ts` a `proxy.ts` — ver
@@ -221,12 +243,21 @@ Los tests de `tests/integration/alumnos-casos-de-uso.test.ts` verifican
 contra Postgres real que un gimnasio no puede leer, editar, dar de baja ni
 listar alumnos de otro, ni usar un plan ajeno, aunque mande el id exacto.
 
-## 10. Qué falta para producción (pendiente, no bloqueante para Fase 0)
+## 10. Qué falta para producción (actualizado 2026-10-02)
 
-- Proyecto Supabase real (URL, anon key, Turnstile) — ver `docs/RUNBOOK.md`.
-  MFA fue evaluado y descartado a propósito (ver `docs/DECISIONES.md`),
+Todo esto es de cuentas y configuración externas, no de código. El orden
+y los comandos están en `docs/RUNBOOK.md`, "Puesta en producción".
+
+- Revocar el token personal `sbp_…` que quedó en una conversación
+  (comprometido).
+- Sacar `.env.produccion.local` de la carpeta sincronizada con OneDrive y,
+  si ya se subió, rotar las contraseñas de los tres roles.
+- Confirmar organización, administradores y plan del proyecto Supabase.
+- Backups nivel 2 de producción con su simulacro registrado (las
+  herramientas existen y se probaron con datos sintéticos).
+- Supabase Auth: Site URL, Redirect URLs, SMTP propio y plantilla de
+  recuperación — sin eso, la recuperación de contraseña no llega.
+- Segunda cuenta `DUENO` de emergencia.
+- Monitor externo sobre `/api/salud`.
+- MFA fue evaluado y descartado a propósito (ver `docs/DECISIONES.md`),
   no es un pendiente.
-- Backups Nivel 2 (pg_dump cifrado a un proveedor distinto).
-- Primer simulacro de restauración registrado.
-- Segunda cuenta `DUENO` de emergencia creada.
-- Rate limiting de login (nativo de Supabase Auth una vez configurado).

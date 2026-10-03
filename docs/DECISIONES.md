@@ -584,3 +584,101 @@ queda reservado para estados de pago (una franja de edad en rojo se leía
 como alarma). Los gráficos por categoría (canales de captación) usan una
 paleta categórica propia (`--serie-*`), validada contra daltonismo en
 claro y oscuro, siempre con el número escrito al lado.
+
+## 2026-10-02 — Anular un pago: solo el dueño, con motivo, sin borrar
+
+**Decisión:** "Anular" en la pestaña Pagos de la ficha y en el historial
+de Pagos. Marca `anulado_en`/`anulado_por`/`anulado_motivo` (lo único
+que el trigger de `payments` deja tocar), exige un motivo de 5 a 300
+caracteres y deja la anulación en Actividad. El pago queda en el
+historial, tachado y con su motivo, y deja de contar para la cobertura,
+lo cobrado y las métricas (todas las consultas ya filtraban
+`anulado_en is null`). Solo el DUENO.
+
+**Motivo:** antes no había forma de corregir un pago mal cargado sin tocar
+la base a mano. "Corregir = anular + volver a registrar" ya era la regla
+(REGLAS-DE-NEGOCIO.md); faltaba la acción.
+
+**Pendiente de confirmar con el dueño:** si su personal (STAFF) también
+puede anular — hoy no, es la opción más restrictiva y la misma que
+configuración e importación; cambiarlo es agregar "STAFF" en
+`ROLES_QUE_ANULAN_PAGOS`. Y que anular significa "esto fue un error": el
+pago sale de la facturación del mes en que se cobró, aunque se anule
+después. Una devolución de plata real no es una anulación y hoy no se
+registra.
+
+## 2026-10-02 — Límite de intentos de acceso en Postgres
+
+**Decisión:** el login cuenta los intentos fallidos por cuenta+IP (5 en 15
+minutos) y por IP (20 en 15 minutos); la recuperación de contraseña, 5
+pedidos por hora por IP; la verificación de la contraseña actual, 5 en 15
+minutos por usuario. El contador vive en `app.access_attempts` y la app
+solo lo toca por tres funciones SECURITY DEFINER (mismo patrón que
+`get_app_user_by_auth_id`). Las claves son SHA-256: la tabla no guarda
+emails ni IPs.
+
+**Motivo:** Supabase Auth limita por IP, pero el login corre en el
+servidor y la IP que ve es la de Vercel. Un contador en memoria no sirve
+en serverless. Postgres ya está y no suma un servicio ni credenciales.
+Si la base no responde, el límite falla ABIERTO (registra el error y
+deja seguir): es una defensa secundaria, y tumbar el login porque ella
+falló sería peor.
+
+## 2026-10-02 — Cambio y recuperación de contraseña
+
+**Decisión:** `/cuenta/contrasena` (pide la actual, 10 a 72 caracteres,
+cierra las demás sesiones al cambiarla) y `/recuperar` → enlace por email
+→ `/auth/confirm` → elegir la nueva sin la actual durante 15 minutos
+(se verifica con el AMR del token, que firma Supabase, no con una cookie
+propia). La cookie de sesión de Supabase pasa a `httpOnly` y `secure`:
+la app no usa Supabase desde el navegador.
+
+**Motivo:** la contraseña inicial de Diego la generó NEXA; tiene que poder
+cambiarla y recuperarla sin depender de nadie. Depende de configuración en
+Supabase (URLs, SMTP propio, plantilla) documentada en el RUNBOOK.
+
+## 2026-10-02 — Logs sin datos personales y tests sin acceso a bases remotas
+
+**Decisión:** todo error inesperado se registra con `registrarError`
+(src/lib/registro-seguro.ts): tipo, código de Postgres, restricción,
+tabla, columna. Nunca el mensaje de Postgres, la consulta, sus parámetros
+ni `detail`. Los tests y las semillas se niegan a conectarse a una base
+que no sea de esta máquina; `npm run test:aislado` corre la suite en un
+Postgres descartable.
+
+**Motivo:** un error de Drizzle trae los parámetros de la consulta: un
+alta fallida dejaba nombre, teléfono, DNI y dirección en los logs de
+Vercel. Y `.env.local` apuntaba al Supabase de producción viejo: si
+alguien lo reanudaba, `npm test` escribía gimnasios de prueba ahí.
+
+## 2026-10-02 — Conciliación de la carga de planillas (466 / 203 / 1315)
+
+Contado aparte del importador, sobre las celdas crudas del Excel:
+
+- **Pagos:** las hojas ENERO a OCT tienen 1508 filas con nombre. Entran
+  1315; quedan afuera 190 de la hoja OCT que repiten la lista de
+  septiembre con fecha de septiembre, 1 recordatorio de agosto anotado en
+  SEPT y 2 notas sin fecha (MARZO, OCT). Total cargado: $64.045.000, igual
+  a la suma de las hojas más los dos "5O000" (julio y agosto) que Excel no
+  suma por la letra O.
+- **Alumnos:** la base general tiene 457 filas con algo escrito; una es un
+  "18" suelto (hoja U-T), así que son 456 personas. Más 10 que solo están
+  en el control de cuotas: 466.
+- **Activos:** 199 personas distintas en la hoja SEPT + 4 que pagaron en
+  octubre sin estar en SEPT = 203.
+
+## 2026-10-02 — Avisos de `npm audit`: documentados, no aplicados
+
+**Decisión:** no correr `npm audit fix` por ahora. Los 3 avisos de
+producción (brace-expansion alto, fast-uri y ip-address moderados) vienen
+de la CLI de `shadcn`, que figura en `dependencies` pero en runtime
+solo aporta un CSS: ninguno aparece en las trazas de las funciones del
+build (`.next/server/**/*.nft.json`). Los de desarrollo vienen de
+drizzle-kit.
+
+**Motivo:** `npm audit fix` corrido en Windows, además de actualizar
+esos paquetes, saca del lockfile dependencias opcionales de otras
+plataformas (`@napi-rs/wasm-runtime`, `@emnapi/*`), lo que puede romper el
+build de Vercel (Linux). **Recomendación:** pasar `shadcn` a
+`devDependencies` y actualizar desde un entorno Linux (o con un preview
+de Vercel que lo valide), en un cambio aparte.
