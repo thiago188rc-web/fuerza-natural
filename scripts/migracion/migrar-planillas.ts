@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import postgres from "postgres";
 import { leerArgumentos, listarGimnasios } from "../db/_compartido";
@@ -160,29 +161,45 @@ async function aplicar(sql: postgres.Sql, gymId: string, plan: PlanDeMigracion, 
     );
     for (let i = 0; i < eventos.length; i += 500) await tx`insert into app.student_events ${tx(eventos.slice(i, i + 500))}`;
 
-    let cantidadPagos = 0;
+    // Pagos y sus tramos por lotes, con el id del pago generado acá: de a
+    // uno eran ~2600 idas y vueltas al servidor, y contra producción
+    // (us-west-2) la transacción superaba los 10 minutos.
+    const filasPagos: Record<string, unknown>[] = [];
+    const filasTramos: Record<string, unknown>[] = [];
     for (const [i, x] of plan.alumnos.entries()) {
       for (const p of x.pagos) {
         const plan = planIds.get(p.planNombre)!;
-        const [pago] = await tx<{ id: string }[]>`
-          insert into app.payments (gym_id, student_id, fecha_pago, plan_id, plan_dias_snapshot, plan_nombre_snapshot,
-            modalidad, monto, metodo, nota, registrado_por, idempotency_key)
-          values (${gymId}, ${ids[i]}, ${p.fecha}, ${plan.id}, ${plan.dias}, ${p.planNombre},
-            ${p.modalidad}, ${p.monto}, 'OTRO', ${p.nota}, ${dueno.id}, ${p.clave})
-          returning id`;
-        await tx`insert into app.payment_periods ${tx(
-          p.tramos.map((t) => ({
+        const id = randomUUID();
+        filasPagos.push({
+          id,
+          gym_id: gymId,
+          student_id: ids[i],
+          fecha_pago: p.fecha,
+          plan_id: plan.id,
+          plan_dias_snapshot: plan.dias,
+          plan_nombre_snapshot: p.planNombre,
+          modalidad: p.modalidad,
+          monto: p.monto,
+          metodo: "OTRO",
+          nota: p.nota,
+          registrado_por: dueno.id,
+          idempotency_key: p.clave,
+        });
+        for (const t of p.tramos) {
+          filasTramos.push({
             gym_id: gymId,
-            payment_id: pago.id,
+            payment_id: id,
             student_id: ids[i],
             periodo: t.periodo,
             cubre_desde: t.cubreDesde,
             cubre_hasta: t.cubreHasta,
-          })),
-        )}`;
-        cantidadPagos++;
+          });
+        }
       }
     }
+    for (let i = 0; i < filasPagos.length; i += 300) await tx`insert into app.payments ${tx(filasPagos.slice(i, i + 300))}`;
+    for (let i = 0; i < filasTramos.length; i += 300) await tx`insert into app.payment_periods ${tx(filasTramos.slice(i, i + 300))}`;
+    const cantidadPagos = filasPagos.length;
 
     await tx`
       insert into app.activity_log (gym_id, actor_user_id, actor_email_snapshot, actor_rol_snapshot, accion, entidad, resumen, cambios)
