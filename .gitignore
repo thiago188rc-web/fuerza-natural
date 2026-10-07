@@ -54,3 +54,10 @@ next-env.d.ts
 
 # capturas del navegador de pruebas (pueden tener datos personales)
 /.playwright-mcp/
+
+# backups y volcados locales (nunca en el repositorio)
+*.dump
+*.backup
+*.bak
+*.sql.gz
+

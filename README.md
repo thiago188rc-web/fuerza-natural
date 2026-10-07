@@ -71,6 +71,7 @@ npm run dev
 
 ## Documentación
 
+- `HANDOFF.md` — guía de bienvenida, puesta en marcha local y traspaso para colaboradores (Antigravity).
 - `docs/REGLAS-DE-NEGOCIO.md` — **las reglas confirmadas por el dueño**. Fuente de
   verdad del negocio: si el código y ese archivo discrepan, el que está mal es el código.
 - `docs/ARCHITECTURE.md` — capas, estructura de carpetas, el patrón de un caso de uso.
