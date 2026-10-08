@@ -2,9 +2,11 @@ import type { PuntoDeHistorial } from "@/use-cases/metricas/consultas";
 import { cn } from "@/lib/utils";
 
 const ANCHO_POR_PUNTO = 58;
-const ALTO = 132;
+const ALTO = 138;
 const ALTO_BARRAS = 78;
-const TOPE_BARRAS_Y = 34;
+// Un poco más de aire que antes: el halo de los puntos (más grandes ahora,
+// para que resalten) necesita lugar arriba del número más alto sin pisarlo.
+const TOPE_BARRAS_Y = 40;
 const BASE_BARRAS_Y = TOPE_BARRAS_Y + ALTO_BARRAS;
 const ANCHO_BARRA = 26;
 
@@ -105,20 +107,21 @@ export function BarraConTendencia({
         <polyline
           points={lineaPuntos}
           fill="none"
-          strokeWidth={2}
+          strokeWidth={3}
           strokeLinecap="round"
           strokeLinejoin="round"
           className={colorLinea}
         />
       ) : null}
       {puntosConDato.map((p) => (
-        <circle
-          key={p.mes}
-          cx={xDe(puntos.indexOf(p))}
-          cy={yDe(p.valor)}
-          r={2.5}
-          className={colorPunto}
-        />
+        // Un halo del color de fondo debajo de cada punto: sin él, la
+        // línea queda "flotando" sobre la barra y el punto se pierde justo
+        // donde cruza un color parecido. Mismo truco que un borde blanco
+        // en un mapa, no una sombra — sigue siendo diseño plano.
+        <g key={p.mes}>
+          <circle cx={xDe(puntos.indexOf(p))} cy={yDe(p.valor)} r={5.5} className="fill-card" />
+          <circle cx={xDe(puntos.indexOf(p))} cy={yDe(p.valor)} r={4} className={colorPunto} />
+        </g>
       ))}
     </svg>
   );
