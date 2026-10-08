@@ -161,10 +161,12 @@ export const contextoDeCobroQuery = withAuth<string, ContextoDeCobro>(
         (max, t) => (max === null || t.hasta > max ? t.hasta : max),
         null,
       );
+      // El día después del último cubierto, SIN normalizar al día 1: así
+      // el ciclo mensual queda anclado al mismo número de día siempre
+      // (confirmado por Diego — 2026-10-08, ver `coberturaDe`), en vez de
+      // correrse al 1 de cada mes.
       const sugerenciaDesde =
-        ultimoCubierto && ultimoCubierto >= hoy
-          ? primerDiaDelMes(sumarMeses(ultimoCubierto, 1))
-          : primerDiaDelMes(hoy);
+        ultimoCubierto && ultimoCubierto >= hoy ? sumarDias(ultimoCubierto, 1) : hoy;
 
       return ok({
         hoy,

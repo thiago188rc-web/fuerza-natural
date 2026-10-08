@@ -14,16 +14,29 @@ const PARAMETROS = { ventanaPagoHasta: 10, diasGracia: 5, diasNuevoSinPago: 7 };
 const ACTIVO = { vinculo: "ACTIVO", fechaAltaOriginal: "2025-01-01" };
 
 describe("coberturaDe — mes completo", () => {
-  it("cubre el mes entero sin importar qué día se pague", () => {
+  it("un mes corrido desde el día que se elija, no el mes calendario", () => {
     expect(coberturaDe("MES_COMPLETO", "2026-09-23")).toEqual({
-      desde: "2026-09-01",
-      hasta: "2026-09-30",
+      desde: "2026-09-23",
+      hasta: "2026-10-22",
     });
   });
 
-  it("resuelve febrero y los años bisiestos", () => {
-    expect(coberturaDe("MES_COMPLETO", "2027-02-10").hasta).toBe("2027-02-28");
-    expect(coberturaDe("MES_COMPLETO", "2028-02-10").hasta).toBe("2028-02-29");
+  it("el día de arranque NO se corre aunque se pague tarde: lo decide `desde`, no la fecha de pago", () => {
+    // Alguien que arrancó el 10 y paga 3 días tarde (el 13) sigue
+    // cubriendo del 10 al 9, no del 13 al 12 — eso lo garantiza el
+    // formulario al sugerir `desde`, no esta función: acá solo importa
+    // que la misma entrada siempre dé el mismo resultado.
+    expect(coberturaDe("MES_COMPLETO", "2026-09-10")).toEqual({
+      desde: "2026-09-10",
+      hasta: "2026-10-09",
+    });
+  });
+
+  it("resuelve febrero y los años bisiestos con el mismo clamp que `sumarMeses`", () => {
+    // 31 de enero + 1 mes = 28/29 de febrero (no existe el 31), así que la
+    // cobertura termina el día anterior a ese clamp.
+    expect(coberturaDe("MES_COMPLETO", "2027-01-31").hasta).toBe("2027-02-27");
+    expect(coberturaDe("MES_COMPLETO", "2028-01-31").hasta).toBe("2028-02-28");
   });
 });
 

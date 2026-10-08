@@ -682,3 +682,29 @@ plataformas (`@napi-rs/wasm-runtime`, `@emnapi/*`), lo que puede romper el
 build de Vercel (Linux). **Recomendación:** pasar `shadcn` a
 `devDependencies` y actualizar desde un entorno Linux (o con un preview
 de Vercel que lo valide), en un cambio aparte.
+
+## 2026-10-08 — "Mes completo" pasa a cubrir un mes desde el día de arranque, no el mes calendario
+
+**Decisión:** se revierte la regla confirmada el 2026-09-07 ("mes
+completo = día 1 al último día del mes de `desde`", docs/REGLAS-DE-NEGOCIO.md
+§5 original). `coberturaDe("MES_COMPLETO", desde)` ahora devuelve un mes
+corrido desde `desde` (mismo mecanismo que ya usaba `MEDIO_MES`, pero por
+30/31 días en vez de 15): `{ desde, hasta: sumarDias(sumarMeses(desde, 1), -1) }`.
+El formulario de cobro sugiere `cubreDesde` como "el día después del
+último día cubierto" (ya no "el día 1 del próximo mes"), así el ciclo
+de cada alumno queda anclado a su propio número de día sin que el dueño
+tenga que recordarlo, y ese día es editable a mano con un
+`<input type="date">` en vez de solo flechas de mes.
+
+**Motivo:** pedido explícito del dueño — pagar unos días tarde no debe
+correr el ciclo del alumno al día en que efectivamente pagó; tiene que
+seguir siendo el mismo número de día todos los meses, calculado desde
+cuándo arrancó (o desde el día que el dueño ajuste a mano), nunca desde
+`fechaPago`.
+
+**Qué NO cambia:** `payments` sigue siendo inmutable salvo anulación
+(§4.6) — ajustar el día de arranque es algo que se hace ANTES de
+confirmar un pago nuevo, nunca editando uno ya registrado. Los pagos
+`MES_COMPLETO` ya existentes no se recalculan: sus `payment_periods` ya
+escritos conservan el rango que tenían (mismo criterio que "los precios
+no aplican retroactivamente", §2).

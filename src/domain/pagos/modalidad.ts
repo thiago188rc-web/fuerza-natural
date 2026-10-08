@@ -37,16 +37,23 @@ export interface Cobertura {
 /**
  * El rango que cubre un pago.
  *
- *   MES_COMPLETO — del día 1 al último día del mes de `desde`. Se
- *                  normaliza a propósito: elegir "septiembre" cubre
- *                  septiembre entero, sin importar qué día se pague.
+ *   MES_COMPLETO — un mes corrido desde `desde` (el mismo número de día,
+ *                  un mes después, menos un día), NO el mes calendario.
+ *                  Confirmado por Diego — 2026-10-08: el ciclo de cada
+ *                  alumno queda anclado al día en que arrancó o al que
+ *                  el dueño ajuste a mano, y no se corre aunque pague
+ *                  tarde — pagar 3 días después de vencido sigue
+ *                  cubriendo hasta el mismo número de día del mes
+ *                  siguiente, nunca "3 días tarde todo el ciclo".
+ *                  Reemplaza la regla anterior (día 1 al último día del
+ *                  mes de `desde`) — ver docs/REGLAS-DE-NEGOCIO.md §3bis.
  *   MEDIO_MES    — 15 días corridos desde `desde`, que puede ser
  *                  CUALQUIER día del mes. Puede terminar en el mes
  *                  siguiente, y eso es correcto.
  */
 export function coberturaDe(modalidad: Modalidad, desde: string): Cobertura {
   if (modalidad === "MES_COMPLETO") {
-    return { desde: primerDiaDelMes(desde), hasta: ultimoDiaDelMes(desde) };
+    return { desde, hasta: sumarDias(sumarMeses(desde, 1), -1) };
   }
   return { desde, hasta: sumarDias(desde, DIAS_DE_MEDIO_MES - 1) };
 }

@@ -126,6 +126,35 @@ Un pago con modalidad `MEDIO_MES` guarda:
 
 ---
 
+## 3bis. "Mes completo" cubre un mes desde el día de arranque, no el mes calendario
+
+**Confirmado por Diego — 2026-10-08. Reemplaza la regla original de este
+documento** (más abajo, §5: "del día 1 al último día del mes de
+`desde`").
+
+- Un pago `MES_COMPLETO` cubre **un mes corrido desde el día que se
+  elija** (`cubreDesde`) hasta el mismo número de día del mes siguiente,
+  menos un día — igual que `MEDIO_MES` ya hacía con sus 15 días, pero por
+  un mes entero.
+- Ese día de arranque **no se corre porque se pague tarde**. Si alguien
+  arrancó el 10 y paga 3 días después (el 13), el mes registrado sigue
+  siendo del 10 al 9 del mes siguiente — nunca del 13 al 12. El
+  formulario de cobro sugiere `cubreDesde` como "el día después del
+  último día ya cubierto", así el ciclo se mantiene anclado al mismo
+  número de día automáticamente, pago tras pago.
+- Ese día es **ajustable a mano** en el formulario de cobro (un
+  `<input type="date">`, no solo flechas de mes) — para el primer pago de
+  un alumno, para corregir un ciclo mal anclado, o para cualquier ajuste
+  puntual que el dueño necesite.
+- Un pago ya registrado sigue siendo **intocable** (§4.6 / inmutabilidad
+  de `payments`): ajustar el día es algo que se hace ANTES de confirmar
+  un pago nuevo, nunca editando uno existente. Para corregir un pago mal
+  cargado, la vía sigue siendo anularlo y registrar uno nuevo.
+
+Implementación: `coberturaDe()` en `src/domain/pagos/modalidad.ts`.
+
+---
+
 ## 4. Un pago NO cambia el plan del alumno
 
 **Confirmado por Diego — 2026-09-07.**
@@ -160,11 +189,12 @@ en `payment_periods`:
   "¿quién tiene cubierto septiembre?" sea un `WHERE` indexado.
 - `cubre_desde` / `cubre_hasta` — el rango real cubierto.
 
-Para un mes completo el rango es del día 1 al último día del mes. Para
-medio mes, los 15 días que Diego elija. Si un medio mes cruza el fin de
-mes (empieza el 25), se genera una fila por cada mes tocado; un CHECK en
-la base garantiza que `periodo` es siempre el mes en el que arranca ese
-tramo.
+Para un mes completo el rango es un mes corrido desde el día elegido,
+NO el mes calendario (§3bis). Para medio mes, los 15 días que Diego
+elija. En ambos casos, si el tramo cruza el fin de mes (empieza el 25,
+o el día de arranque cae tarde en el mes), se genera una fila por cada
+mes tocado; un CHECK en la base garantiza que `periodo` es siempre el
+mes en el que arranca ese tramo.
 
 El modelo soporta naturalmente meses **no consecutivos** (alguien que en
 noviembre paga septiembre y noviembre, salteando octubre).

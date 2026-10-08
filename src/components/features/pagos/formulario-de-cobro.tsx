@@ -8,7 +8,7 @@ import { registrarPagoFormAction } from "@/app/(app)/pagos/actions";
 import { ESTADO_PAGO_INICIAL, type EstadoPago } from "@/app/(app)/pagos/estado-formulario";
 import type { ContextoDeCobro } from "@/use-cases/pagos/consultas";
 import { coberturaDe, ETIQUETA_MODALIDAD, type Modalidad } from "@/domain/pagos/modalidad";
-import { etiquetaDeMes, primerDiaDelMes, sumarMeses } from "@/domain/fechas/calendario";
+import { sumarMeses } from "@/domain/fechas/calendario";
 import { Segmentado } from "@/components/segmentado";
 import { VistaPreviaDeCobertura } from "./vista-previa-de-cobertura";
 import { Senal, TEXTO_DE_ESTADO } from "@/components/features/cobertura/senal";
@@ -128,33 +128,36 @@ export function FormularioDeCobro({
       <div className="superficie divide-y divide-border">
         {/* DESDE CUÁNDO */}
         <fieldset className="px-5 py-5">
-          <legend className="t-rotulo">Mes que cubre</legend>
+          <legend className="t-rotulo">Día desde el que arranca el mes</legend>
 
           <div className="mt-3 flex items-center gap-2">
             <PasoDeMes
               direccion="anterior"
-              onClick={() =>
-                cambiarCobertura(() => setCubreDesde(primerDiaDelMes(sumarMeses(cubreDesde, -1))))
-              }
+              onClick={() => cambiarCobertura(() => setCubreDesde(sumarMeses(cubreDesde, -1)))}
             />
-            {/* `aria-live`: las flechas cambian este texto y nada más. Sin
-                esto, quien navega con lector aprieta "Mes siguiente" y no
-                escucha en qué mes quedó. */}
-            <span
-              aria-live="polite"
-              className="tabular flex-1 text-center font-heading text-lg font-semibold capitalize"
-            >
-              {etiquetaDeMes(cubreDesde)}
-            </span>
+            {/* El mismo input que arma el valor que se envía: no hay un
+                "modo lectura" con texto y un "modo edición" aparte. Tocar
+                la fecha la edita directo — es justo lo que permite ajustar
+                el día de arranque de un alumno, no solo saltar de mes en
+                mes. */}
+            <Input
+              type="date"
+              aria-label="Día desde el que arranca el mes"
+              value={cubreDesde}
+              onChange={(e) => {
+                if (e.target.value) cambiarCobertura(() => setCubreDesde(e.target.value));
+              }}
+              className="tabular flex-1 text-center font-heading text-base font-semibold"
+            />
             <PasoDeMes
               direccion="siguiente"
-              onClick={() =>
-                cambiarCobertura(() => setCubreDesde(primerDiaDelMes(sumarMeses(cubreDesde, 1))))
-              }
+              onClick={() => cambiarCobertura(() => setCubreDesde(sumarMeses(cubreDesde, 1)))}
             />
           </div>
           <p className="mt-3 text-xs text-muted-foreground">
-            Cubre el mes entero con el plan habitual: {contexto.alumno.planNombre}.
+            Cubre un mes desde esta fecha, hasta el {fechaCompleta(cobertura.hasta)} — con el plan
+            habitual: {contexto.alumno.planNombre}. Pagar unos días tarde no corre el ciclo: las
+            flechas mueven el mismo día al mes anterior o siguiente.
           </p>
 
           {estado.errores?.cubreDesde ? (
@@ -427,7 +430,7 @@ function PasoDeMes({
     <button
       type="button"
       onClick={onClick}
-      aria-label={direccion === "anterior" ? "Mes anterior" : "Mes siguiente"}
+      aria-label={direccion === "anterior" ? "Un mes antes" : "Un mes después"}
       className="grid size-9 shrink-0 place-items-center rounded-lg border border-border text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-verde focus-visible:outline-none"
     >
       <Icono className="size-4" strokeWidth={2} />
