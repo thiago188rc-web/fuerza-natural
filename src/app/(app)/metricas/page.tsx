@@ -41,14 +41,26 @@ const SEMANA_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 export default async function MetricasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ vista?: string; mes?: string; semana?: string }>;
+  searchParams: Promise<{ vista?: string; mes?: string; semana?: string; activosMes?: string }>;
 }) {
-  const { vista: vistaCruda, mes: mesCrudo, semana: semanaCruda } = await searchParams;
+  const {
+    vista: vistaCruda,
+    mes: mesCrudo,
+    semana: semanaCruda,
+    activosMes: activosMesCrudo,
+  } = await searchParams;
   const vista = esVistaMetricas(vistaCruda) ? vistaCruda : "mes";
   const mesPedido = mesCrudo && MES_REGEX.test(mesCrudo) ? `${mesCrudo}-01` : undefined;
   const semanaPedida = semanaCruda && SEMANA_REGEX.test(semanaCruda) ? semanaCruda : undefined;
+  const activosMesPedido =
+    activosMesCrudo && MES_REGEX.test(activosMesCrudo) ? `${activosMesCrudo}-01` : undefined;
 
-  const resultado = await metricasQuery({ vista, mes: mesPedido, semana: semanaPedida });
+  const resultado = await metricasQuery({
+    vista,
+    mes: mesPedido,
+    semana: semanaPedida,
+    activosMes: activosMesPedido,
+  });
 
   if (!resultado.ok) {
     if (resultado.kind === "FORBIDDEN") redirect("/login");
@@ -77,6 +89,21 @@ export default async function MetricasPage({
   const semanaActiva = m.rango.desde;
   const semanaAnteriorHref = `?vista=semana&semana=${sumarSemanas(semanaActiva, -1)}`;
   const semanaSiguienteHref = `?vista=semana&semana=${sumarSemanas(semanaActiva, 1)}`;
+
+  // "Alumnos activos por mes" navega su propia ventana, sin tocar
+  // `vista`: conserva los demás parámetros de la URL tal cual estén.
+  const activosMesActivo = m.activosPorMesNavegable.mesReferencia;
+  function hrefActivosMes(mes: string) {
+    const params = new URLSearchParams({
+      ...(vistaCruda ? { vista: vistaCruda } : {}),
+      ...(mesCrudo ? { mes: mesCrudo } : {}),
+      ...(semanaCruda ? { semana: semanaCruda } : {}),
+      activosMes: mes.slice(0, 7),
+    });
+    return `?${params.toString()}`;
+  }
+  const activosMesAnteriorHref = hrefActivosMes(sumarMeses(activosMesActivo, -1));
+  const activosMesSiguienteHref = hrefActivosMes(sumarMeses(activosMesActivo, 1));
 
   return (
     <div className="space-y-6">
@@ -306,6 +333,45 @@ export default async function MetricasPage({
           </section>
         </Aparece>
       </div>
+
+      <Aparece retraso={0.185}>
+        <section className="superficie p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="t-rotulo">Alumnos activos por mes</p>
+              <p className="mt-0.5 text-[0.7rem] text-muted-foreground">A fin de cada mes</p>
+            </div>
+            <div className="flex items-center gap-1">
+              <Link
+                href={activosMesAnteriorHref}
+                aria-label="Un mes antes"
+                className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-verde focus-visible:outline-none"
+              >
+                <ChevronLeft className="size-4" strokeWidth={2} />
+              </Link>
+              <span className="tabular min-w-[6.5rem] text-center text-sm font-medium capitalize">
+                {etiquetaDeMes(activosMesActivo, { conAnio: true })}
+              </span>
+              <Link
+                href={activosMesSiguienteHref}
+                aria-label="Un mes después"
+                className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-verde focus-visible:outline-none"
+              >
+                <ChevronRight className="size-4" strokeWidth={2} />
+              </Link>
+            </div>
+          </div>
+          <div className="mt-2 overflow-x-auto">
+            <BarraConTendencia
+              puntos={m.activosPorMesNavegable.puntos}
+              formatearValor={(v) => String(v)}
+              colorBarra="fill-verde"
+              colorLinea="stroke-revisar"
+              colorPunto="fill-revisar"
+            />
+          </div>
+        </section>
+      </Aparece>
 
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         <Aparece retraso={0.18} className="min-w-0">

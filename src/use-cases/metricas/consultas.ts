@@ -134,6 +134,13 @@ export interface MetricasInput {
    * vista "semana"; sin esto, es la semana en curso.
    */
   semana?: string;
+  /**
+   * 'YYYY-MM' — el último mes de la ventana de "Alumnos activos por mes"
+   * (abajo de Captación). Independiente de `vista`/`mes`: ese gráfico
+   * navega su propia ventana de `MESES_DE_HISTORIAL` meses, sin importar
+   * qué vista esté elegida arriba. Sin esto, termina en el mes en curso.
+   */
+  activosMes?: string;
 }
 
 export interface Metricas {
@@ -169,6 +176,11 @@ export interface Metricas {
   facturacionPorMes: PuntoDeHistorial[];
   /** Alumnos activos a fin de cada uno de los últimos `MESES_DE_HISTORIAL` meses. */
   activosPorMes: PuntoDeHistorial[];
+  /**
+   * Lo mismo, pero en una ventana navegable (no atada al mes en curso) —
+   * el gráfico aparte de abajo de Captación, con flechas mes a mes.
+   */
+  activosPorMesNavegable: { mesReferencia: string; puntos: PuntoDeHistorial[] };
 
   porMetodo: SegmentoImporte[];
   porModalidad: SegmentoImporte[];
@@ -458,6 +470,25 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
         real: a.real && esReal(a.mes),
       }));
 
+      // Misma cuenta, pero con la ventana desplazable por `activosMes`: el
+      // gráfico de abajo de Captación no depende de `vista` ni del mes en
+      // curso, así que arma su propia ventana de MESES_DE_HISTORIAL meses.
+      const mesReferenciaActivos = input?.activosMes
+        ? primerDiaDelMes(input.activosMes)
+        : mesDeHoy;
+      const finesDeMesActivosNav = Array.from({ length: MESES_DE_HISTORIAL }, (_, i) =>
+        ultimoDiaDelMes(primerDiaDelMes(sumarMeses(mesReferenciaActivos, -(MESES_DE_HISTORIAL - 1 - i)))),
+      );
+      const activosPorMesNavegable: Metricas["activosPorMesNavegable"] = {
+        mesReferencia: mesReferenciaActivos,
+        puntos: activosAlFinDeCadaMes(fechasDeVinculo, finesDeMesActivosNav).map((a) => ({
+          mes: primerDiaDelMes(a.mes),
+          etiqueta: etiquetaDeMes(a.mes, { conAnio: false }),
+          valor: a.cantidad,
+          real: a.real && esReal(a.mes),
+        })),
+      };
+
       let resumen: Metricas["resumenDelMes"] = null;
       if (vista === "mes") {
         const mes = config.desde;
@@ -549,6 +580,7 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
         historialDeMovimiento,
         facturacionPorMes,
         activosPorMes,
+        activosPorMesNavegable,
 
         porMetodo: segmentosDeImporte(filasMetodo, ETIQUETA_METODO, METODOS_PAGO),
         porModalidad: segmentosDeImporte(filasModalidad, ETIQUETA_MODALIDAD, MODALIDADES_PAGO),
