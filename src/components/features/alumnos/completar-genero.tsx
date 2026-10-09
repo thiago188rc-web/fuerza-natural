@@ -2,7 +2,9 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { asignarGeneroAccion } from "@/app/(app)/alumnos/actions";
+import { useRouter } from "next/navigation";
+import { Sparkles } from "lucide-react";
+import { asignarGeneroAccion, clasificarGeneroAutomaticamenteAccion } from "@/app/(app)/alumnos/actions";
 import { Button } from "@/components/ui/button";
 import { GENEROS, etiquetaGenero, type Genero } from "@/domain/alumnos/genero";
 import type { AlumnoSinGenero } from "@/use-cases/alumnos/asignar-genero";
@@ -12,15 +14,46 @@ import { cn } from "@/lib/utils";
  * La lista de "completar género": un toque por alumno y pasa al siguiente.
  * El que se resolvió se va de la lista al instante; si el servidor rechaza
  * el cambio, vuelve con el motivo al lado.
+ *
+ * El botón "Clasificar automáticamente" es la excepción puntual que pidió
+ * el dueño: adivina por nombre y escribe TODOS de una, sin pedir
+ * confirmación uno por uno (ver `clasificarGeneroAutomaticamenteAction`).
+ * Un nombre ambiguo queda igual en esta lista — el clasificador no
+ * inventa, así que lo que no pudo adivinar sigue pidiendo el toque manual.
  */
 export function CompletarGenero({ alumnos }: { alumnos: AlumnoSinGenero[] }) {
+  const router = useRouter();
   const [resueltos, setResueltos] = useState<Record<string, Genero>>({});
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [enCurso, setEnCurso] = useState<string | null>(null);
+  const [clasificando, setClasificando] = useState(false);
+  const [resultadoAutomatico, setResultadoAutomatico] = useState<string | null>(null);
   const [, iniciar] = useTransition();
 
   const pendientes = alumnos.filter((a) => !resueltos[a.id]);
   const hechos = alumnos.length - pendientes.length;
+
+  async function clasificarAutomaticamente() {
+    setClasificando(true);
+    setResultadoAutomatico(null);
+    const resultado = await clasificarGeneroAutomaticamenteAccion();
+    setClasificando(false);
+    if (!resultado.ok) {
+      setResultadoAutomatico(
+        resultado.kind === "CONFLICT" ? resultado.message : "No se pudo clasificar.",
+      );
+      return;
+    }
+    setResultadoAutomatico(
+      resultado.data.clasificados === 0
+        ? "Ningún nombre se pudo adivinar con confianza."
+        : `${resultado.data.clasificados} clasificados por nombre` +
+            (resultado.data.sinClasificar > 0
+              ? `, ${resultado.data.sinClasificar} quedaron para completar a mano`
+              : "."),
+    );
+    router.refresh();
+  }
 
   function asignar(alumno: AlumnoSinGenero, genero: Genero) {
     setEnCurso(alumno.id);
@@ -77,7 +110,23 @@ export function CompletarGenero({ alumnos }: { alumnos: AlumnoSinGenero[] }) {
             style={{ width: `${(hechos / alumnos.length) * 100}%` }}
           />
         </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={clasificando}
+          onClick={clasificarAutomaticamente}
+        >
+          <Sparkles />
+          {clasificando ? "Clasificando…" : "Clasificar automáticamente"}
+        </Button>
       </header>
+
+      {resultadoAutomatico ? (
+        <p className="border-b border-border bg-muted/40 px-5 py-2 text-xs text-muted-foreground">
+          {resultadoAutomatico}
+        </p>
+      ) : null}
 
       {pendientes.length === 0 ? (
         <p className="px-5 py-10 text-center text-sm text-muted-foreground">

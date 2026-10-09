@@ -5,7 +5,10 @@ import { revalidatePath } from "next/cache";
 import { crearAlumnoAction } from "@/use-cases/alumnos/crear-alumno";
 import { editarAlumnoAction } from "@/use-cases/alumnos/editar-alumno";
 import { cambiarVinculoAction } from "@/use-cases/alumnos/cambiar-vinculo";
-import { asignarGeneroAction } from "@/use-cases/alumnos/asignar-genero";
+import {
+  asignarGeneroAction,
+  clasificarGeneroAutomaticamenteAction,
+} from "@/use-cases/alumnos/asignar-genero";
 import type { Result } from "@/use-cases/_kernel/result";
 // El tipo y el estado inicial viven aparte: un módulo "use server" solo
 // puede exportar funciones async (ver estado-formulario.ts).
@@ -165,4 +168,19 @@ export async function asignarGeneroAccion(id: string, genero: string): Promise<E
   revalidatePath("/metricas");
   revalidatePath(`/alumnos/${id}`);
   return { ok: true };
+}
+
+/**
+ * El botón "Clasificar automáticamente" de la misma pantalla: corre el
+ * clasificador por nombre sobre todos los que faltan, de una sola vez.
+ */
+export async function clasificarGeneroAutomaticamenteAccion(): Promise<
+  Result<{ clasificados: number; sinClasificar: number }>
+> {
+  const resultado = await clasificarGeneroAutomaticamenteAction();
+  if (resultado.ok) {
+    revalidatePath("/metricas");
+    revalidatePath("/alumnos/completar-genero");
+  }
+  return resultado;
 }

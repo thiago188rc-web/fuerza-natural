@@ -6,6 +6,7 @@ import { logActivity } from "@/use-cases/_kernel/with-audit";
 import { notFound, ok, type Result } from "@/use-cases/_kernel/result";
 import { asignarGeneroAlumno, buscarAlumnoPorId, listarSinGenero } from "@/data/repositories/students-repo";
 import { GENEROS, etiquetaGenero } from "@/domain/alumnos/genero";
+import { inferirGeneroDesdeNombre } from "@/domain/alumnos/inferir-genero";
 import { nombreCompleto } from "@/domain/alumnos/identidad";
 
 /**
@@ -49,6 +50,49 @@ export const asignarGeneroAction = withAuth<z.input<typeof asignarGeneroSchema>,
     });
   },
 );
+
+export interface ResultadoClasificacionAutomatica {
+  clasificados: number;
+  sinClasificar: number;
+}
+
+/**
+ * CLASIFICAR TODOS DE UNA, por nombre de pila — a pedido explícito del
+ * dueño. Es la excepción deliberada a "el sistema no lo deduce del
+ * nombre" (ver `domain/alumnos/genero.ts` y `inferir-genero.ts`): acá
+ * SÍ se escribe sin que nadie confirme alumno por alumno, así que un
+ * nombre ambiguo clasificado mal no se corrige solo — queda sin tocar
+ * (`inferirGeneroDesdeNombre` devuelve `null`) en vez de adivinar.
+ *
+ * Incluye también a los de baja: "todos de una" es todos, no solo los
+ * que hoy cuentan en Métricas.
+ */
+export const clasificarGeneroAutomaticamenteAction = withAuth<
+  void,
+  ResultadoClasificacionAutomatica
+>(["DUENO", "STAFF"], async (ctx) => {
+  return withTenantTx<Result<ResultadoClasificacionAutomatica>>(ctx, async (tx) => {
+    const sinGenero = await listarSinGenero(tx, ctx, true);
+
+    let clasificados = 0;
+    for (const alumno of sinGenero) {
+      const genero = inferirGeneroDesdeNombre(alumno.nombre);
+      if (!genero) continue;
+      await asignarGeneroAlumno(tx, ctx, alumno.id, genero);
+      clasificados++;
+    }
+
+    if (clasificados > 0) {
+      await logActivity(tx, ctx, {
+        accion: "student.updated",
+        entidad: "student",
+        resumen: `Género clasificado automáticamente por nombre: ${clasificados} de ${sinGenero.length} alumnos sin dato`,
+      });
+    }
+
+    return ok({ clasificados, sinClasificar: sinGenero.length - clasificados });
+  });
+});
 
 export interface AlumnoSinGenero {
   id: string;

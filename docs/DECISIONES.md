@@ -708,3 +708,22 @@ confirmar un pago nuevo, nunca editando uno ya registrado. Los pagos
 `MES_COMPLETO` ya existentes no se recalculan: sus `payment_periods` ya
 escritos conservan el rango que tenían (mismo criterio que "los precios
 no aplican retroactivamente", §2).
+
+## 2026-10-09 — "Clasificar automáticamente" el género por nombre: excepción puntual, no la regla
+
+**Decisión:** se agrega un botón en `/alumnos/completar-genero`
+("Clasificar automáticamente") que corre `inferirGeneroDesdeNombre()`
+sobre todos los alumnos sin género y guarda el resultado DIRECTO, sin
+pedir confirmación uno por uno. Un nombre que el clasificador no puede
+adivinar con confianza (ambiguo, extranjero, fuera de las listas) queda
+sin tocar — sigue pidiendo el toque manual de siempre.
+
+**Motivo:** pedido explícito del dueño, repetido después de explicarle
+la alternativa descartada el 2026-09-08. Es su decisión sobre su propio
+dato, y el sistema sigue sin inferir nada "en silencio": queda un botón
+visible, un registro en Actividad con el total clasificado, y nadie
+pierde la posibilidad de corregir a mano lo que haga falta.
+
+**Qué NO cambia:** crear un alumno nuevo sigue sin inferir género — eso
+sigue siendo 100% manual y opcional (`domain/alumnos/genero.ts`). Esto
+es solo para la lista de alumnos que YA existen sin el dato.

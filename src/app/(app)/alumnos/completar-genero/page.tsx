@@ -45,8 +45,10 @@ export default async function CompletarGeneroPage({
           </Link>
           <h1 className="t-titulo mt-1.5 text-[1.5rem] sm:text-[1.625rem]">Completar género</h1>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            La planilla no lo traía y el sistema no lo deduce del nombre: se carga a mano, de un
-            toque por alumno. Con esto se completa el gráfico de género de Métricas.
+            La planilla no lo traía. Se completa a mano, de un toque por alumno, o con
+            &ldquo;Clasificar automáticamente&rdquo; (adivina por nombre y guarda todo de una — lo
+            que no puede adivinar con confianza queda en la lista para completarlo a mano). Con
+            esto se completa el gráfico de género de Métricas.
           </p>
           <p className="mt-2 text-xs">
             {incluirBajas ? (
