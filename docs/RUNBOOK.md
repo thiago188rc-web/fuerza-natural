@@ -318,8 +318,9 @@ Usar `./node_modules/.bin/tsx` si `npx` se cuelga en Windows. Si un nombre
 de la planilla de cuotas no se empareja solo, `--alias alias.json`
 (`{"COMO EN CUOTAS": "COMO EN LA BASE"}`), guardado fuera del repo. Es
 también la forma de aplicar lo que confirme el dueño sobre los casos
-dudosos (por ejemplo, si "BARRERA, YOKO" de las cuotas es "BARRERA,
-YOHANA" de la base).
+dudosos (por ejemplo, si un nombre de las cuotas es la misma persona que
+otro parecido de la base). El repositorio es público: los nombres reales
+de alumnos no van en el código ni en estos documentos.
 
 Es idempotente en el sentido que importa: todo corre en UNA transacción
 (si algo falla no queda nada escrito y se puede volver a correr), y una
@@ -497,9 +498,9 @@ definir).
    cambio de contraseña funciona; la recuperación por email, no.
 3. Confirmar organización, administradores y plan; segunda cuenta DUENO
    de emergencia; monitor externo sobre `/api/salud`.
-4. Prueba de Diego: entra, cambia su contraseña, revisa sus datos sin
-   cargar operaciones. Después se borra `DUENO_PASSWORD_INICIAL` del
-   archivo de credenciales.
+4. Prueba de Diego: revisa sus datos sin cargar operaciones. La
+   contraseña inicial ya no vale: se cambió desde el panel el 2026-10-09
+   y se borró `DUENO_PASSWORD_INICIAL` del archivo de credenciales.
 
 **Acceso de emergencia hoy:** si Diego no puede entrar, un administrador
 del proyecto Supabase le asigna una contraseña temporal desde
@@ -557,8 +558,9 @@ Orden, cada paso con su verificación antes del siguiente:
 9. **Supabase Auth** (sección "Contraseñas" arriba): URLs, SMTP, plantilla.
 10. **Prueba real con Diego**: que entre con su usuario, cambie la
     contraseña que le dio NEXA, recorra Panel, Alumnos, una ficha, Pagos y
-    Métricas, y registre su primer pago real. Recién ahí se borra
-    `DUENO_PASSWORD_INICIAL` de `~/.fuerza-natural/produccion.env`.
+    Métricas, y registre su primer pago real. (La contraseña inicial se
+    cambió el 2026-10-09 y `DUENO_PASSWORD_INICIAL` ya se borró de
+    `~/.fuerza-natural/produccion.env`.)
 
 **Volver atrás si la versión nueva falla:** Deployments → el deployment
 anterior que funcionaba → ⋯ → Promote to Production (Instant Rollback).
@@ -598,5 +600,7 @@ las alertas.
 | 2026-10-03 | Carga de planillas: 2º `--aplicar` | ✓ 466/203/1315, reemplazó 119; cada mes = planilla; $64.045.000 |
 | 2026-10-03 | Backup + simulacro, estado cargado (`…05-00-42`) | ✓ 12/12 tablas, conteo y contenido, 6 s |
 | 2026-10-03 | Push `1a72c0d`, redeploy de `dca378c` como respaldo, promote de `dpl_9wtWtPx7gu3ADAcaHkztaFDz4aK9` | ✓ Dominio en `1a72c0d`; `/api/salud` ok; login real del dueño ok; rutas privadas 307 sin sesión |
+| 2026-10-09 | Contraseña del dueño cambiada desde `/cuenta/contrasena` (queda en Actividad como `user.password_changed`) | ✓ La inicial ya no entra ("Email o contraseña incorrectos"); `DUENO_PASSWORD_INICIAL` borrada del archivo de credenciales |
+| 2026-10-09 | Revisión del repositorio, ahora público: secretos en todo el historial y datos personales | ✓ Sin credenciales (la única URL con contraseña es de un test, con un valor falso). Se sacó del RUNBOOK el nombre real de una alumna |
 | — | Recuperación de contraseña de punta a punta en producción | Pendiente — requiere configurar URLs y SMTP en Supabase Auth |
-| — | Prueba del dueño (cambio de contraseña y revisión de datos) | Pendiente — presencial con Diego |
+| — | Prueba del dueño (revisión de datos) | Pendiente — presencial con Diego |
