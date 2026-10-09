@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { captacionPorCanal, claveDeCanal, iniciosPorMesDelAnio } from "@/domain/metricas/captacion";
+import {
+  captacionDelMes,
+  captacionPorCanal,
+  claveDeCanal,
+  iniciosPorMesDelAnio,
+} from "@/domain/metricas/captacion";
 
 describe("captacionPorCanal", () => {
   it("una persona con dos canales es una porción aparte, no se reparte", () => {
@@ -38,6 +43,29 @@ describe("captacionPorCanal", () => {
     const r = captacionPorCanal([{ comoConocio: null }]);
     expect(r.segmentos).toEqual([]);
     expect(r.conDato).toBe(0);
+  });
+});
+
+describe("captacionDelMes", () => {
+  it("solo cuenta a quienes se dieron de alta ese mes puntual", () => {
+    const r = captacionDelMes(
+      [
+        { fechaAltaOriginal: "2026-09-05", comoConocio: ["RECOMENDACION"] },
+        { fechaAltaOriginal: "2026-09-20", comoConocio: ["VIVE_CERCA"] },
+        { fechaAltaOriginal: "2026-08-15", comoConocio: ["REDES_SOCIALES"] },
+      ],
+      "2026-09-01",
+    );
+    expect(r.conDato).toBe(2);
+    expect(r.segmentos.find((s) => s.clave === "REDES_SOCIALES")).toBeUndefined();
+  });
+
+  it("acepta 'YYYY-MM' además de una fecha completa", () => {
+    const r = captacionDelMes(
+      [{ fechaAltaOriginal: "2026-09-05", comoConocio: ["RECOMENDACION"] }],
+      "2026-09",
+    );
+    expect(r.conDato).toBe(1);
   });
 });
 

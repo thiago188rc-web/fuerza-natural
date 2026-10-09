@@ -1,3 +1,5 @@
+import { primerDiaDelMes } from "@/domain/fechas/calendario";
+
 /**
  * CUÁNTOS ALUMNOS ESTABAN ACTIVOS a fin de cada mes — una reconstrucción
  * histórica a partir de dos fechas que sí se guardan por alumno
@@ -53,6 +55,31 @@ export interface ActivosDelMes {
    * ningún registro llega tan atrás. Mostrar un 0 ahí sería mentir.
    */
   real: boolean;
+}
+
+/**
+ * A partir de qué mes el historial es "dato real" y no un hueco sin
+ * cargar: ni antes de la alta más vieja que tiene el sistema, ni antes
+ * del mes del primer pago registrado (si el padrón se cargó con altas
+ * viejas pero el gimnasio recién cobra por acá desde más tarde). Usado
+ * por todos los gráficos de historial de Métricas — se extrae acá para
+ * que la ventana "navegable" de un gráfico pueda calcularlo sin repetir
+ * la cuenta completa de `metricasQuery`.
+ */
+export function inicioDelHistorialReal(
+  alumnos: readonly FechasDeVinculo[],
+  primerPago: string | null,
+): string | null {
+  const altaMasVieja = alumnos.reduce<string | null>(
+    (min, a) => (min === null || a.fechaAltaOriginal < min ? a.fechaAltaOriginal : min),
+    null,
+  );
+  if (altaMasVieja === null) return null;
+  if (primerPago !== null) {
+    const mesDelPrimerPago = primerDiaDelMes(primerPago);
+    if (mesDelPrimerPago > altaMasVieja) return mesDelPrimerPago;
+  }
+  return altaMasVieja;
 }
 
 export function activosAlFinDeCadaMes(

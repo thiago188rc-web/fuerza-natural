@@ -40,6 +40,15 @@ export function etiquetaClaveDeCanal(clave: ClaveDeCanal): string {
   return clave === "VARIOS" ? "Más de una" : etiquetaCanal(clave);
 }
 
+/** Lo mismo, pero solo de quienes se dieron de alta en un mes puntual (no "todos los eneros"). */
+export function captacionDelMes(
+  alumnos: readonly { fechaAltaOriginal: string; comoConocio: readonly string[] | null }[],
+  mes: string,
+): CaptacionPorCanal {
+  const prefijo = mes.slice(0, 7);
+  return captacionPorCanal(alumnos.filter((a) => a.fechaAltaOriginal.slice(0, 7) === prefijo));
+}
+
 export function captacionPorCanal(
   alumnos: readonly { comoConocio: readonly string[] | null }[],
 ): CaptacionPorCanal {

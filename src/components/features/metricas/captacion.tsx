@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { CaptacionPorCanal, ClaveDeCanal, IniciosPorMes } from "@/domain/metricas/captacion";
 import { etiquetaClaveDeCanal } from "@/domain/metricas/captacion";
 import { cn } from "@/lib/utils";
@@ -40,16 +40,31 @@ const CIRCUNFERENCIA = 2 * Math.PI * RADIO;
 /** Separación entre porciones: el color del fondo, no un borde. */
 const HUECO = 2;
 
-export function TortaDeCanales({ captacion }: { captacion: CaptacionPorCanal }) {
+export function TortaDeCanales({
+  captacion,
+  titulo = "Cómo nos conocieron",
+  subtitulo = "Todos los alumnos que pasaron por el gimnasio",
+  vacio = "Todavía ningún alumno tiene cargado cómo conoció el gimnasio. Se completa en su ficha.",
+  extraDelEncabezado,
+}: {
+  captacion: CaptacionPorCanal;
+  titulo?: string;
+  subtitulo?: string;
+  /** El mensaje cuando nadie tiene el dato — distinto si es "nunca" o "este mes puntual". */
+  vacio?: string;
+  /** Flechas de navegación u otro control, al lado del título. */
+  extraDelEncabezado?: ReactNode;
+}) {
   const { segmentos, conDato, sinDato } = captacion;
 
   if (conDato === 0) {
     return (
       <div>
-        <p className="t-rotulo">Cómo nos conocieron</p>
-        <p className="mt-3 text-sm text-muted-foreground">
-          Todavía ningún alumno tiene cargado cómo conoció el gimnasio. Se completa en su ficha.
-        </p>
+        <div className="flex items-center justify-between gap-3">
+          <p className="t-rotulo">{titulo}</p>
+          {extraDelEncabezado}
+        </div>
+        <p className="mt-3 text-sm text-muted-foreground">{vacio}</p>
       </div>
     );
   }
@@ -66,10 +81,13 @@ export function TortaDeCanales({ captacion }: { captacion: CaptacionPorCanal }) 
 
   return (
     <div>
-      <p className="t-rotulo">Cómo nos conocieron</p>
-      <p className="mt-0.5 text-[0.7rem] text-muted-foreground">
-        Todos los alumnos que pasaron por el gimnasio
-      </p>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="t-rotulo">{titulo}</p>
+          <p className="mt-0.5 text-[0.7rem] text-muted-foreground">{subtitulo}</p>
+        </div>
+        {extraDelEncabezado}
+      </div>
       <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-4">
         <div className="relative shrink-0" style={{ width: TAMANO, height: TAMANO }}>
           <svg

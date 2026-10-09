@@ -53,8 +53,9 @@ import {
   type SegmentoImporte,
 } from "@/domain/metricas/facturacion";
 import { cumpleanosDelMes, type AlumnoConCumpleanos } from "@/domain/alumnos/cumpleanos";
-import { activosAlFinDeCadaMes } from "@/domain/metricas/roster";
+import { activosAlFinDeCadaMes, inicioDelHistorialReal } from "@/domain/metricas/roster";
 import {
+  captacionDelMes,
   captacionPorCanal,
   iniciosPorMesDelAnio,
   type CaptacionPorCanal,
@@ -134,13 +135,6 @@ export interface MetricasInput {
    * vista "semana"; sin esto, es la semana en curso.
    */
   semana?: string;
-  /**
-   * 'YYYY-MM' — el último mes de la ventana de "Alumnos activos por mes"
-   * (abajo de Captación). Independiente de `vista`/`mes`: ese gráfico
-   * navega su propia ventana de `MESES_DE_HISTORIAL` meses, sin importar
-   * qué vista esté elegida arriba. Sin esto, termina en el mes en curso.
-   */
-  activosMes?: string;
 }
 
 export interface Metricas {
@@ -200,6 +194,8 @@ export interface Metricas {
   porCanal: CaptacionPorCanal;
   /** En qué mes del año empezó cada uno, sumando todos los años, abierto por canal. */
   iniciosPorMes: IniciosPorMes;
+  /** Lo mismo que `porCanal`, pero solo del mes en curso — primer vistazo de la torta navegable de abajo. */
+  porCanalDelMesActual: CaptacionDelMesResultado;
 
   /**
    * Solo con la vista "mes": el resumen que pidió el dueño — facturación vs
@@ -407,24 +403,14 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
         };
       }
 
-      // El corte de "hay dato real" para los tres gráficos de historial de
-      // abajo: antes de la alta más vieja que tiene el sistema, un $0, un
-      // 0 de activos o un 0 de movimiento no sería "no pasó nada" — sería
-      // simplemente que nadie cargó ese mes todavía.
-      const altaMasVieja = fechasDeVinculo.reduce<string | null>(
-        (min, a) => (min === null || a.fechaAltaOriginal < min ? a.fechaAltaOriginal : min),
-        null,
-      );
-      // Y si hay pagos, el registro del negocio empieza en el mes del primero:
-      // un gimnasio que cargó su padrón con altas de 2022 pero recién cobra
-      // por el sistema desde 2026 no sabe cuántos activos o bajas tuvo en
-      // 2025 — mostrar esos meses como dato real sería inventarlos.
-      const inicioDelHistorial =
-        altaMasVieja === null
-          ? null
-          : primerPago !== null && primerDiaDelMes(primerPago) > altaMasVieja
-            ? primerDiaDelMes(primerPago)
-            : altaMasVieja;
+      // El corte de "hay dato real" para los gráficos de historial de abajo:
+      // antes de la alta más vieja que tiene el sistema (o del mes del
+      // primer pago, si es más tarde), un $0, un 0 de activos o un 0 de
+      // movimiento no sería "no pasó nada" — sería que nadie cargó ese mes
+      // todavía. Extraído a `domain/metricas/roster.ts` para que el
+      // gráfico navegable de "activos por mes" lo calcule igual sin
+      // repetir toda esta consulta.
+      const inicioDelHistorial = inicioDelHistorialReal(fechasDeVinculo, primerPago);
       const esReal = (finDeMes: string) => inicioDelHistorial !== null && finDeMes >= inicioDelHistorial;
 
       const finesDeMes = Array.from({ length: MESES_DE_HISTORIAL }, (_, i) =>
@@ -470,23 +456,13 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
         real: a.real && esReal(a.mes),
       }));
 
-      // Misma cuenta, pero con la ventana desplazable por `activosMes`: el
-      // gráfico de abajo de Captación no depende de `vista` ni del mes en
-      // curso, así que arma su propia ventana de MESES_DE_HISTORIAL meses.
-      const mesReferenciaActivos = input?.activosMes
-        ? primerDiaDelMes(input.activosMes)
-        : mesDeHoy;
-      const finesDeMesActivosNav = Array.from({ length: MESES_DE_HISTORIAL }, (_, i) =>
-        ultimoDiaDelMes(primerDiaDelMes(sumarMeses(mesReferenciaActivos, -(MESES_DE_HISTORIAL - 1 - i)))),
-      );
+      // El primer vistazo de "Alumnos activos por mes" (debajo de
+      // Captación): siempre termina en el mes en curso. Las flechas de
+      // ESE gráfico después navegan solas, sin pasar por acá — ver
+      // `activosPorMesQuery` más abajo.
       const activosPorMesNavegable: Metricas["activosPorMesNavegable"] = {
-        mesReferencia: mesReferenciaActivos,
-        puntos: activosAlFinDeCadaMes(fechasDeVinculo, finesDeMesActivosNav).map((a) => ({
-          mes: primerDiaDelMes(a.mes),
-          etiqueta: etiquetaDeMes(a.mes, { conAnio: false }),
-          valor: a.cantidad,
-          real: a.real && esReal(a.mes),
-        })),
+        mesReferencia: mesDeHoy,
+        puntos: activosPorMes,
       };
 
       let resumen: Metricas["resumenDelMes"] = null;
@@ -600,9 +576,81 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
 
         porCanal: captacionPorCanal(captacion),
         iniciosPorMes: iniciosPorMesDelAnio(captacion),
+        porCanalDelMesActual: {
+          mesReferencia: mesDeHoy,
+          etiqueta: etiquetaDeMes(mesDeHoy, { conAnio: true }),
+          captacion: captacionDelMes(captacion, mesDeHoy),
+        },
         cumpleanos: cumpleanosDelMes(cumpleanos, hoy),
 
         resumenDelMes: resumen,
+      });
+    });
+  },
+);
+
+/**
+ * "Alumnos activos por mes" (debajo de Captación) pedido SUELTO de
+ * `metricasQuery`: las flechas de ese gráfico no tienen por qué repetir
+ * la transacción entera de Métricas (~15 consultas en paralelo) — alcanza
+ * con los dos datos de acá. Así la navegación no recarga la página: el
+ * cliente pide solo esto y reemplaza solo ese gráfico.
+ */
+export const activosPorMesQuery = withAuth<{ mes: string }, Metricas["activosPorMesNavegable"]>(
+  ["DUENO", "STAFF"],
+  async (ctx, input) => {
+    return withTenantTx<Result<Metricas["activosPorMesNavegable"]>>(ctx, async (tx) => {
+      const gym = await obtenerGimnasio(tx, ctx);
+      if (!gym) return conflict("No pudimos leer la configuración del gimnasio.");
+
+      const [fechasDeVinculo, primerPago] = await Promise.all([
+        listarFechasDeVinculo(tx, ctx),
+        primerPagoRegistrado(tx, ctx),
+      ]);
+
+      const inicioDelHistorial = inicioDelHistorialReal(fechasDeVinculo, primerPago);
+      const esReal = (finDeMes: string) => inicioDelHistorial !== null && finDeMes >= inicioDelHistorial;
+
+      const mesReferencia = primerDiaDelMes(input.mes);
+      const finesDeMes = Array.from({ length: MESES_DE_HISTORIAL }, (_, i) =>
+        ultimoDiaDelMes(primerDiaDelMes(sumarMeses(mesReferencia, -(MESES_DE_HISTORIAL - 1 - i)))),
+      );
+
+      return ok({
+        mesReferencia,
+        puntos: activosAlFinDeCadaMes(fechasDeVinculo, finesDeMes).map((a) => ({
+          mes: primerDiaDelMes(a.mes),
+          etiqueta: etiquetaDeMes(a.mes, { conAnio: false }),
+          valor: a.cantidad,
+          real: a.real && esReal(a.mes),
+        })),
+      });
+    });
+  },
+);
+
+export interface CaptacionDelMesResultado {
+  mesReferencia: string;
+  etiqueta: string;
+  captacion: CaptacionPorCanal;
+}
+
+/**
+ * La torta de "Cómo nos conocieron", pero de un mes puntual — para
+ * navegar mes a mes con flechas sin recargar la página (mismo criterio
+ * que `activosPorMesQuery`: una consulta chica y suelta, no toda
+ * `metricasQuery`).
+ */
+export const captacionDelMesQuery = withAuth<{ mes: string }, CaptacionDelMesResultado>(
+  ["DUENO", "STAFF"],
+  async (ctx, input) => {
+    return withTenantTx<Result<CaptacionDelMesResultado>>(ctx, async (tx) => {
+      const captacion = await datosDeCaptacion(tx, ctx);
+      const mesReferencia = primerDiaDelMes(input.mes);
+      return ok({
+        mesReferencia,
+        etiqueta: etiquetaDeMes(mesReferencia, { conAnio: true }),
+        captacion: captacionDelMes(captacion, mesReferencia),
       });
     });
   },
