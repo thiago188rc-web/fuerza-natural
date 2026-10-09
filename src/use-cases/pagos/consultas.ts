@@ -161,12 +161,14 @@ export const contextoDeCobroQuery = withAuth<string, ContextoDeCobro>(
         (max, t) => (max === null || t.hasta > max ? t.hasta : max),
         null,
       );
-      // El día después del último cubierto, SIN normalizar al día 1: así
-      // el ciclo mensual queda anclado al mismo número de día siempre
-      // (confirmado por Diego — 2026-10-08, ver `coberturaDe`), en vez de
-      // correrse al 1 de cada mes.
-      const sugerenciaDesde =
-        ultimoCubierto && ultimoCubierto >= hoy ? sumarDias(ultimoCubierto, 1) : hoy;
+      // El día después del último cubierto, SIN normalizar al día 1 ni
+      // reiniciar al día de hoy aunque haya un hueco: el ciclo mensual
+      // queda anclado al mismo número de día siempre (confirmado por
+      // Diego — 2026-10-08/09, ver `coberturaDe`). El primer pago de
+      // todos (sin cobertura previa) ancla al día real de alta — "se
+      // identifica desde el primer día que ingresó la persona" — y no al
+      // día en que se hace ese primer pago, que puede ser más tarde.
+      const sugerenciaDesde = ultimoCubierto ? sumarDias(ultimoCubierto, 1) : alumno.fechaAltaOriginal;
 
       return ok({
         hoy,
