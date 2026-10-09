@@ -240,8 +240,8 @@ export default async function MetricasPage({
                 puntos={m.facturacionPorMes}
                 formatearValor={(v) => (v / 1_000_000).toFixed(2)}
                 colorBarra="fill-verde"
-                colorLinea="stroke-revisar"
-                colorPunto="fill-revisar"
+                colorLinea="stroke-serie-4"
+                colorPunto="fill-serie-4"
               />
             </div>
           </section>
@@ -256,8 +256,8 @@ export default async function MetricasPage({
                 puntos={m.activosPorMes}
                 formatearValor={(v) => String(v)}
                 colorBarra="fill-verde"
-                colorLinea="stroke-revisar"
-                colorPunto="fill-revisar"
+                colorLinea="stroke-serie-1"
+                colorPunto="fill-serie-1"
               />
             </div>
           </section>

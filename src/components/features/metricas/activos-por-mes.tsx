@@ -75,8 +75,8 @@ export function ActivosPorMes({ inicial }: { inicial: Metricas["activosPorMesNav
           puntos={datos.puntos}
           formatearValor={(v) => String(v)}
           colorBarra="fill-verde"
-          colorLinea="stroke-revisar"
-          colorPunto="fill-revisar"
+          colorLinea="stroke-serie-1"
+          colorPunto="fill-serie-1"
         />
       </div>
     </div>

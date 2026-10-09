@@ -38,7 +38,7 @@ export function HistorialDeMovimiento({ puntos }: { puntos: PuntoDeMovimiento[] 
     <div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
         <Leyenda color="bg-verde-fuerte" etiqueta="Nuevos" />
-        <Leyenda color="bg-verde-claro" etiqueta="Volvieron" />
+        <Leyenda color="bg-serie-1" etiqueta="Volvieron" />
         <Leyenda color="bg-descubierto" etiqueta="Bajas" />
         <span className="text-[0.7rem] text-muted-foreground/70">
           (Altas = nuevos + volvieron)
@@ -53,10 +53,27 @@ export function HistorialDeMovimiento({ puntos }: { puntos: PuntoDeMovimiento[] 
           {puntos.map((punto, i) => {
             const sinMovimiento = punto.nuevos === 0 && punto.volvieron === 0 && punto.dejaron === 0;
 
+            // El punto diferenciativo del mes: el saldo neto (altas menos
+            // bajas), para ver de un vistazo si ese mes el padrón creció o
+            // se achicó — sin tener que restar las dos barras a mano.
+            const neto = punto.altas - punto.dejaron;
+
             return (
               <div key={punto.mes} className="flex flex-1 flex-col items-center gap-1.5">
-                <span className="tabular text-[0.75rem] font-medium whitespace-nowrap">
+                <span className="tabular flex items-center gap-1 text-[0.75rem] font-medium whitespace-nowrap">
                   Altas: {punto.real ? punto.altas : "s/d"}
+                  {punto.real && neto !== 0 ? (
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-0.5 text-[0.7rem] font-semibold",
+                        neto > 0 ? "text-cubierto" : "text-descubierto",
+                      )}
+                    >
+                      <span aria-hidden className={cn("size-1.5 rounded-full", neto > 0 ? "bg-cubierto" : "bg-descubierto")} />
+                      {neto > 0 ? "+" : ""}
+                      {neto}
+                    </span>
+                  ) : null}
                 </span>
 
                 <div
@@ -93,8 +110,8 @@ export function HistorialDeMovimiento({ puntos }: { puntos: PuntoDeMovimiento[] 
                       <Tramo
                         valor={punto.volvieron}
                         maximo={maximo}
-                        color="bg-verde-claro"
-                        textoClaro={false}
+                        color="bg-serie-1"
+                        textoClaro
                         quieto={quieto}
                         retraso={i * 0.04 + 0.03}
                       />
