@@ -601,6 +601,7 @@ las alertas.
 | 2026-10-03 | Backup + simulacro, estado cargado (`…05-00-42`) | ✓ 12/12 tablas, conteo y contenido, 6 s |
 | 2026-10-03 | Push `1a72c0d`, redeploy de `dca378c` como respaldo, promote de `dpl_9wtWtPx7gu3ADAcaHkztaFDz4aK9` | ✓ Dominio en `1a72c0d`; `/api/salud` ok; login real del dueño ok; rutas privadas 307 sin sesión |
 | 2026-10-09 | Contraseña del dueño cambiada desde `/cuenta/contrasena` (queda en Actividad como `user.password_changed`) | ✓ La inicial ya no entra ("Email o contraseña incorrectos"); `DUENO_PASSWORD_INICIAL` borrada del archivo de credenciales |
+| 2026-10-09 | Contraseña del dueño cambiada de nuevo desde `/cuenta/contrasena`, a pedido de Thiago (la elige el dueño; no se anota) | ✓ Confirmación del formulario, otras sesiones cerradas; entra con la nueva |
 | 2026-10-09 | Revisión del repositorio, ahora público: secretos en todo el historial y datos personales | ✓ Sin credenciales (la única URL con contraseña es de un test, con un valor falso). Se sacó del RUNBOOK el nombre real de una alumna |
 | — | Recuperación de contraseña de punta a punta en producción | Pendiente — requiere configurar URLs y SMTP en Supabase Auth |
 | — | Prueba del dueño (revisión de datos) | Pendiente — presencial con Diego |
