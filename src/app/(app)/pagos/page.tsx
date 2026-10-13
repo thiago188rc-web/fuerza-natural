@@ -21,20 +21,23 @@ export const metadata: Metadata = { title: "Pagos" };
 export default async function PagosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ mes?: string }>;
+  searchParams: Promise<{ mes?: string; orden?: string; dir?: string }>;
 }) {
-  const { mes } = await searchParams;
+  const { mes, orden, dir } = await searchParams;
 
   // 'YYYY-MM' de la URL → primer día del mes. Si viene cualquier cosa, se
   // ignora y se usa el mes actual: un parámetro roto no puede romper la
   // pantalla.
   const mesPedido = /^\d{4}-\d{2}$/.test(mes ?? "") ? `${mes}-01` : null;
+  const ordenarPor = orden === "nombre" ? "nombre" : "fecha";
+  const direccion = dir === "asc" ? "asc" : "desc";
 
-  const historial = await historialDePagosQuery(
-    mesPedido
-      ? { desde: primerDiaDelMes(mesPedido), hasta: ultimoDiaDelMes(mesPedido), pagina: 1 }
-      : { pagina: 1 },
-  );
+  const historial = await historialDePagosQuery({
+    ...(mesPedido ? { desde: primerDiaDelMes(mesPedido), hasta: ultimoDiaDelMes(mesPedido) } : {}),
+    pagina: 1,
+    ordenarPor,
+    direccion,
+  });
 
   if (!historial.ok) {
     return (
@@ -108,6 +111,8 @@ export default async function PagosPage({
           moneda={datos.moneda}
           hoy={datos.hoy}
           puedeAnular={datos.puedeAnularPagos}
+          ordenarPor={datos.ordenarPor}
+          direccion={datos.direccion}
         />
       </Aparece>
     </div>

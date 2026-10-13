@@ -9,7 +9,10 @@ import {
   totalCobrado,
   type FiltrosDePagos,
 } from "@/data/repositories/payments-repo";
-import { listarAlumnosActivosParaCobertura } from "@/data/repositories/students-repo";
+import {
+  listarAlumnosActivosParaCobertura,
+  marcasDeMovimientoPorAlumno,
+} from "@/data/repositories/students-repo";
 import { obtenerConfiguracion, obtenerGimnasio } from "@/data/repositories/gym-repo";
 import { hoyISO } from "@/domain/fechas/hoy";
 import { puedeAnularPagos } from "@/use-cases/pagos/anular-pago";
@@ -213,6 +216,8 @@ export interface PagoDelHistorial {
   registradoPorNombre: string;
   cubreDesde: string | null;
   cubreHasta: string | null;
+  /** Si el alumno tuvo un ALTA o una REACTIVACION en el mismo rango que este listado. */
+  marca: "NUEVO" | "VOLVIO" | null;
 }
 
 export interface HistorialDePagos {
@@ -227,6 +232,8 @@ export interface HistorialDePagos {
   rango: { desde: string; hasta: string };
   /** Si la sesión puede anular pagos (hoy, solo el DUENO). */
   puedeAnularPagos: boolean;
+  ordenarPor: "fecha" | "nombre";
+  direccion: "asc" | "desc";
 }
 
 export const historialDePagosQuery = withAuth<Partial<FiltrosDePagos>, HistorialDePagos>(
@@ -240,10 +247,13 @@ export const historialDePagosQuery = withAuth<Partial<FiltrosDePagos>, Historial
       const desde = filtros?.desde ?? primerDiaDelMes(hoy);
       const hasta = filtros?.hasta ?? ultimoDiaDelMes(hoy);
       const pagina = Math.max(1, filtros?.pagina ?? 1);
+      const ordenarPor = filtros?.ordenarPor ?? "fecha";
+      const direccion = filtros?.direccion ?? "desc";
 
-      const [listado, cobrado] = await Promise.all([
-        listarPagos(tx, ctx, { desde, hasta, pagina }),
+      const [listado, cobrado, marcas] = await Promise.all([
+        listarPagos(tx, ctx, { desde, hasta, pagina, ordenarPor, direccion }),
         totalCobrado(tx, ctx, { desde, hasta }),
+        marcasDeMovimientoPorAlumno(tx, ctx, { desde, hasta }),
       ]);
 
       return ok({
@@ -266,6 +276,12 @@ export const historialDePagosQuery = withAuth<Partial<FiltrosDePagos>, Historial
           registradoPorNombre: f.registradoPorNombre,
           cubreDesde: f.cubreDesde,
           cubreHasta: f.cubreHasta,
+          marca:
+            marcas.get(f.studentId) === "ALTA"
+              ? "NUEVO"
+              : marcas.get(f.studentId) === "REACTIVACION"
+                ? "VOLVIO"
+                : null,
         })),
         total: listado.total,
         pagina: listado.pagina,
@@ -273,6 +289,8 @@ export const historialDePagosQuery = withAuth<Partial<FiltrosDePagos>, Historial
         cobradoEnElRango: cobrado,
         rango: { desde, hasta },
         puedeAnularPagos: puedeAnularPagos(ctx.rol),
+        ordenarPor,
+        direccion,
       });
     });
   },

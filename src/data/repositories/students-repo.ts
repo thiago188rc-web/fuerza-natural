@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, lte, sql } from "drizzle-orm";
 import { appUsers, plans, students, studentEvents } from "@/data/schema";
 import type { AuthContext } from "@/lib/auth/context";
 import type { TxClient } from "@/use-cases/_kernel/with-tenant-tx";
@@ -568,6 +568,41 @@ export async function movimientoPorMes(
     .groupBy(truncado, studentEvents.tipo);
 
   return filas.map((f) => ({ mes: f.mes, tipo: f.tipo, total: f.total }));
+}
+
+/**
+ * Quién tuvo un ALTA o una REACTIVACION en el rango — para marcar en el
+ * historial de Pagos quién es nuevo o quién volvió ese mes, sin inventar
+ * la marca a partir de la fecha del pago (un alumno puede pagar varios
+ * días después de darse de alta). Si alguien tuvo las dos cosas en el
+ * mismo rango (rarísimo, pero posible), manda la más reciente.
+ */
+export async function marcasDeMovimientoPorAlumno(
+  tx: TxClient,
+  ctx: AuthContext,
+  rango: { desde: string; hasta: string },
+) {
+  const filas = await tx
+    .select({
+      studentId: studentEvents.studentId,
+      tipo: studentEvents.tipo,
+      ocurridoEl: studentEvents.ocurridoEl,
+    })
+    .from(studentEvents)
+    .where(
+      and(
+        eq(studentEvents.gymId, ctx.gymId),
+        gte(studentEvents.ocurridoEl, rango.desde),
+        lte(studentEvents.ocurridoEl, rango.hasta),
+        inArray(studentEvents.tipo, ["ALTA", "REACTIVACION"]),
+        noEsAltaImportada,
+      ),
+    )
+    .orderBy(asc(studentEvents.ocurridoEl));
+
+  const marcas = new Map<string, "ALTA" | "REACTIVACION">();
+  for (const f of filas) marcas.set(f.studentId, f.tipo as "ALTA" | "REACTIVACION");
+  return marcas;
 }
 
 /** Los últimos hechos de negocio del gimnasio entero, para el panel. */

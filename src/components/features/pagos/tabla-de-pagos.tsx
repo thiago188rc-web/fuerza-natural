@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
-import { Receipt } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Receipt } from "lucide-react";
 import type { PagoDelHistorial } from "@/use-cases/pagos/consultas";
 import { ETIQUETA_MODALIDAD, type Modalidad } from "@/domain/pagos/modalidad";
 import { etiquetaCorta } from "@/domain/fechas/calendario";
@@ -40,13 +41,34 @@ export function TablaDePagos({
   moneda,
   hoy,
   puedeAnular = false,
+  ordenarPor = "fecha",
+  direccion = "desc",
 }: {
   pagos: PagoDelHistorial[];
   moneda: string;
   hoy: string;
   puedeAnular?: boolean;
+  ordenarPor?: "fecha" | "nombre";
+  direccion?: "asc" | "desc";
 }) {
   const quieto = useReducedMotion();
+  const searchParams = useSearchParams();
+
+  /** Tocar una columna ordenable: si ya era esa, invierte; si es otra, arranca en el orden que tiene más sentido para ese campo. */
+  function hrefOrdenar(campo: "fecha" | "nombre"): string {
+    const params = new URLSearchParams(searchParams.toString());
+    const yaEsEsta = ordenarPor === campo;
+    const nuevaDireccion = yaEsEsta
+      ? direccion === "desc"
+        ? "asc"
+        : "desc"
+      : campo === "nombre"
+        ? "asc"
+        : "desc";
+    params.set("orden", campo);
+    params.set("dir", nuevaDireccion);
+    return `?${params.toString()}`;
+  }
 
   if (pagos.length === 0) {
     return (
@@ -78,8 +100,24 @@ export function TablaDePagos({
           <caption className="sr-only">Pagos registrados en el período consultado</caption>
           <thead className="hundido sticky top-14 z-10 lg:top-0">
             <tr className="border-b border-border text-left">
-              <Encabezado className="w-[4.5rem] pl-5">Fecha</Encabezado>
-              <Encabezado>Alumno</Encabezado>
+              <Encabezado className="w-[4.5rem] pl-5">
+                <EncabezadoOrdenable
+                  href={hrefOrdenar("fecha")}
+                  activo={ordenarPor === "fecha"}
+                  direccion={direccion}
+                >
+                  Fecha
+                </EncabezadoOrdenable>
+              </Encabezado>
+              <Encabezado>
+                <EncabezadoOrdenable
+                  href={hrefOrdenar("nombre")}
+                  activo={ordenarPor === "nombre"}
+                  direccion={direccion}
+                >
+                  Alumno
+                </EncabezadoOrdenable>
+              </Encabezado>
               <Encabezado className="hidden w-[7.5rem] sm:table-cell">Modalidad</Encabezado>
               <Encabezado className="hidden w-[9.5rem] sm:table-cell">Cubre</Encabezado>
               <Encabezado className="hidden w-[9rem] sm:table-cell">Método</Encabezado>
@@ -118,6 +156,7 @@ export function TablaDePagos({
                   >
                     {pago.nombre} {pago.apellido}
                   </Link>
+                  {pago.marca ? <MarcaDeMovimiento marca={pago.marca} /> : null}
                   <span className="block text-xs text-muted-foreground">
                     {pago.planNombreSnapshot}
                   </span>
@@ -244,5 +283,46 @@ function Encabezado({ children, className }: { children: React.ReactNode; classN
     <th scope="col" className={cn("t-rotulo py-2.5 pr-3 font-normal", className)}>
       {children}
     </th>
+  );
+}
+
+/** Un encabezado de columna que es, a la vez, el control para ordenar por ella. */
+function EncabezadoOrdenable({
+  href,
+  activo,
+  direccion,
+  children,
+}: {
+  href: string;
+  activo: boolean;
+  direccion: "asc" | "desc";
+  children: React.ReactNode;
+}) {
+  const Icono = !activo ? ArrowUpDown : direccion === "asc" ? ArrowUp : ArrowDown;
+  return (
+    <Link
+      href={href}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-sm transition-colors duration-150 hover:text-foreground focus-visible:ring-2 focus-visible:ring-verde focus-visible:outline-none",
+        activo && "text-foreground",
+      )}
+    >
+      {children}
+      <Icono className={cn("size-3", !activo && "text-muted-foreground/50")} strokeWidth={2} />
+    </Link>
+  );
+}
+
+/** "Nuevo" o "Volvió" — el alumno tuvo un ALTA o REACTIVACION en el mismo mes que se está mirando. */
+function MarcaDeMovimiento({ marca }: { marca: "NUEVO" | "VOLVIO" }) {
+  return (
+    <span
+      className={cn(
+        "ml-1.5 inline-flex items-center rounded-md px-1.5 py-0.5 align-middle text-[0.65rem] font-medium",
+        marca === "NUEVO" ? "bg-verde-suave text-verde-fuerte" : "bg-serie-1/15 text-serie-1",
+      )}
+    >
+      {marca === "NUEVO" ? "Nuevo" : "Volvió"}
+    </span>
   );
 }

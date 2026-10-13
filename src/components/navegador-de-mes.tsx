@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { claveDeMes, etiquetaDeMes, primerDiaDelMes, sumarMeses } from "@/domain/fechas/calendario";
@@ -25,14 +25,19 @@ export function NavegadorDeMes({
   maximo: string;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const quieto = useReducedMotion();
 
   const clave = claveDeMes(mes);
   const haySiguiente = claveDeMes(mes) < claveDeMes(maximo);
 
+  // Conserva los demás parámetros (orden de la tabla, etc.): cambiar de
+  // mes no tiene por qué resetear cómo estaba ordenado lo que se mira.
   function ir(meses: number) {
     const destino = primerDiaDelMes(sumarMeses(mes, meses));
-    router.push(`?mes=${claveDeMes(destino)}`, { scroll: false });
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("mes", claveDeMes(destino));
+    router.push(`?${params.toString()}`, { scroll: false });
   }
 
   return (

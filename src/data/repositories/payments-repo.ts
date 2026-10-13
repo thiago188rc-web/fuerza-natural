@@ -178,6 +178,9 @@ export interface FiltrosDePagos {
   desde?: string | null;
   hasta?: string | null;
   pagina: number;
+  /** Por fecha de pago (default) o por apellido/nombre del alumno. */
+  ordenarPor?: "fecha" | "nombre";
+  direccion?: "asc" | "desc";
 }
 
 /**
@@ -192,6 +195,11 @@ export async function listarPagos(tx: TxClient, ctx: AuthContext, filtros: Filtr
 
   const where = and(...condiciones);
   const offset = (filtros.pagina - 1) * PAGOS_POR_PAGINA;
+  const orden = filtros.direccion === "asc" ? asc : desc;
+  const ordenamiento =
+    filtros.ordenarPor === "nombre"
+      ? [orden(students.apellido), orden(students.nombre)]
+      : [orden(payments.fechaPago), desc(payments.createdAt)];
 
   const [filas, totales] = await Promise.all([
     tx
@@ -225,7 +233,7 @@ export async function listarPagos(tx: TxClient, ctx: AuthContext, filtros: Filtr
       .innerJoin(students, eq(students.id, payments.studentId))
       .innerJoin(appUsers, eq(appUsers.id, payments.registradoPor))
       .where(where)
-      .orderBy(desc(payments.fechaPago), desc(payments.createdAt))
+      .orderBy(...ordenamiento)
       .limit(PAGOS_POR_PAGINA)
       .offset(offset),
     tx.select({ total: sql<number>`count(*)::int` }).from(payments).where(where),
