@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArchiveRestore, ChevronRight } from "lucide-react";
 import { bajasQuery } from "@/use-cases/alumnos/bajas";
+import { BajasPorMes } from "@/components/features/alumnos/bajas-por-mes";
 import { Aparece } from "@/components/motion/primitivas";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { distanciaRelativa } from "@/domain/fechas/calendario";
@@ -130,6 +131,8 @@ export default async function BajasPage() {
                 total desde que existe el registro
               </p>
             </section>
+
+            <BajasPorMes filas={filas} hoy={hoy} />
 
             <section className="superficie px-5 py-4">
               <p className="t-rotulo">
