@@ -311,6 +311,42 @@ export async function totalAnulado(
   return { total: Number(fila?.total ?? 0), cantidad: fila?.cantidad ?? 0 };
 }
 
+/**
+ * El detalle de cada pago anulado en un rango de FECHAS DE PAGO: quién
+ * era, cuándo se cobró, cuándo se anuló, quién lo anuló y por qué. Es lo
+ * que se despliega al tocar el número de "Anulados".
+ */
+export async function listarPagosAnulados(
+  tx: TxClient,
+  ctx: AuthContext,
+  rango: { desde: string; hasta: string },
+) {
+  return tx
+    .select({
+      id: payments.id,
+      studentId: students.id,
+      nombre: students.nombre,
+      apellido: students.apellido,
+      fechaPago: payments.fechaPago,
+      monto: payments.monto,
+      anuladoEn: payments.anuladoEn,
+      anuladoMotivo: payments.anuladoMotivo,
+      anuladoPorNombre: appUsers.nombre,
+    })
+    .from(payments)
+    .innerJoin(students, eq(students.id, payments.studentId))
+    .innerJoin(appUsers, eq(appUsers.id, payments.anuladoPor))
+    .where(
+      and(
+        eq(payments.gymId, ctx.gymId),
+        sql`${payments.anuladoEn} is not null`,
+        gte(payments.fechaPago, rango.desde),
+        lte(payments.fechaPago, rango.hasta),
+      ),
+    )
+    .orderBy(desc(payments.anuladoEn));
+}
+
 export type GranularidadFacturacion = "dia" | "semana" | "mes";
 
 // Comillas incluidas a propósito: se inyecta con `sql.raw`, no como

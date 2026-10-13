@@ -172,6 +172,11 @@ describe.skipIf(!process.env.DATABASE_URL)("anular un pago (Postgres real)", () 
     // Sigue en el historial, marcado.
     const fila = despues.data.filas.find((f) => f.id === paymentId);
     expect(fila).toMatchObject({ anulado: true, anuladoMotivo: "Importe mal cargado" });
+    // Y el detalle de quién, cuándo y por qué queda disponible aparte.
+    const detalle = despues.data.anulados.find((a) => a.id === paymentId);
+    expect(detalle).toMatchObject({ studentId, anuladoMotivo: "Importe mal cargado" });
+    expect(detalle?.anuladoEn).toBeTruthy();
+    expect(detalle?.anuladoPorNombre).toBeTruthy();
 
     const metricasDespues = await metricasQuery({ vista: "mes" });
     if (!metricasDespues.ok) throw new Error(JSON.stringify(metricasDespues));

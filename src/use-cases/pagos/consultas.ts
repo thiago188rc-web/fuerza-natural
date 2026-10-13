@@ -3,6 +3,7 @@ import { withTenantTx } from "@/use-cases/_kernel/with-tenant-tx";
 import { conflict, notFound, ok, type Result } from "@/use-cases/_kernel/result";
 import {
   listarPagos,
+  listarPagosAnulados,
   listarTramosCubiertos,
   listarTramosDeAlumno,
   obtenerAlumnoParaCobro,
@@ -221,6 +222,19 @@ export interface PagoDelHistorial {
   marca: "NUEVO" | "VOLVIO" | null;
 }
 
+export interface AnuladoDelHistorial {
+  id: string;
+  studentId: string;
+  nombre: string;
+  apellido: string;
+  fechaPago: string;
+  monto: number;
+  /** Cuándo se hizo la anulación (no la fecha del pago). */
+  anuladoEn: string;
+  anuladoMotivo: string | null;
+  anuladoPorNombre: string;
+}
+
 export interface HistorialDePagos {
   hoy: string;
   moneda: string;
@@ -232,6 +246,8 @@ export interface HistorialDePagos {
   cobradoEnElRango: { total: number; cantidad: number };
   /** Lo anulado en el rango consultado — ya excluido de `cobradoEnElRango`. */
   anuladoEnElRango: { total: number; cantidad: number };
+  /** El detalle de cada uno: quién, cuándo se cobró, cuándo y por quién se anuló. */
+  anulados: AnuladoDelHistorial[];
   rango: { desde: string; hasta: string };
   /** Si la sesión puede anular pagos (hoy, solo el DUENO). */
   puedeAnularPagos: boolean;
@@ -253,10 +269,11 @@ export const historialDePagosQuery = withAuth<Partial<FiltrosDePagos>, Historial
       const ordenarPor = filtros?.ordenarPor ?? "fecha";
       const direccion = filtros?.direccion ?? "desc";
 
-      const [listado, cobrado, anulado, marcas] = await Promise.all([
+      const [listado, cobrado, anulado, anulados, marcas] = await Promise.all([
         listarPagos(tx, ctx, { desde, hasta, pagina, ordenarPor, direccion }),
         totalCobrado(tx, ctx, { desde, hasta }),
         totalAnulado(tx, ctx, { desde, hasta }),
+        listarPagosAnulados(tx, ctx, { desde, hasta }),
         marcasDeMovimientoPorAlumno(tx, ctx, { desde, hasta }),
       ]);
 
@@ -292,6 +309,18 @@ export const historialDePagosQuery = withAuth<Partial<FiltrosDePagos>, Historial
         porPagina: listado.porPagina,
         cobradoEnElRango: cobrado,
         anuladoEnElRango: anulado,
+        anulados: anulados.map((a) => ({
+          id: a.id,
+          studentId: a.studentId,
+          nombre: a.nombre,
+          apellido: a.apellido,
+          fechaPago: a.fechaPago,
+          monto: Number(a.monto),
+          // El `where anulado_en is not null` de la query lo garantiza.
+          anuladoEn: a.anuladoEn!.toISOString(),
+          anuladoMotivo: a.anuladoMotivo,
+          anuladoPorNombre: a.anuladoPorNombre,
+        })),
         rango: { desde, hasta },
         puedeAnularPagos: puedeAnularPagos(ctx.rol),
         ordenarPor,

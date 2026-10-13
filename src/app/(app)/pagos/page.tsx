@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Receipt } from "lucide-react";
 import { historialDePagosQuery } from "@/use-cases/pagos/consultas";
 import { TablaDePagos } from "@/components/features/pagos/tabla-de-pagos";
+import { ResumenDeAnulados } from "@/components/features/pagos/resumen-de-anulados";
 import { NavegadorDeMes } from "@/components/navegador-de-mes";
 import { Aparece, NumeroAnimado } from "@/components/motion/primitivas";
 import { BotonLink } from "@/components/boton-link";
@@ -96,18 +97,7 @@ export default async function PagosPage({
             </dd>
           </div>
 
-          {datos.anuladoEnElRango.cantidad > 0 ? (
-            <div>
-              <dt className="t-rotulo text-descubierto">Anulados</dt>
-              <dd className="t-cifra mt-2 text-[2rem] text-descubierto">
-                <NumeroAnimado valor={datos.anuladoEnElRango.cantidad} />
-              </dd>
-              <p className="mt-1 text-xs text-muted-foreground">
-                <Importe valor={datos.anuladoEnElRango.total} moneda={datos.moneda} /> — ya
-                descontados del total
-              </p>
-            </div>
-          ) : null}
+          <ResumenDeAnulados anulados={datos.anulados} moneda={datos.moneda} hoy={datos.hoy} />
 
           {datos.total > datos.porPagina ? (
             <p className="ml-auto text-xs text-muted-foreground">
