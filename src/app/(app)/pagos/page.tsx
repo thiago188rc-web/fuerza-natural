@@ -96,6 +96,19 @@ export default async function PagosPage({
             </dd>
           </div>
 
+          {datos.anuladoEnElRango.cantidad > 0 ? (
+            <div>
+              <dt className="t-rotulo text-descubierto">Anulados</dt>
+              <dd className="t-cifra mt-2 text-[2rem] text-descubierto">
+                <NumeroAnimado valor={datos.anuladoEnElRango.cantidad} />
+              </dd>
+              <p className="mt-1 text-xs text-muted-foreground">
+                <Importe valor={datos.anuladoEnElRango.total} moneda={datos.moneda} /> — ya
+                descontados del total
+              </p>
+            </div>
+          ) : null}
+
           {datos.total > datos.porPagina ? (
             <p className="ml-auto text-xs text-muted-foreground">
               Mostrando los primeros <span className="tabular">{datos.porPagina}</span> de{" "}

@@ -158,6 +158,7 @@ describe.skipIf(!process.env.DATABASE_URL)("anular un pago (Postgres real)", () 
     const antes = await historialDePagosQuery(rango);
     if (!antes.ok) throw new Error(JSON.stringify(antes));
     expect(antes.data.cobradoEnElRango.total).toBe(50000);
+    expect(antes.data.anuladoEnElRango).toEqual({ total: 0, cantidad: 0 });
     const metricasAntes = await metricasQuery({ vista: "mes" });
     if (!metricasAntes.ok) throw new Error(JSON.stringify(metricasAntes));
     expect(metricasAntes.data.facturacion.totalDelPeriodo).toBe(50000);
@@ -167,6 +168,7 @@ describe.skipIf(!process.env.DATABASE_URL)("anular un pago (Postgres real)", () 
     const despues = await historialDePagosQuery(rango);
     if (!despues.ok) throw new Error(JSON.stringify(despues));
     expect(despues.data.cobradoEnElRango.total).toBe(0);
+    expect(despues.data.anuladoEnElRango).toEqual({ total: 50000, cantidad: 1 });
     // Sigue en el historial, marcado.
     const fila = despues.data.filas.find((f) => f.id === paymentId);
     expect(fila).toMatchObject({ anulado: true, anuladoMotivo: "Importe mal cargado" });

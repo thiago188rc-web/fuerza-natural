@@ -283,6 +283,34 @@ export async function totalCobrado(
   return { total: Number(fila?.total ?? 0), cantidad: fila?.cantidad ?? 0 };
 }
 
+/**
+ * Lo anulado en un rango de FECHAS DE PAGO — para que el error quede a la
+ * vista como un número propio, separado del total cobrado (que ya los
+ * excluye). No es "plata que falta cobrar": es el registro de que esa
+ * plata nunca debió contarse.
+ */
+export async function totalAnulado(
+  tx: TxClient,
+  ctx: AuthContext,
+  rango: { desde: string; hasta: string },
+) {
+  const [fila] = await tx
+    .select({
+      total: sql<string>`coalesce(sum(${payments.monto}), 0)`,
+      cantidad: sql<number>`count(*)::int`,
+    })
+    .from(payments)
+    .where(
+      and(
+        eq(payments.gymId, ctx.gymId),
+        sql`${payments.anuladoEn} is not null`,
+        gte(payments.fechaPago, rango.desde),
+        lte(payments.fechaPago, rango.hasta),
+      ),
+    );
+  return { total: Number(fila?.total ?? 0), cantidad: fila?.cantidad ?? 0 };
+}
+
 export type GranularidadFacturacion = "dia" | "semana" | "mes";
 
 // Comillas incluidas a propósito: se inyecta con `sql.raw`, no como

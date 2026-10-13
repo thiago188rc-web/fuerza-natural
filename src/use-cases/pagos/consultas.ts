@@ -6,6 +6,7 @@ import {
   listarTramosCubiertos,
   listarTramosDeAlumno,
   obtenerAlumnoParaCobro,
+  totalAnulado,
   totalCobrado,
   type FiltrosDePagos,
 } from "@/data/repositories/payments-repo";
@@ -229,6 +230,8 @@ export interface HistorialDePagos {
   porPagina: number;
   /** Lo cobrado en el rango consultado, no en el mes calendario. */
   cobradoEnElRango: { total: number; cantidad: number };
+  /** Lo anulado en el rango consultado — ya excluido de `cobradoEnElRango`. */
+  anuladoEnElRango: { total: number; cantidad: number };
   rango: { desde: string; hasta: string };
   /** Si la sesión puede anular pagos (hoy, solo el DUENO). */
   puedeAnularPagos: boolean;
@@ -250,9 +253,10 @@ export const historialDePagosQuery = withAuth<Partial<FiltrosDePagos>, Historial
       const ordenarPor = filtros?.ordenarPor ?? "fecha";
       const direccion = filtros?.direccion ?? "desc";
 
-      const [listado, cobrado, marcas] = await Promise.all([
+      const [listado, cobrado, anulado, marcas] = await Promise.all([
         listarPagos(tx, ctx, { desde, hasta, pagina, ordenarPor, direccion }),
         totalCobrado(tx, ctx, { desde, hasta }),
+        totalAnulado(tx, ctx, { desde, hasta }),
         marcasDeMovimientoPorAlumno(tx, ctx, { desde, hasta }),
       ]);
 
@@ -287,6 +291,7 @@ export const historialDePagosQuery = withAuth<Partial<FiltrosDePagos>, Historial
         pagina: listado.pagina,
         porPagina: listado.porPagina,
         cobradoEnElRango: cobrado,
+        anuladoEnElRango: anulado,
         rango: { desde, hasta },
         puedeAnularPagos: puedeAnularPagos(ctx.rol),
         ordenarPor,
