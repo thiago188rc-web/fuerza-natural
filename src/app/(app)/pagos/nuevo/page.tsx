@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { carteraDeCobroQuery, contextoDeCobroQuery } from "@/use-cases/pagos/consultas";
 import { BuscadorDeAlumno } from "@/components/features/pagos/buscador-de-alumno";
 import { FormularioDeCobro } from "@/components/features/pagos/formulario-de-cobro";
 import { Aparece } from "@/components/motion/primitivas";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { BotonLink } from "@/components/boton-link";
+import { VolverAtras } from "@/components/volver-atras";
 
 export const metadata: Metadata = { title: "Registrar pago" };
 
@@ -88,13 +88,7 @@ export default async function NuevoPagoPage({
       <Aparece>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <Link
-              href="/pagos/nuevo"
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors duration-150 hover:text-foreground focus-visible:ring-2 focus-visible:ring-verde focus-visible:outline-none"
-            >
-              <ArrowLeft className="size-3" strokeWidth={2} />
-              Elegir otro alumno
-            </Link>
+            <VolverAtras>Volver</VolverAtras>
             <h1 className="mt-2 font-heading text-2xl leading-none font-semibold">
               Cobrarle a {contexto.data.alumno.nombre}
             </h1>
