@@ -151,6 +151,43 @@ export function situacionDeCobertura(
   };
 }
 
+const RANGO_ESTADO: Record<EstadoDeCobertura, number> = {
+  DESCUBIERTO: 0,
+  REVISAR: 1,
+  CUBIERTO: 2,
+  NO_APLICA: 3,
+};
+
+/**
+ * Orden de urgencia para el padrón: primero quien más necesita que lo
+ * llamen. Dentro de cada estado:
+ *
+ *   · DESCUBIERTO — más días vencido primero; nunca pagó es lo más
+ *     urgente de todas (va antes que cualquier `diasVencido` numérico).
+ *   · REVISAR — igual, pero "alta reciente sin pago" (`diasVencido` null)
+ *     es lo MENOS urgente del grupo: todavía está en el margen de
+ *     tolerancia de un alumno nuevo, no vencido de verdad.
+ *   · CUBIERTO — quien se le vence antes, primero: es el dato que sigue
+ *     siendo útil mirar aunque hoy esté todo bien.
+ */
+export function compararPorUrgencia(a: SituacionDeCobertura, b: SituacionDeCobertura): number {
+  const diferenciaDeRango = RANGO_ESTADO[a.estado] - RANGO_ESTADO[b.estado];
+  if (diferenciaDeRango !== 0) return diferenciaDeRango;
+
+  if (a.estado === "CUBIERTO") {
+    return (a.cubiertoHasta ?? "") < (b.cubiertoHasta ?? "") ? -1 : 1;
+  }
+
+  if (a.estado === "DESCUBIERTO" || a.estado === "REVISAR") {
+    if (a.diasVencido === null && b.diasVencido === null) return 0;
+    if (a.diasVencido === null) return a.estado === "DESCUBIERTO" ? -1 : 1;
+    if (b.diasVencido === null) return a.estado === "DESCUBIERTO" ? 1 : -1;
+    return b.diasVencido - a.diasVencido;
+  }
+
+  return 0;
+}
+
 /**
  * Los tramos de un mes, normalizados a fracciones de 0 a 1 dentro de ese
  * mes. Es lo que dibuja la barra del mes: cada pago cubierto se convierte

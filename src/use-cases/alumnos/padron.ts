@@ -1,7 +1,11 @@
 import { withAuth } from "@/use-cases/_kernel/with-auth";
 import { withTenantTx } from "@/use-cases/_kernel/with-tenant-tx";
 import { conflict, ok, type Result } from "@/use-cases/_kernel/result";
-import { contarAlumnosPorVinculo, listarAlumnos } from "@/data/repositories/students-repo";
+import {
+  ALUMNOS_POR_PAGINA,
+  contarAlumnosPorVinculo,
+  listarAlumnosParaPadron,
+} from "@/data/repositories/students-repo";
 import { listarTramosCubiertos } from "@/data/repositories/payments-repo";
 import { obtenerConfiguracion, obtenerGimnasio } from "@/data/repositories/gym-repo";
 import { ESTADO_FILTRO_TODOS, type FiltrosAlumnos } from "@/schemas/student";
@@ -15,6 +19,7 @@ import {
   ultimoDiaDelMes,
 } from "@/domain/fechas/calendario";
 import {
+  compararPorUrgencia,
   segmentosDelMes,
   situacionDeCobertura,
   type EstadoDeCobertura,
@@ -31,9 +36,11 @@ import {
  * cobertura, y hay pantallas (el selector de plan, por ejemplo) que no la
  * necesitan.
  *
- * La cobertura se pide SOLO para los alumnos de la página visible. Con 25
- * filas por página eso es un `where student_id in (...)` acotado, no un
- * barrido del historial entero.
+ * La cobertura se calcula para TODOS los que coinciden con el filtro, no
+ * solo para la página visible: el orden por vencimiento dentro de los
+ * activos depende de esa cobertura, y recién se puede cortar la página
+ * una vez que todos están ordenados (`listarAlumnosParaPadron` trae el
+ * listado completo a propósito, ver su comentario).
  */
 
 export interface FilaDelPadron {
@@ -76,8 +83,8 @@ export const padronQuery = withAuth<FiltrosAlumnos, Padron>(
       const vinculo =
         filtros.estado !== ESTADO_FILTRO_TODOS && esVinculo(filtros.estado) ? filtros.estado : null;
 
-      const [listado, conteoPorVinculo] = await Promise.all([
-        listarAlumnos(tx, ctx, { termino: filtros.q ?? null, vinculo, pagina: filtros.pagina }),
+      const [todos, conteoPorVinculo] = await Promise.all([
+        listarAlumnosParaPadron(tx, ctx, { termino: filtros.q ?? null, vinculo }),
         contarAlumnosPorVinculo(tx, ctx),
       ]);
 
@@ -89,7 +96,7 @@ export const padronQuery = withAuth<FiltrosAlumnos, Padron>(
         tx,
         ctx,
         { desde: primerDiaDelMes(sumarMeses(hoy, -14)), hasta: ultimoDiaDelMes(hoy) },
-        listado.filas.map((f) => f.id),
+        todos.map((f) => f.id),
       );
 
       const porAlumno = new Map<string, TramoCubierto[]>();
@@ -105,35 +112,68 @@ export const padronQuery = withAuth<FiltrosAlumnos, Padron>(
         diasNuevoSinPago: config.diasNuevoSinPago,
       };
 
+      // La cobertura se calcula para TODOS antes de ordenar: el orden por
+      // vencimiento depende de ella, y no se puede ordenar lo que todavía
+      // no se calculó.
+      const filasConSituacion = todos.map((f) => {
+        const suyos = porAlumno.get(f.id) ?? [];
+        const situacion = situacionDeCobertura(hoy, suyos, parametros, {
+          vinculo: f.vinculo,
+          fechaAltaOriginal: f.fechaAltaOriginal,
+        });
+
+        return {
+          id: f.id,
+          nombre: f.nombre,
+          apellido: f.apellido,
+          telefono: f.telefono,
+          vinculo: f.vinculo,
+          planNombre: f.planNombre,
+          fechaAltaOriginal: f.fechaAltaOriginal,
+          situacion,
+          segmentos: segmentosDelMes(inicioDelMes, suyos),
+        };
+      });
+
+      const RANGO_VINCULO: Record<string, number> = { ACTIVO: 0, PAUSADO: 1, BAJA: 2 };
+      filasConSituacion.sort((a, b) => {
+        const diferenciaDeVinculo = RANGO_VINCULO[a.vinculo] - RANGO_VINCULO[b.vinculo];
+        if (diferenciaDeVinculo !== 0) return diferenciaDeVinculo;
+
+        // Por vencimiento solo entre los activos: a un pausado o de baja
+        // no se le reclama nada, así que ordenarlo por apellido es lo que
+        // de verdad ayuda a encontrarlo.
+        if (a.vinculo === "ACTIVO") return compararPorUrgencia(a.situacion, b.situacion);
+
+        return a.apellido.localeCompare(b.apellido) || a.nombre.localeCompare(b.nombre);
+      });
+
+      const total = filasConSituacion.length;
+      const pagina = Math.max(1, filtros.pagina);
+      const desdeIndice = (pagina - 1) * ALUMNOS_POR_PAGINA;
+      const filasDeLaPagina = filasConSituacion.slice(desdeIndice, desdeIndice + ALUMNOS_POR_PAGINA);
+
       return ok({
         hoy,
         etiquetaMes: etiquetaDeMes(hoy, { conAnio: false }),
         posicionDeHoy: posicionEnElMes(hoy),
-        filas: listado.filas.map((f) => {
-          const suyos = porAlumno.get(f.id) ?? [];
-          const situacion = situacionDeCobertura(hoy, suyos, parametros, {
-            vinculo: f.vinculo,
-            fechaAltaOriginal: f.fechaAltaOriginal,
-          });
-
-          return {
-            id: f.id,
-            nombre: f.nombre,
-            apellido: f.apellido,
-            telefono: f.telefono,
-            vinculo: f.vinculo,
-            planNombre: f.planNombre,
-            fechaAltaOriginal: f.fechaAltaOriginal,
-            estado: situacion.estado,
-            detalle: situacion.detalle,
-            cubiertoHasta: situacion.cubiertoHasta,
-            diasVencido: situacion.diasVencido,
-            segmentos: segmentosDelMes(inicioDelMes, suyos),
-          };
-        }),
-        total: listado.total,
-        pagina: listado.pagina,
-        porPagina: listado.porPagina,
+        filas: filasDeLaPagina.map((f) => ({
+          id: f.id,
+          nombre: f.nombre,
+          apellido: f.apellido,
+          telefono: f.telefono,
+          vinculo: f.vinculo,
+          planNombre: f.planNombre,
+          fechaAltaOriginal: f.fechaAltaOriginal,
+          estado: f.situacion.estado,
+          detalle: f.situacion.detalle,
+          cubiertoHasta: f.situacion.cubiertoHasta,
+          diasVencido: f.situacion.diasVencido,
+          segmentos: f.segmentos,
+        })),
+        total,
+        pagina,
+        porPagina: ALUMNOS_POR_PAGINA,
         conteoPorVinculo,
       });
     });

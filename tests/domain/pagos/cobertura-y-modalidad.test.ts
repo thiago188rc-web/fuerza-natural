@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { coberturaDe, tramosImputados, DIAS_DE_MEDIO_MES } from "@/domain/pagos/modalidad";
-import { segmentosDelMes, situacionDeCobertura } from "@/domain/pagos/cobertura";
+import {
+  compararPorUrgencia,
+  segmentosDelMes,
+  situacionDeCobertura,
+  type SituacionDeCobertura,
+} from "@/domain/pagos/cobertura";
 import { diasEntre, posicionEnElMes, ultimoDiaDelMes } from "@/domain/fechas/calendario";
 
 /**
@@ -266,5 +271,52 @@ describe("posicionEnElMes — el marcador de hoy", () => {
   it("el día 1 está al principio y el último al final", () => {
     expect(posicionEnElMes("2026-09-01")).toBe(0);
     expect(posicionEnElMes(ultimoDiaDelMes("2026-09-01"))).toBe(1);
+  });
+});
+
+describe("compararPorUrgencia — orden del padrón por vencimiento", () => {
+  function situacion(partial: Partial<SituacionDeCobertura>): SituacionDeCobertura {
+    return {
+      estado: "CUBIERTO",
+      detalle: "",
+      cubiertoHasta: null,
+      diasRestantes: null,
+      diasVencido: null,
+      ...partial,
+    };
+  }
+
+  it("descubierto va antes que revisar, y revisar antes que cubierto", () => {
+    const descubierto = situacion({ estado: "DESCUBIERTO", diasVencido: 20 });
+    const revisar = situacion({ estado: "REVISAR", diasVencido: 2 });
+    const cubierto = situacion({ estado: "CUBIERTO", cubiertoHasta: "2026-10-05" });
+
+    const orden = [cubierto, revisar, descubierto].sort(compararPorUrgencia);
+    expect(orden).toEqual([descubierto, revisar, cubierto]);
+  });
+
+  it("dentro de descubierto, más días vencido va primero", () => {
+    const pocosDias = situacion({ estado: "DESCUBIERTO", diasVencido: 6 });
+    const muchosDias = situacion({ estado: "DESCUBIERTO", diasVencido: 90 });
+    expect(compararPorUrgencia(muchosDias, pocosDias)).toBeLessThan(0);
+    expect(compararPorUrgencia(pocosDias, muchosDias)).toBeGreaterThan(0);
+  });
+
+  it("nunca pagó (diasVencido null) es lo más urgente dentro de descubierto", () => {
+    const nuncaPago = situacion({ estado: "DESCUBIERTO", diasVencido: null });
+    const vencidoHaceMucho = situacion({ estado: "DESCUBIERTO", diasVencido: 365 });
+    expect(compararPorUrgencia(nuncaPago, vencidoHaceMucho)).toBeLessThan(0);
+  });
+
+  it("alta reciente sin pago (diasVencido null) es lo MENOS urgente dentro de revisar", () => {
+    const altaReciente = situacion({ estado: "REVISAR", diasVencido: null });
+    const vencidoHacePoco = situacion({ estado: "REVISAR", diasVencido: 3 });
+    expect(compararPorUrgencia(altaReciente, vencidoHacePoco)).toBeGreaterThan(0);
+  });
+
+  it("dentro de cubierto, quien se vence antes va primero", () => {
+    const venceAntes = situacion({ estado: "CUBIERTO", cubiertoHasta: "2026-10-05" });
+    const venceDespues = situacion({ estado: "CUBIERTO", cubiertoHasta: "2026-10-20" });
+    expect(compararPorUrgencia(venceAntes, venceDespues)).toBeLessThan(0);
   });
 });

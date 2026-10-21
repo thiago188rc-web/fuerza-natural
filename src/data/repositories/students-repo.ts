@@ -183,6 +183,51 @@ export async function listarAlumnos(tx: TxClient, ctx: AuthContext, filtros: Fil
   };
 }
 
+/**
+ * El mismo listado que `listarAlumnos`, pero SIN paginar: todos los que
+ * coinciden con la búsqueda y el filtro de vínculo, de una sola vez.
+ *
+ * Lo usa el padrón para poder ordenar por vencimiento: ese orden depende
+ * de la cobertura de cada alumno, que se calcula en la app y no en SQL, así
+ * que hace falta tener a TODOS los que importan antes de poder ordenarlos
+ * y recién ahí cortar la página — pedir de a 25 y ordenar cada tanda por
+ * separado daría páginas con el orden roto. Son como mucho unos cientos de
+ * filas (el tamaño real de un gimnasio), nada que no entre en una consulta.
+ */
+export async function listarAlumnosParaPadron(
+  tx: TxClient,
+  ctx: AuthContext,
+  filtros: { termino?: string | null; vinculo?: Vinculo | null },
+) {
+  const condiciones = [eq(students.gymId, ctx.gymId)];
+  if (filtros.vinculo) condiciones.push(eq(students.vinculo, filtros.vinculo));
+
+  const termino = normalizarTerminoBusqueda(filtros.termino ?? "");
+  if (termino) {
+    for (const palabra of termino.split(" ").slice(0, 5)) {
+      const patron = `%${escaparComodinesLike(palabra)}%`;
+      condiciones.push(sql`${students.nombreBusqueda} like ${patron} escape '\\'`);
+    }
+  }
+
+  return tx
+    .select({
+      id: students.id,
+      nombre: students.nombre,
+      apellido: students.apellido,
+      telefono: students.telefono,
+      vinculo: students.vinculo,
+      planNombre: plans.nombre,
+      fechaAltaOriginal: students.fechaAltaOriginal,
+    })
+    .from(students)
+    .innerJoin(plans, eq(plans.id, students.planId))
+    .where(and(...condiciones))
+    // Orden base estable (apellido, nombre) — `padronQuery` reordena por
+    // urgencia dentro de los activos antes de paginar en memoria.
+    .orderBy(asc(students.apellido), asc(students.nombre));
+}
+
 /** Para los contadores del listado ("Activos 41 · Pausados 3 · Bajas 12"). */
 export async function contarAlumnosPorVinculo(tx: TxClient, ctx: AuthContext) {
   const filas = await tx
