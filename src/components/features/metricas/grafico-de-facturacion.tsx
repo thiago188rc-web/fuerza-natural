@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { Loader2 } from "lucide-react";
 import type { PuntoDeFacturacion } from "@/use-cases/metricas/consultas";
@@ -37,11 +37,58 @@ import { cn } from "@/lib/utils";
  * anterior — bajo demanda, no precargado (`pagosDelPeriodoAction`), porque
  * en la vista "año" cada barra es un mes entero y nadie necesita el
  * detalle de los doce a la vez.
+ *
+ * Encima de las barras va una línea que une la punta de cada una: el
+ * semáforo de cada barra dice "este período en particular", la línea dice
+ * "para dónde va esto" — si sube, baja o se mantiene ondulando. Se mide del
+ * DOM (`LineaDeTendencia`) porque cada barra crece con un `scaleY`
+ * animado: la altura final es un dato de layout, no algo que se pueda
+ * recalcular a mano sin repetir esa animación.
  */
 function colorDeBarra(proporcion: number): string {
   if (proporcion >= 2 / 3) return "bg-cubierto";
   if (proporcion >= 1 / 3) return "bg-revisar";
   return "bg-descubierto";
+}
+
+/**
+ * La línea de tendencia, dibujada en píxeles reales sobre las barras. No
+ * usa un `viewBox` en porcentaje porque las barras no están repartidas en
+ * porcentajes exactos del ancho total — tienen un gap fijo entre ellas y
+ * (en pantallas chicas) un ancho mínimo que puede no entrar completo—, así
+ * que la única forma de acertar la posición es medir dónde cayó cada
+ * punta de verdad.
+ */
+function LineaDeTendencia({ puntos }: { puntos: { x: number; y: number }[] }) {
+  if (puntos.length < 2) return null;
+
+  const anchoMaximo = Math.max(...puntos.map((p) => p.x)) + 40;
+  const altoMaximo = Math.max(...puntos.map((p) => p.y)) + 20;
+
+  return (
+    <svg
+      aria-hidden
+      className="pointer-events-none absolute inset-0"
+      width={anchoMaximo}
+      height={altoMaximo}
+      style={{ overflow: "visible" }}
+    >
+      <polyline
+        points={puntos.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")}
+        fill="none"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="stroke-foreground/30"
+      />
+      {puntos.map((p, i) => (
+        <g key={i}>
+          <circle cx={p.x} cy={p.y} r={4} className="fill-card" />
+          <circle cx={p.x} cy={p.y} r={2.5} className="fill-foreground/60" />
+        </g>
+      ))}
+    </svg>
+  );
 }
 
 interface DetalleCargado {
@@ -73,6 +120,39 @@ export function GraficoDeFacturacion({
   const [abierto, setAbierto] = useState<string | null>(null);
   const [detalle, setDetalle] = useState<Record<string, EstadoDelDetalle>>({});
 
+  // La línea de tendencia se mide del DOM, no se calcula a mano: cada
+  // barra crece con un `scaleY` animado, así que su punta real (la que
+  // tiene que tocar la línea) depende del layout en pantalla, no de la
+  // proporción sola. Se vuelve a medir con un ResizeObserver —al redimensionar
+  // la ventana y a medida que la animación de entrada termina— en vez de
+  // calcularla una sola vez al montar.
+  const filaRef = useRef<HTMLDivElement>(null);
+  const barRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const [puntosLinea, setPuntosLinea] = useState<{ x: number; y: number }[]>([]);
+
+  function medirPuntosDeLaLinea() {
+    const base = filaRef.current?.getBoundingClientRect();
+    if (!base) return;
+    const medidos = barRefs.current.map((el) => {
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { x: r.left + r.width / 2 - base.left, y: r.top - base.top };
+    });
+    if (medidos.every((p): p is { x: number; y: number } => p !== null)) {
+      setPuntosLinea(medidos);
+    }
+  }
+
+  useEffect(() => {
+    const fila = filaRef.current;
+    if (!fila) return;
+
+    medirPuntosDeLaLinea();
+    const observador = new ResizeObserver(medirPuntosDeLaLinea);
+    observador.observe(fila);
+    return () => observador.disconnect();
+  }, [puntos]);
+
   async function abrir(punto: PuntoDeFacturacion) {
     setAbierto(punto.periodo);
     if (detalle[punto.periodo]) return; // ya cacheado, no se vuelve a pedir
@@ -89,9 +169,12 @@ export function GraficoDeFacturacion({
   return (
     <div className="-mx-1 overflow-x-auto px-1">
       <div
-        className="flex items-end gap-3 sm:gap-5"
+        ref={filaRef}
+        className="relative flex items-end gap-3 sm:gap-5"
         style={{ minWidth: `${Math.max(puntos.length * 2.75, 16)}rem` }}
       >
+        <LineaDeTendencia puntos={puntosLinea} />
+
         {puntos.map((punto, i) => {
           const proporcion = punto.total / maximo;
           const sinPagos = punto.cantidad === 0;
@@ -119,6 +202,9 @@ export function GraficoDeFacturacion({
                   className="flex h-28 w-full items-end rounded-t-[3px] p-0 disabled:cursor-default sm:h-36"
                 >
                   <motion.div
+                    ref={(el) => {
+                      barRefs.current[i] = el;
+                    }}
                     initial={quieto ? { scaleY: proporcion } : { scaleY: 0 }}
                     animate={{ scaleY: Math.max(proporcion, punto.total > 0 ? 0.03 : 0) }}
                     transition={{
@@ -126,6 +212,7 @@ export function GraficoDeFacturacion({
                       ease: SALIDA,
                       delay: quieto ? 0 : i * 0.04,
                     }}
+                    onAnimationComplete={medirPuntosDeLaLinea}
                     className={cn(
                       "h-full w-full origin-bottom rounded-t-[3px] transition-opacity",
                       colorDeBarra(proporcion),
