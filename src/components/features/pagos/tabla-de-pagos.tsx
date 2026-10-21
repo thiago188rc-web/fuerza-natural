@@ -54,17 +54,11 @@ export function TablaDePagos({
   const quieto = useReducedMotion();
   const searchParams = useSearchParams();
 
-  /** Tocar una columna ordenable: si ya era esa, invierte; si es otra, arranca en el orden que tiene más sentido para ese campo. */
+  /** Tocar una columna ordenable: si ya era esa, invierte; si es otra, arranca ascendente (día 1 o A→Z). */
   function hrefOrdenar(campo: "fecha" | "nombre"): string {
     const params = new URLSearchParams(searchParams.toString());
     const yaEsEsta = ordenarPor === campo;
-    const nuevaDireccion = yaEsEsta
-      ? direccion === "desc"
-        ? "asc"
-        : "desc"
-      : campo === "nombre"
-        ? "asc"
-        : "desc";
+    const nuevaDireccion = yaEsEsta ? (direccion === "desc" ? "asc" : "desc") : "asc";
     params.set("orden", campo);
     params.set("dir", nuevaDireccion);
     return `?${params.toString()}`;

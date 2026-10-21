@@ -31,11 +31,11 @@ export default async function PagosPage({
   // pantalla.
   const mesPedido = /^\d{4}-\d{2}$/.test(mes ?? "") ? `${mes}-01` : null;
   const ordenarPor = orden === "nombre" ? "nombre" : "fecha";
-  const direccion = dir === "asc" ? "asc" : "desc";
+  // Del día 1 al último del mes por default — "desc" solo si se pide explícito.
+  const direccion = dir === "desc" ? "desc" : "asc";
 
   const historial = await historialDePagosQuery({
     ...(mesPedido ? { desde: primerDiaDelMes(mesPedido), hasta: ultimoDiaDelMes(mesPedido) } : {}),
-    pagina: 1,
     ordenarPor,
     direccion,
   });
@@ -98,13 +98,6 @@ export default async function PagosPage({
           </div>
 
           <ResumenDeAnulados anulados={datos.anulados} moneda={datos.moneda} hoy={datos.hoy} />
-
-          {datos.total > datos.porPagina ? (
-            <p className="ml-auto text-xs text-muted-foreground">
-              Mostrando los primeros <span className="tabular">{datos.porPagina}</span> de{" "}
-              <span className="tabular">{datos.total}</span>
-            </p>
-          ) : null}
         </dl>
       </Aparece>
 

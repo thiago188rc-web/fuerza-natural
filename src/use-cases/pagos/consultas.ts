@@ -13,6 +13,7 @@ import {
 } from "@/data/repositories/payments-repo";
 import {
   listarAlumnosActivosParaCobertura,
+  listarPlanesActivos,
   marcasDeMovimientoPorAlumno,
 } from "@/data/repositories/students-repo";
 import { obtenerConfiguracion, obtenerGimnasio } from "@/data/repositories/gym-repo";
@@ -129,11 +130,14 @@ export interface ContextoDeCobro {
   cubiertoHasta: string | null;
   tramos: TramoCubierto[];
   /**
-   * Desde cuándo proponer la cobertura. Es un DEFAULT de interfaz, no una
-   * regla: si el alumno ya tiene cubierto hasta el 30 de septiembre, el
-   * formulario abre en octubre. El dueño lo puede cambiar siempre.
+   * Desde cuándo corre la cobertura: el día después del último cubierto,
+   * o la fecha de alta si todavía no pagó nunca. Ya no es editable desde
+   * el formulario de cobro — el dueño pidió que la única fecha que se
+   * carga a mano sea la del pago.
    */
   sugerenciaDesde: string;
+  /** Los planes activos con su precio, para los atajos de importe al cobrar. */
+  planesActivos: { id: string; nombre: string; precio: number | null }[];
 }
 
 export const contextoDeCobroQuery = withAuth<string, ContextoDeCobro>(
@@ -148,7 +152,10 @@ export const contextoDeCobroQuery = withAuth<string, ContextoDeCobro>(
       if (!alumno) return notFound();
 
       const hoy = hoyISO(gym.timezone);
-      const filas = await listarTramosDeAlumno(tx, ctx, studentId);
+      const [filas, planes] = await Promise.all([
+        listarTramosDeAlumno(tx, ctx, studentId),
+        listarPlanesActivos(tx, ctx),
+      ]);
       const tramos: TramoCubierto[] = filas.map((f) => ({ desde: f.desde, hasta: f.hasta }));
 
       const situacion = situacionDeCobertura(
@@ -196,6 +203,11 @@ export const contextoDeCobroQuery = withAuth<string, ContextoDeCobro>(
         cubiertoHasta: situacion.cubiertoHasta,
         tramos,
         sugerenciaDesde,
+        planesActivos: planes.map((p) => ({
+          id: p.id,
+          nombre: p.nombre,
+          precio: p.precioActual === null ? null : Number(p.precioActual),
+        })),
       });
     });
   },
@@ -240,8 +252,6 @@ export interface HistorialDePagos {
   moneda: string;
   filas: PagoDelHistorial[];
   total: number;
-  pagina: number;
-  porPagina: number;
   /** Lo cobrado en el rango consultado, no en el mes calendario. */
   cobradoEnElRango: { total: number; cantidad: number };
   /** Lo anulado en el rango consultado — ya excluido de `cobradoEnElRango`. */
@@ -265,12 +275,12 @@ export const historialDePagosQuery = withAuth<Partial<FiltrosDePagos>, Historial
       const hoy = hoyISO(gym.timezone);
       const desde = filtros?.desde ?? primerDiaDelMes(hoy);
       const hasta = filtros?.hasta ?? ultimoDiaDelMes(hoy);
-      const pagina = Math.max(1, filtros?.pagina ?? 1);
       const ordenarPor = filtros?.ordenarPor ?? "fecha";
-      const direccion = filtros?.direccion ?? "desc";
+      // Del día 1 al último del mes, en ese orden, no al revés.
+      const direccion = filtros?.direccion ?? "asc";
 
       const [listado, cobrado, anulado, anulados, marcas] = await Promise.all([
-        listarPagos(tx, ctx, { desde, hasta, pagina, ordenarPor, direccion }),
+        listarPagos(tx, ctx, { desde, hasta, ordenarPor, direccion }),
         totalCobrado(tx, ctx, { desde, hasta }),
         totalAnulado(tx, ctx, { desde, hasta }),
         listarPagosAnulados(tx, ctx, { desde, hasta }),
@@ -305,8 +315,6 @@ export const historialDePagosQuery = withAuth<Partial<FiltrosDePagos>, Historial
                 : null,
         })),
         total: listado.total,
-        pagina: listado.pagina,
-        porPagina: listado.porPagina,
         cobradoEnElRango: cobrado,
         anuladoEnElRango: anulado,
         anulados: anulados.map((a) => ({

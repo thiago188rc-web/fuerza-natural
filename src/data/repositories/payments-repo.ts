@@ -15,8 +15,6 @@ import type { TramoImputado } from "@/domain/pagos/modalidad";
  * posible en este dominio.
  */
 
-export const PAGOS_POR_PAGINA = 30;
-
 export interface TramoDeAlumno {
   studentId: string;
   desde: string;
@@ -177,16 +175,20 @@ export async function buscarCoberturaSuperpuesta(
 export interface FiltrosDePagos {
   desde?: string | null;
   hasta?: string | null;
-  pagina: number;
   /** Por fecha de pago (default) o por apellido/nombre del alumno. */
   ordenarPor?: "fecha" | "nombre";
   direccion?: "asc" | "desc";
 }
 
 /**
- * El historial. Trae los tramos de cada pago agregados como texto para no
- * hacer N+1: un pago tiene uno o dos tramos, y `string_agg` los resuelve
- * dentro de la misma consulta.
+ * El historial COMPLETO del rango (sin paginar): un mes entero son como
+ * mucho unos cientos de pagos, nada que no entre cómodo en una sola
+ * consulta — y cortarlo en páginas escondería pagos del mes sin que se
+ * note, que es peor que una lista larga.
+ *
+ * Trae los tramos de cada pago agregados como texto para no hacer N+1: un
+ * pago tiene uno o dos tramos, y `string_agg` los resuelve dentro de la
+ * misma consulta.
  */
 export async function listarPagos(tx: TxClient, ctx: AuthContext, filtros: FiltrosDePagos) {
   const condiciones = [eq(payments.gymId, ctx.gymId)];
@@ -194,57 +196,46 @@ export async function listarPagos(tx: TxClient, ctx: AuthContext, filtros: Filtr
   if (filtros.hasta) condiciones.push(lte(payments.fechaPago, filtros.hasta));
 
   const where = and(...condiciones);
-  const offset = (filtros.pagina - 1) * PAGOS_POR_PAGINA;
-  const orden = filtros.direccion === "asc" ? asc : desc;
+  const orden = filtros.direccion === "desc" ? desc : asc;
   const ordenamiento =
     filtros.ordenarPor === "nombre"
       ? [orden(students.apellido), orden(students.nombre)]
       : [orden(payments.fechaPago), desc(payments.createdAt)];
 
-  const [filas, totales] = await Promise.all([
-    tx
-      .select({
-        id: payments.id,
-        fechaPago: payments.fechaPago,
-        monto: payments.monto,
-        metodo: payments.metodo,
-        modalidad: payments.modalidad,
-        planNombreSnapshot: payments.planNombreSnapshot,
-        nota: payments.nota,
-        anuladoEn: payments.anuladoEn,
-        anuladoMotivo: payments.anuladoMotivo,
-        studentId: students.id,
-        nombre: students.nombre,
-        apellido: students.apellido,
-        telefono: students.telefono,
-        registradoPorNombre: appUsers.nombre,
-        cubreDesde: sql<string | null>`(
-          select min(pp.cubre_desde)
-          from app.payment_periods pp
-          where pp.payment_id = ${payments.id}
-        )`,
-        cubreHasta: sql<string | null>`(
-          select max(pp.cubre_hasta)
-          from app.payment_periods pp
-          where pp.payment_id = ${payments.id}
-        )`,
-      })
-      .from(payments)
-      .innerJoin(students, eq(students.id, payments.studentId))
-      .innerJoin(appUsers, eq(appUsers.id, payments.registradoPor))
-      .where(where)
-      .orderBy(...ordenamiento)
-      .limit(PAGOS_POR_PAGINA)
-      .offset(offset),
-    tx.select({ total: sql<number>`count(*)::int` }).from(payments).where(where),
-  ]);
+  const filas = await tx
+    .select({
+      id: payments.id,
+      fechaPago: payments.fechaPago,
+      monto: payments.monto,
+      metodo: payments.metodo,
+      modalidad: payments.modalidad,
+      planNombreSnapshot: payments.planNombreSnapshot,
+      nota: payments.nota,
+      anuladoEn: payments.anuladoEn,
+      anuladoMotivo: payments.anuladoMotivo,
+      studentId: students.id,
+      nombre: students.nombre,
+      apellido: students.apellido,
+      telefono: students.telefono,
+      registradoPorNombre: appUsers.nombre,
+      cubreDesde: sql<string | null>`(
+        select min(pp.cubre_desde)
+        from app.payment_periods pp
+        where pp.payment_id = ${payments.id}
+      )`,
+      cubreHasta: sql<string | null>`(
+        select max(pp.cubre_hasta)
+        from app.payment_periods pp
+        where pp.payment_id = ${payments.id}
+      )`,
+    })
+    .from(payments)
+    .innerJoin(students, eq(students.id, payments.studentId))
+    .innerJoin(appUsers, eq(appUsers.id, payments.registradoPor))
+    .where(where)
+    .orderBy(...ordenamiento);
 
-  return {
-    filas,
-    total: totales[0]?.total ?? 0,
-    pagina: filtros.pagina,
-    porPagina: PAGOS_POR_PAGINA,
-  };
+  return { filas, total: filas.length };
 }
 
 /**

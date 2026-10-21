@@ -3,12 +3,11 @@
 import Link from "next/link";
 import { useActionState, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { Check, ChevronLeft, ChevronRight, CircleAlert, Loader2, TriangleAlert } from "lucide-react";
+import { Check, CircleAlert, Loader2, TriangleAlert } from "lucide-react";
 import { registrarPagoFormAction } from "@/app/(app)/pagos/actions";
 import { ESTADO_PAGO_INICIAL, type EstadoPago } from "@/app/(app)/pagos/estado-formulario";
 import type { ContextoDeCobro } from "@/use-cases/pagos/consultas";
 import { coberturaDe, ETIQUETA_MODALIDAD, type Modalidad } from "@/domain/pagos/modalidad";
-import { sumarMeses } from "@/domain/fechas/calendario";
 import { Segmentado } from "@/components/segmentado";
 import { VistaPreviaDeCobertura } from "./vista-previa-de-cobertura";
 import { Senal, TEXTO_DE_ESTADO } from "@/components/features/cobertura/senal";
@@ -27,7 +26,6 @@ import {
 } from "@/components/ui/dialog";
 import { DURACION, OVERLAY, SALIDA } from "@/components/motion/tokens";
 import { fechaCompleta, importe, iniciales } from "@/lib/formato";
-import { METODOS_PAGO, ETIQUETA_METODO } from "@/schemas/payment";
 import { cn } from "@/lib/utils";
 
 /**
@@ -68,10 +66,14 @@ export function FormularioDeCobro({
   // pidió sacar "1/2 mes" del formulario. El dominio y los pagos viejos con
   // MEDIO_MES siguen intactos; esto solo achica lo que se puede elegir acá.
   const modalidad: Modalidad = "MES_COMPLETO";
+  // Desde cuándo corre la cobertura: ya no se edita a mano. El dueño pidió
+  // que la única fecha que se carga en el cobro sea la del pago en sí.
+  const cubreDesde = contexto.sugerenciaDesde;
   const [fechaPago, setFechaPago] = useState(contexto.hoy);
-  const [cubreDesde, setCubreDesde] = useState(contexto.sugerenciaDesde);
   const [montoManual, setMontoManual] = useState<string | null>(null);
-  const [metodo, setMetodo] = useState<string>("EFECTIVO");
+  // Siempre efectivo: el dueño pidió sacar el selector de método del
+  // cobro. El dominio y los pagos viejos con otros métodos siguen intactos.
+  const metodo = "EFECTIVO";
   const [confirmarSuperposicion, setConfirmar] = useState(false);
   const [superposicionCerrada, setSuperposicionCerrada] = useState<string | null>(null);
 
@@ -87,16 +89,16 @@ export function FormularioDeCobro({
       ? Math.abs(montoNumero - precioConfigurado) > 0.5
       : false;
 
+  // Qué botón de plan está "apretado": el que tenga exactamente el precio
+  // que está cargado ahora. Si el dueño lo edita a mano, ninguno queda
+  // marcado — es justo lo que corresponde mostrar.
+  const planesConPrecio = contexto.planesActivos.filter((p) => p.precio !== null);
+  const planRapidoActivo =
+    planesConPrecio.find((p) => String(p.precio) === monto)?.id ?? "";
+
   const yaCubierto = contexto.tramos.some(
     (t) => t.hasta >= cobertura.desde && t.desde <= cobertura.hasta,
   );
-
-  /** Cambiar el período o la modalidad invalida cualquier confirmación previa. */
-  function cambiarCobertura(accion: () => void) {
-    accion();
-    setConfirmar(false);
-    setSuperposicionCerrada(null);
-  }
 
   const claveSuperposicion = estado.superposicion
     ? `${estado.superposicion.pedido.desde}..${estado.superposicion.pedido.hasta}`
@@ -118,6 +120,7 @@ export function FormularioDeCobro({
       <input type="hidden" name="fechaPago" value={fechaPago} />
       <input type="hidden" name="modalidad" value={modalidad} />
       <input type="hidden" name="cubreDesde" value={cubreDesde} />
+      <input type="hidden" name="metodo" value={metodo} />
       <input type="hidden" name="idempotencyKey" value={claveIdempotencia} />
       <input
         type="hidden"
@@ -126,50 +129,33 @@ export function FormularioDeCobro({
       />
 
       <div className="superficie divide-y divide-border">
-        {/* DESDE CUÁNDO */}
-        <fieldset className="px-5 py-5">
-          <legend className="t-rotulo">Día desde el que arranca el mes</legend>
-
-          <div className="mt-3 flex items-center gap-2">
-            <PasoDeMes
-              direccion="anterior"
-              onClick={() => cambiarCobertura(() => setCubreDesde(sumarMeses(cubreDesde, -1)))}
-            />
-            {/* El mismo input que arma el valor que se envía: no hay un
-                "modo lectura" con texto y un "modo edición" aparte. Tocar
-                la fecha la edita directo — es justo lo que permite ajustar
-                el día de arranque de un alumno, no solo saltar de mes en
-                mes. */}
-            <Input
-              type="date"
-              aria-label="Día desde el que arranca el mes"
-              value={cubreDesde}
-              onChange={(e) => {
-                if (e.target.value) cambiarCobertura(() => setCubreDesde(e.target.value));
-              }}
-              className="tabular flex-1 text-center font-heading text-base font-semibold"
-            />
-            <PasoDeMes
-              direccion="siguiente"
-              onClick={() => cambiarCobertura(() => setCubreDesde(sumarMeses(cubreDesde, 1)))}
-            />
-          </div>
-          <p className="mt-3 text-xs text-muted-foreground">
-            Cubre un mes desde esta fecha, hasta el {fechaCompleta(cobertura.hasta)} — con el plan
-            habitual: {contexto.alumno.planNombre}. Pagar unos días tarde no corre el ciclo: las
-            flechas mueven el mismo día al mes anterior o siguiente.
-          </p>
-
-          {estado.errores?.cubreDesde ? (
-            <p className="mt-2 text-xs text-destructive">{estado.errores.cubreDesde}</p>
-          ) : null}
-        </fieldset>
-
         {/* CUÁNTO */}
         <fieldset className="px-5 py-5">
           <legend className="t-rotulo">
             Importe
           </legend>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Cubre un mes desde el {fechaCompleta(cobertura.desde)}, hasta el{" "}
+            {fechaCompleta(cobertura.hasta)} — con el plan habitual: {contexto.alumno.planNombre}.
+          </p>
+
+          {planesConPrecio.length > 1 ? (
+            <Segmentado
+              className="mt-3"
+              size="compacto"
+              nombre="plan-rapido"
+              valor={planRapidoActivo}
+              onCambio={(id) => {
+                const plan = planesConPrecio.find((p) => p.id === id);
+                if (plan && plan.precio !== null) setMontoManual(String(plan.precio));
+              }}
+              opciones={planesConPrecio.map((p) => ({
+                valor: p.id,
+                etiqueta: p.nombre,
+                detalle: importe(p.precio as number, contexto.moneda),
+              }))}
+            />
+          ) : null}
 
           <div className="mt-3 grid gap-4 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)]">
             <div>
@@ -218,23 +204,21 @@ export function FormularioDeCobro({
           </div>
         </fieldset>
 
-        {/* CÓMO */}
+        {/* CUÁNDO */}
         <fieldset className="px-5 py-5">
           <legend className="t-rotulo">
-            Método
+            Fecha del pago
           </legend>
 
           <div className="mt-3">
-            <Label htmlFor="fecha-pago" className="text-xs text-muted-foreground">
-              Fecha del pago
-            </Label>
             <Input
               id="fecha-pago"
               type="date"
+              aria-label="Fecha del pago"
               max={contexto.hoy}
               value={fechaPago}
               onChange={(e) => setFechaPago(e.target.value)}
-              className="tabular mt-1.5"
+              className="tabular"
               aria-invalid={Boolean(estado.errores?.fechaPago)}
             />
             <p className="mt-1.5 text-xs text-muted-foreground">
@@ -245,15 +229,6 @@ export function FormularioDeCobro({
               <p className="mt-1.5 text-xs text-destructive">{estado.errores.fechaPago}</p>
             ) : null}
           </div>
-
-          <Segmentado
-            className="mt-3"
-            size="compacto"
-            nombre="metodo"
-            valor={metodo}
-            onCambio={setMetodo}
-            opciones={METODOS_PAGO.map((m) => ({ valor: m, etiqueta: ETIQUETA_METODO[m] }))}
-          />
 
           <div className="mt-4">
             <Label htmlFor="nota" className="text-xs text-muted-foreground">
@@ -415,26 +390,6 @@ export function FormularioDeCobro({
         </DialogContent>
       </Dialog>
     </form>
-  );
-}
-
-function PasoDeMes({
-  direccion,
-  onClick,
-}: {
-  direccion: "anterior" | "siguiente";
-  onClick: () => void;
-}) {
-  const Icono = direccion === "anterior" ? ChevronLeft : ChevronRight;
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={direccion === "anterior" ? "Un mes antes" : "Un mes después"}
-      className="grid size-9 shrink-0 place-items-center rounded-lg border border-border text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-verde focus-visible:outline-none"
-    >
-      <Icono className="size-4" strokeWidth={2} />
-    </button>
   );
 }
 
