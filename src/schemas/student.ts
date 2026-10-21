@@ -3,7 +3,6 @@ import { normalizarTelefono, normalizarTexto, telefonoArgentino } from "@/domain
 import { CANALES, ordenarCanales } from "@/domain/alumnos/como-conocio";
 import { VINCULOS } from "@/domain/alumnos/vinculo";
 import { GENEROS } from "@/domain/alumnos/genero";
-import { DISCIPLINAS } from "@/domain/alumnos/disciplina";
 import { opcional } from "./_helpers";
 
 /**
@@ -93,9 +92,6 @@ const notas = z
 const planId = z.string().uuid("Elegí un plan.");
 const fechaCivil = z.string().date("Fecha inválida. Usá el formato AAAA-MM-DD.");
 const genero = z.string({ error: "Género inválido." }).pipe(z.enum(GENEROS, { error: "Género inválido." }));
-const disciplina = z
-  .string({ error: "Disciplina inválida." })
-  .pipe(z.enum(DISCIPLINAS, { error: "Disciplina inválida." }));
 
 /** Alta. Estado inicial ACTIVO — no se pide ni se acepta del cliente. */
 export const crearAlumnoSchema = z.object({
@@ -110,7 +106,6 @@ export const crearAlumnoSchema = z.object({
   documento: opcional(documento),
   fechaNacimiento: opcional(fechaCivil),
   genero: opcional(genero),
-  disciplina: opcional(disciplina),
   direccion: opcional(direccion),
   comoConocio: comoConocio.optional(),
 });
@@ -136,7 +131,6 @@ export const editarAlumnoSchema = z.object({
   notas: opcional(notas),
   genero: opcional(genero),
   fechaNacimiento: opcional(fechaCivil),
-  disciplina: opcional(disciplina),
   documento: opcional(documento),
   direccion: opcional(direccion),
   comoConocio: comoConocio.optional(),

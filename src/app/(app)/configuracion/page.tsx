@@ -3,6 +3,7 @@ import { Info } from "lucide-react";
 import { contextoDelGimnasio } from "@/use-cases/gimnasio/contexto";
 import { getAuthContext } from "@/lib/auth/context";
 import { FormularioDePrecios } from "@/components/features/configuracion/formulario-de-precios";
+import { FormularioDeMotivos } from "@/components/features/configuracion/formulario-de-motivos";
 import { VentanaDeCobro } from "@/components/features/configuracion/ventana-de-cobro";
 import { Aparece } from "@/components/motion/primitivas";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -93,32 +94,7 @@ export default async function ConfiguracionPage() {
       </Aparece>
 
       <Aparece retraso={0.12}>
-        <section className="superficie overflow-hidden">
-          <header className="border-b border-border px-5 py-4">
-            <h2 className="t-seccion">Motivos de baja</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Las opciones que aparecen al dar de baja a un alumno. Se guardan con la baja para
-              poder entender después por qué se va la gente.
-            </p>
-          </header>
-
-          <ul className="flex flex-wrap gap-1.5 px-5 py-4">
-            {datos.motivosBaja
-              .filter((m) => m.activo !== false)
-              .map((motivo) => (
-                <li
-                  key={motivo.codigo}
-                  className="rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground"
-                >
-                  {motivo.etiqueta}
-                </li>
-              ))}
-          </ul>
-
-          <p className="hundido border-t border-border px-5 py-2.5 text-xs text-muted-foreground">
-            Editar este catálogo todavía no está disponible desde la pantalla.
-          </p>
-        </section>
+        <FormularioDeMotivos motivos={datos.motivosBaja} />
       </Aparece>
     </div>
   );

@@ -61,7 +61,6 @@ export default async function NuevoAlumnoPage() {
               notas: "",
               genero: "",
               fechaNacimiento: "",
-              disciplina: "",
               documento: "",
               direccion: "",
               comoConocio: [],

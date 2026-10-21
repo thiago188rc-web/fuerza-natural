@@ -2,8 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import {
+  actualizarActivoDePlanAction,
   actualizarParametrosAction,
   actualizarPreciosAction,
+  agregarMotivoDeBajaAction,
 } from "@/use-cases/gimnasio/configuracion";
 import type { EstadoFormulario } from "@/app/(app)/alumnos/estado-formulario";
 import type { Result } from "@/use-cases/_kernel/result";
@@ -75,6 +77,34 @@ export async function guardarPreciosFormAction(
     resultado.ok && resultado.data.cambios === 0
       ? "No había nada que cambiar."
       : "Precios actualizados. Los pagos ya registrados no cambian.",
+  );
+}
+
+/** Prende/apaga un plan para el alta de alumnos nuevos. Se llama directo desde el switch, sin formulario. */
+export async function cambiarActivoDePlanAction(
+  planId: string,
+  activo: boolean,
+): Promise<{ ok: boolean; mensaje?: string }> {
+  const resultado = await actualizarActivoDePlanAction({ planId, activo });
+  if (resultado.ok) {
+    revalidatePath("/configuracion");
+    revalidatePath("/alumnos/nuevo");
+    return { ok: true };
+  }
+  return { ok: false, mensaje: aEstado(resultado, "").mensaje };
+}
+
+export async function agregarMotivoDeBajaFormAction(
+  _prev: EstadoFormulario,
+  formData: FormData,
+): Promise<EstadoFormulario> {
+  const resultado = await agregarMotivoDeBajaAction({ etiqueta: texto(formData, "etiqueta") });
+
+  if (resultado.ok) revalidatePath("/configuracion");
+
+  return aEstado(
+    resultado,
+    resultado.ok ? `Motivo "${resultado.data.motivo.etiqueta}" agregado.` : "",
   );
 }
 

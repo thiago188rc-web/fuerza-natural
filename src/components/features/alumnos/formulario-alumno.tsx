@@ -18,7 +18,6 @@ import {
   type EstadoFormulario,
 } from "@/app/(app)/alumnos/estado-formulario";
 import { GENEROS, etiquetaGenero, type Genero } from "@/domain/alumnos/genero";
-import { DISCIPLINAS, etiquetaDisciplina, type Disciplina } from "@/domain/alumnos/disciplina";
 import { CANALES, etiquetaCanal } from "@/domain/alumnos/como-conocio";
 
 export interface PlanOpcion {
@@ -37,7 +36,6 @@ export interface ValoresAlumno {
   notas: string;
   genero: string;
   fechaNacimiento: string;
-  disciplina: string;
   documento: string;
   direccion: string;
   comoConocio: string[];
@@ -104,18 +102,6 @@ export function FormularioAlumno({
       ) : null}
 
       <div className="grid gap-5 sm:grid-cols-2">
-        <Campo id="nombre" etiqueta="Nombre" error={errores.nombre} requerido>
-          <Input
-            id="nombre"
-            name="nombre"
-            defaultValue={valores.nombre}
-            required
-            maxLength={80}
-            autoComplete="off"
-            aria-invalid={Boolean(errores.nombre)}
-          />
-        </Campo>
-
         <Campo id="apellido" etiqueta="Apellido" error={errores.apellido} requerido>
           <Input
             id="apellido"
@@ -125,6 +111,18 @@ export function FormularioAlumno({
             maxLength={80}
             autoComplete="off"
             aria-invalid={Boolean(errores.apellido)}
+          />
+        </Campo>
+
+        <Campo id="nombre" etiqueta="Nombre" error={errores.nombre} requerido>
+          <Input
+            id="nombre"
+            name="nombre"
+            defaultValue={valores.nombre}
+            required
+            maxLength={80}
+            autoComplete="off"
+            aria-invalid={Boolean(errores.nombre)}
           />
         </Campo>
 
@@ -234,25 +232,6 @@ export function FormularioAlumno({
             autoComplete="off"
             aria-invalid={Boolean(errores.direccion)}
           />
-        </Campo>
-
-        <Campo id="disciplina" etiqueta="Disciplina" error={errores.disciplina} ayuda="Opcional.">
-          <Select
-            name="disciplina"
-            defaultValue={valores.disciplina || undefined}
-            items={DISCIPLINAS.map((d) => ({ value: d, label: etiquetaDisciplina(d) }))}
-          >
-            <SelectTrigger id="disciplina" className="w-full" aria-invalid={Boolean(errores.disciplina)}>
-              <SelectValue placeholder="Sin especificar" />
-            </SelectTrigger>
-            <SelectContent>
-              {DISCIPLINAS.map((d: Disciplina) => (
-                <SelectItem key={d} value={d}>
-                  {etiquetaDisciplina(d)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         </Campo>
       </div>
 

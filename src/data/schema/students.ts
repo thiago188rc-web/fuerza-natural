@@ -46,8 +46,6 @@ export const students = appSchema.table(
     // Discovery no lo relevó) — un alumno sin dato queda "sin especificar",
     // nunca se infiere. Ver docs/DECISIONES.md.
     genero: text("genero"),
-    // Igual de opcional y por el mismo motivo que género.
-    disciplina: text("disciplina"),
     // Opcional. Texto libre: la base del gimnasio la escribe como sale
     // ("B°COMERCIO III CASA 10"), y normalizar direcciones no es tarea de
     // este sistema.
@@ -105,10 +103,6 @@ export const students = appSchema.table(
     check(
       "students_genero_check",
       sql`${t.genero} is null or ${t.genero} in ('FEMENINO','MASCULINO')`,
-    ),
-    check(
-      "students_disciplina_check",
-      sql`${t.disciplina} is null or ${t.disciplina} in ('MUSCULACION','CALISTENIA')`,
     ),
     check("students_direccion_len_check", sql`${t.direccion} is null or length(${t.direccion}) between 1 and 200`),
     check(

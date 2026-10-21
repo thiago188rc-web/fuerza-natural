@@ -82,6 +82,40 @@ export async function actualizarPrecioDePlan(
   return row ?? null;
 }
 
+/**
+ * Activa o desactiva un plan para que deje de ofrecerse en el alta de
+ * alumnos nuevos. No lo borra: los alumnos que ya lo tienen asignado
+ * siguen teniéndolo, y sus pagos pasados no se tocan (mismo criterio que
+ * `actualizarPrecioDePlan`).
+ */
+export async function actualizarActivoDePlan(
+  tx: TxClient,
+  ctx: AuthContext,
+  planId: string,
+  activo: boolean,
+) {
+  const [row] = await tx
+    .update(plans)
+    .set({ activo, updatedAt: new Date() })
+    .where(and(eq(plans.id, planId), eq(plans.gymId, ctx.gymId)))
+    .returning({ id: plans.id, nombre: plans.nombre });
+  return row ?? null;
+}
+
+/** Reemplaza el catálogo completo de motivos de baja. */
+export async function actualizarMotivosBaja(
+  tx: TxClient,
+  ctx: AuthContext,
+  motivos: { codigo: string; etiqueta: string; orden: number; activo: boolean }[],
+) {
+  const [row] = await tx
+    .update(gymSettings)
+    .set({ motivosBaja: motivos, updatedAt: new Date() })
+    .where(eq(gymSettings.gymId, ctx.gymId))
+    .returning({ id: gymSettings.id });
+  return row ?? null;
+}
+
 export interface ParametrosEditables {
   ventanaPagoDesde: number;
   ventanaPagoHasta: number;

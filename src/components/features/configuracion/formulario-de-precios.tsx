@@ -6,6 +6,7 @@ import { Check, Loader2 } from "lucide-react";
 import type { PlanDelGimnasio } from "@/use-cases/gimnasio/contexto";
 import { guardarPreciosFormAction } from "@/app/(app)/configuracion/actions";
 import { ESTADO_FORMULARIO_INICIAL } from "@/app/(app)/alumnos/estado-formulario";
+import { InterruptorDePlan } from "./interruptor-de-plan";
 import { Button } from "@/components/ui/button";
 import { DURACION, SALIDA } from "@/components/motion/tokens";
 import { numero } from "@/lib/formato";
@@ -56,6 +57,8 @@ export function FormularioDePrecios({
                   : `${plan.diasSemana} días por semana`}
               </span>
             </span>
+
+            <InterruptorDePlan planId={plan.id} activo={plan.activo} />
 
             <CampoDePrecio
               nombre={`precio:${plan.id}`}

@@ -5,6 +5,8 @@ import { withTenantTx } from "@/use-cases/_kernel/with-tenant-tx";
 import { logActivity } from "@/use-cases/_kernel/with-audit";
 import { ok, validationError, type Result } from "@/use-cases/_kernel/result";
 import {
+  actualizarActivoDePlan,
+  actualizarMotivosBaja,
   actualizarParametros,
   actualizarPrecioDePlan,
   actualizarPrecioMedioMes,
@@ -12,6 +14,7 @@ import {
   obtenerConfiguracion,
 } from "@/data/repositories/gym-repo";
 import { gymSettingsSchema } from "@/schemas/gym-settings";
+import type { MotivoDeBaja } from "@/use-cases/gimnasio/contexto";
 
 /**
  * CONFIGURACIÓN — lo que el dueño puede cambiar sin tocar código.
@@ -101,6 +104,105 @@ export const actualizarPreciosAction = withAuth<PreciosRaw, { cambios: number }>
       }
 
       return ok({ cambios: cambios.length });
+    });
+  },
+);
+
+export const activoDePlanSchema = z.object({
+  planId: z.string().uuid(),
+  activo: z.boolean(),
+});
+
+export type ActivoDePlanRaw = z.input<typeof activoDePlanSchema>;
+
+/**
+ * Prende o apaga un plan para el alta de alumnos nuevos. Apagarlo no lo
+ * borra ni afecta a quienes ya lo tienen asignado — es la misma lógica
+ * que ya separa "precio configurado" de "pagos ya registrados".
+ */
+export const actualizarActivoDePlanAction = withAuth<ActivoDePlanRaw, { nombre: string }>(
+  ["DUENO"],
+  async (ctx, rawInput) => {
+    const parsed = parseInput(activoDePlanSchema, rawInput);
+    if (!parsed.ok) return parsed.result;
+    const input = parsed.data;
+
+    return withTenantTx<Result<{ nombre: string }>>(ctx, async (tx) => {
+      const fila = await actualizarActivoDePlan(tx, ctx, input.planId, input.activo);
+      if (!fila) return validationError([{ path: "planId", message: "Ese plan no existe." }]);
+
+      await logActivity(tx, ctx, {
+        accion: "gym.plan_activo_updated",
+        entidad: "plans",
+        resumen: `Plan "${fila.nombre}" ${input.activo ? "activado" : "desactivado"}`,
+      });
+
+      return ok({ nombre: fila.nombre });
+    });
+  },
+);
+
+/** "Problemas de salud" → "PROBLEMAS_DE_SALUD". Sin librería: tres reemplazos alcanzan. */
+function codigoDesdeEtiqueta(etiqueta: string): string {
+  return etiqueta
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+export const agregarMotivoDeBajaSchema = z.object({
+  etiqueta: z
+    .string({ error: "Escribí el motivo." })
+    .trim()
+    .min(1, "Escribí el motivo.")
+    .max(60, "Máximo 60 caracteres."),
+});
+
+export type AgregarMotivoDeBajaRaw = z.input<typeof agregarMotivoDeBajaSchema>;
+
+/**
+ * Suma un motivo nuevo al catálogo de bajas del gimnasio. No hay edición
+ * ni borrado todavía —no se pidió, y el catálogo es append-only por ahora
+ * para no perder motivos que ya estén guardados en bajas viejas.
+ */
+export const agregarMotivoDeBajaAction = withAuth<AgregarMotivoDeBajaRaw, { motivo: MotivoDeBaja }>(
+  ["DUENO"],
+  async (ctx, rawInput) => {
+    const parsed = parseInput(agregarMotivoDeBajaSchema, rawInput);
+    if (!parsed.ok) return parsed.result;
+    const input = parsed.data;
+
+    const codigo = codigoDesdeEtiqueta(input.etiqueta);
+    if (codigo === "") {
+      return validationError([{ path: "etiqueta", message: "Escribí un motivo con letras o números." }]);
+    }
+
+    return withTenantTx<Result<{ motivo: MotivoDeBaja }>>(ctx, async (tx) => {
+      const config = await obtenerConfiguracion(tx, ctx);
+      const actuales = Array.isArray(config?.motivosBaja) ? (config.motivosBaja as MotivoDeBaja[]) : [];
+
+      if (actuales.some((m) => m.codigo === codigo)) {
+        return validationError([{ path: "etiqueta", message: "Ese motivo ya existe." }]);
+      }
+
+      const nuevo: MotivoDeBaja = {
+        codigo,
+        etiqueta: input.etiqueta,
+        orden: actuales.reduce((max, m) => Math.max(max, m.orden), 0) + 1,
+        activo: true,
+      };
+
+      await actualizarMotivosBaja(tx, ctx, [...actuales, nuevo]);
+      await logActivity(tx, ctx, {
+        accion: "gym.motivo_baja_agregado",
+        entidad: "gym_settings",
+        resumen: `Motivo de baja agregado: "${nuevo.etiqueta}"`,
+      });
+
+      return ok({ motivo: nuevo });
     });
   },
 );
