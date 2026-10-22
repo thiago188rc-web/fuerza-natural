@@ -143,9 +143,14 @@ export const padronQuery = withAuth<FiltrosAlumnos, Padron>(
         // Por vencimiento solo entre los activos: a un pausado o de baja
         // no se le reclama nada, así que ordenarlo por apellido es lo que
         // de verdad ayuda a encontrarlo.
-        if (a.vinculo === "ACTIVO") return compararPorUrgencia(a.situacion, b.situacion);
+        // Mismo vencimiento → por apellido, para que el orden no cambie de
+        // una carga a otra.
+        const porVencimiento =
+          a.vinculo === "ACTIVO" ? compararPorUrgencia(a.situacion, b.situacion) : 0;
 
-        return a.apellido.localeCompare(b.apellido) || a.nombre.localeCompare(b.nombre);
+        return (
+          porVencimiento || a.apellido.localeCompare(b.apellido) || a.nombre.localeCompare(b.nombre)
+        );
       });
 
       const total = filasConSituacion.length;

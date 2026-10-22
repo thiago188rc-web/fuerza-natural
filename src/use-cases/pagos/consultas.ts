@@ -12,6 +12,7 @@ import {
   type FiltrosDePagos,
 } from "@/data/repositories/payments-repo";
 import {
+  contarAlumnosPorVinculo,
   listarAlumnosActivosParaCobertura,
   listarPlanesActivos,
   marcasDeMovimientoPorAlumno,
@@ -254,6 +255,19 @@ export interface HistorialDePagos {
   total: number;
   /** Lo cobrado en el rango consultado, no en el mes calendario. */
   cobradoEnElRango: { total: number; cantidad: number };
+  /**
+   * PERSONAS distintas con al menos un pago vigente en el rango. No es lo
+   * mismo que `cobradoEnElRango.cantidad` (PAGOS): quien paga dos meses
+   * juntos suma dos pagos y una persona. Es el número comparable con el
+   * "X de Y activos" del Panel — que igual cuenta otra cosa: quién tiene
+   * HOY cubierto, pague cuando pague (ver docs/RUNBOOK.md, "Panel vs.
+   * Pagos").
+   */
+  alumnosQuePagaron: number;
+  /** Cuántas de esas personas tienen más de un pago vigente en el rango. */
+  alumnosConMasDeUnPago: number;
+  /** Activos del padrón HOY: no depende de que alguien haya pagado. */
+  activos: number;
   /** Lo anulado en el rango consultado — ya excluido de `cobradoEnElRango`. */
   anuladoEnElRango: { total: number; cantidad: number };
   /** El detalle de cada uno: quién, cuándo se cobró, cuándo y por quién se anuló. */
@@ -279,13 +293,23 @@ export const historialDePagosQuery = withAuth<Partial<FiltrosDePagos>, Historial
       // Del día 1 al último del mes, en ese orden, no al revés.
       const direccion = filtros?.direccion ?? "asc";
 
-      const [listado, cobrado, anulado, anulados, marcas] = await Promise.all([
+      const [listado, cobrado, anulado, anulados, marcas, conteo] = await Promise.all([
         listarPagos(tx, ctx, { desde, hasta, ordenarPor, direccion }),
         totalCobrado(tx, ctx, { desde, hasta }),
         totalAnulado(tx, ctx, { desde, hasta }),
         listarPagosAnulados(tx, ctx, { desde, hasta }),
         marcasDeMovimientoPorAlumno(tx, ctx, { desde, hasta }),
+        contarAlumnosPorVinculo(tx, ctx),
       ]);
+
+      // Pagos vigentes por persona. Sale del mismo listado que se muestra,
+      // así que no puede contar distinto que la tabla.
+      const pagosPorAlumno = new Map<string, number>();
+      for (const f of listado.filas) {
+        if (f.anuladoEn !== null) continue;
+        pagosPorAlumno.set(f.studentId, (pagosPorAlumno.get(f.studentId) ?? 0) + 1);
+      }
+      const alumnosConMasDeUnPago = [...pagosPorAlumno.values()].filter((n) => n > 1).length;
 
       return ok({
         hoy,
@@ -316,6 +340,9 @@ export const historialDePagosQuery = withAuth<Partial<FiltrosDePagos>, Historial
         })),
         total: listado.total,
         cobradoEnElRango: cobrado,
+        alumnosQuePagaron: pagosPorAlumno.size,
+        alumnosConMasDeUnPago,
+        activos: conteo.ACTIVO ?? 0,
         anuladoEnElRango: anulado,
         anulados: anulados.map((a) => ({
           id: a.id,

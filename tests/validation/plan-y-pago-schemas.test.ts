@@ -90,15 +90,36 @@ describe("registrarPagoSchema — §3 modalidad 1/2 MES", () => {
     expect(registrarPagoSchema.safeParse({ ...base, modalidad: "TRIMESTRE" }).success).toBe(false);
   });
 
-  it("el plan del pago NO se acepta del cliente: es un snapshot del servidor", () => {
-    // El snapshot (`plan_id`, `plan_nombre_snapshot`, `plan_dias_snapshot`)
-    // lo lee el caso de uso de la base en el momento de registrar. Si
-    // viniera del formulario, un cliente manipulado podría guardar el pago
-    // con el nombre y los días de otro plan — y ese snapshot es
-    // justamente lo que después ya nadie puede corregir.
-    const r = registrarPagoSchema.safeParse({ ...base, planId: UUID });
+  it("los días del pago llegan SOLO como id de plan: nombre y días del snapshot no se aceptan del cliente", () => {
+    // §4bis: el dueño elige al cobrar cuántos días cubre el pago. Llega el
+    // id; el caso de uso lo valida contra los planes activos del gimnasio
+    // y lee de la base el nombre y los días (tests/integration/
+    // cobro-dias-y-totales.test.ts). Un nombre o unos días mandados por el
+    // cliente se descartan: el snapshot es lo que después nadie corrige.
+    const r = registrarPagoSchema.safeParse({
+      ...base,
+      planId: UUID,
+      planNombreSnapshot: "Plan inventado",
+      planDiasSnapshot: 7,
+    });
     expect(r.success).toBe(true);
-    if (r.success) expect(r.data).not.toHaveProperty("planId");
+    if (r.success) {
+      expect(r.data.planId).toBe(UUID);
+      expect(r.data).not.toHaveProperty("planNombreSnapshot");
+      expect(r.data).not.toHaveProperty("planDiasSnapshot");
+    }
+  });
+
+  it("un planId vacío (no eligió los días) se rechaza; sin planId, vale el plan habitual", () => {
+    expect(registrarPagoSchema.safeParse({ ...base, planId: "" }).success).toBe(false);
+    const sinPlan = registrarPagoSchema.safeParse(base);
+    expect(sinPlan.success && sinPlan.data.planId).toBeUndefined();
+  });
+
+  it("la forma de pago ya no se acepta del formulario", () => {
+    const r = registrarPagoSchema.safeParse({ ...base, metodo: "TRANSFERENCIA" });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data).not.toHaveProperty("metodo");
   });
 
   it("NO acepta un cambio de plan encubierto: no existe campo para eso", () => {

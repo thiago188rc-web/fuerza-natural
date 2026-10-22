@@ -1,4 +1,4 @@
-import { diasEntre, primerDiaDelMes, ultimoDiaDelMes } from "@/domain/fechas/calendario";
+import { diasEntre, etiquetaCorta, primerDiaDelMes, ultimoDiaDelMes } from "@/domain/fechas/calendario";
 
 /**
  * LA SITUACIÓN DE PAGO SE DERIVA. NUNCA SE GUARDA.
@@ -103,7 +103,9 @@ export function situacionDeCobertura(
           ? "Último día cubierto"
           : restantes <= 5
             ? `Vence en ${restantes} ${restantes === 1 ? "día" : "días"}`
-            : `Cubierto hasta el ${Number(vigente.hasta.slice(8, 10))}`,
+            : // Con el mes: un ciclo que arranca el 10 cubre hasta el 9
+              // del mes SIGUIENTE, y "hasta el 9" a secas no dice cuál.
+              `Cubierto hasta el ${etiquetaCorta(vigente.hasta, hoy)}`,
       cubiertoHasta: vigente.hasta,
       diasRestantes: restantes,
       diasVencido: null,
@@ -175,7 +177,11 @@ export function compararPorUrgencia(a: SituacionDeCobertura, b: SituacionDeCober
   if (diferenciaDeRango !== 0) return diferenciaDeRango;
 
   if (a.estado === "CUBIERTO") {
-    return (a.cubiertoHasta ?? "") < (b.cubiertoHasta ?? "") ? -1 : 1;
+    const hastaA = a.cubiertoHasta ?? "";
+    const hastaB = b.cubiertoHasta ?? "";
+    // 0 en el empate: un comparador que dice "a va después" y "b va
+    // después" a la vez deja el orden de los empatados librado al azar.
+    return hastaA === hastaB ? 0 : hastaA < hastaB ? -1 : 1;
   }
 
   if (a.estado === "DESCUBIERTO" || a.estado === "REVISAR") {

@@ -8,7 +8,6 @@ import type { AlumnoQuePago, ComparacionMismoDia } from "@/use-cases/metricas/pa
 import { pagosDelPeriodoAction } from "@/app/(app)/metricas/actions";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DURACION, SALIDA } from "@/components/motion/tokens";
-import { ETIQUETA_METODO, METODOS_PAGO } from "@/schemas/payment";
 import { importe, numero, fechaCompleta } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 
@@ -320,13 +319,6 @@ function ListaDePagos({ pagos, moneda }: { pagos: AlumnoQuePago[]; moneda: strin
           </span>
           <span className="tabular shrink-0 font-mono text-muted-foreground">
             {importe(p.monto, moneda)}
-            <span className="ml-1 text-[0.7rem]">
-              (
-              {(METODOS_PAGO as readonly string[]).includes(p.metodo)
-                ? ETIQUETA_METODO[p.metodo as (typeof METODOS_PAGO)[number]]
-                : p.metodo}
-              )
-            </span>
           </span>
         </li>
       ))}

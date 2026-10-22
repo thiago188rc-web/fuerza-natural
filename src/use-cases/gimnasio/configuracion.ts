@@ -15,6 +15,7 @@ import {
 } from "@/data/repositories/gym-repo";
 import { gymSettingsSchema } from "@/schemas/gym-settings";
 import type { MotivoDeBaja } from "@/use-cases/gimnasio/contexto";
+import { agregarMotivoAlCatalogo } from "@/domain/alumnos/motivos-de-baja";
 
 /**
  * CONFIGURACIÓN — lo que el dueño puede cambiar sin tocar código.
@@ -188,14 +189,11 @@ export const agregarMotivoDeBajaAction = withAuth<AgregarMotivoDeBajaRaw, { moti
         return validationError([{ path: "etiqueta", message: "Ese motivo ya existe." }]);
       }
 
-      const nuevo: MotivoDeBaja = {
-        codigo,
-        etiqueta: input.etiqueta,
-        orden: actuales.reduce((max, m) => Math.max(max, m.orden), 0) + 1,
-        activo: true,
-      };
+      // Entra antes de "Otro", que sigue siendo la última opción.
+      const catalogo = agregarMotivoAlCatalogo(actuales, { codigo, etiqueta: input.etiqueta });
+      const nuevo = catalogo.find((m) => m.codigo === codigo)!;
 
-      await actualizarMotivosBaja(tx, ctx, [...actuales, nuevo]);
+      await actualizarMotivosBaja(tx, ctx, catalogo);
       await logActivity(tx, ctx, {
         accion: "gym.motivo_baja_agregado",
         entidad: "gym_settings",

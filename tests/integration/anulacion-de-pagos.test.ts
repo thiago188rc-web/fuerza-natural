@@ -43,7 +43,6 @@ async function escenario(monto = 50000) {
     modalidad: "MES_COMPLETO",
     cubreDesde: HOY,
     monto,
-    metodo: "EFECTIVO",
     idempotencyKey: crypto.randomUUID(),
   });
   if (!pago.ok) throw new Error(`pago falló: ${JSON.stringify(pago)}`);
@@ -195,7 +194,6 @@ describe.skipIf(!process.env.DATABASE_URL)("anular un pago (Postgres real)", () 
       modalidad: "MES_COMPLETO",
       cubreDesde: HOY,
       monto: 45000,
-      metodo: "TRANSFERENCIA",
       idempotencyKey: crypto.randomUUID(),
     });
     expect(corregido.ok).toBe(true);

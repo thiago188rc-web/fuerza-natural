@@ -1,4 +1,4 @@
-import { registrarPagoSchema, type RegistrarPagoRaw } from "@/schemas/payment";
+import { METODO_SIN_DATO, registrarPagoSchema, type RegistrarPagoRaw } from "@/schemas/payment";
 import { withAuth } from "@/use-cases/_kernel/with-auth";
 import { parseInput } from "@/use-cases/_kernel/with-validation";
 import { withTenantTx } from "@/use-cases/_kernel/with-tenant-tx";
@@ -14,6 +14,7 @@ import {
   obtenerAlumnoParaCobro,
   registrarPago,
 } from "@/data/repositories/payments-repo";
+import { obtenerPlanActivo } from "@/data/repositories/students-repo";
 import { obtenerGimnasio } from "@/data/repositories/gym-repo";
 import { coberturaDe, tramosImputados, ETIQUETA_MODALIDAD } from "@/domain/pagos/modalidad";
 import { nombreCompleto } from "@/domain/alumnos/identidad";
@@ -25,8 +26,10 @@ import { hoyISO } from "@/domain/fechas/hoy";
  * Lo que este caso de uso NO hace, y es lo más importante de él:
  *
  *   · No cambia el plan habitual del alumno. Ni siquiera cuando la
- *     modalidad es MEDIO_MES. Un pago registra una cobertura comprada;
- *     el plan de la persona es otra cosa (docs/REGLAS-DE-NEGOCIO.md §4).
+ *     modalidad es MEDIO_MES, ni cuando el pago es por otra cantidad de
+ *     días que la de su plan (§4bis). Un pago registra una cobertura
+ *     comprada; el plan de la persona es otra cosa
+ *     (docs/REGLAS-DE-NEGOCIO.md §4).
  *   · No cambia el vínculo. Pagar no reactiva a nadie, y no pagar no da
  *     de baja a nadie. Ninguna transición de estado ocurre sola.
  *   · No calcula "último pago + 30 días". Guarda el período real cubierto,
@@ -94,6 +97,20 @@ export const registrarPagoAction = withAuth<
       ]);
     }
 
+    // Cuántos días cubre este pago. Por defecto, los del plan habitual;
+    // si el dueño eligió otros al cobrar, tiene que ser un plan ACTIVO de
+    // este gimnasio, y el nombre y los días salen de la base.
+    let plan = { id: alumno.planId, nombre: alumno.planNombre, diasSemana: alumno.planDiasSemana };
+    if (input.planId && input.planId !== alumno.planId) {
+      const elegido = await obtenerPlanActivo(tx, ctx, input.planId);
+      if (!elegido) {
+        return validationError([
+          { path: "planId", message: "Elegí uno de los planes que ofrece el gimnasio." },
+        ]);
+      }
+      plan = elegido;
+    }
+
     // La cobertura se deriva de la modalidad. Es la única aritmética de
     // fechas del flujo, vive en el dominio y está cubierta por tests.
     const cobertura = coberturaDe(input.modalidad, input.cubreDesde);
@@ -120,13 +137,14 @@ export const registrarPagoAction = withAuth<
         studentId: alumno.id,
         fechaPago: input.fechaPago,
         // El snapshot sale de la base, no del formulario: es la foto del
-        // plan habitual en este momento, y nadie la puede corregir después.
-        planId: alumno.planId,
-        planDiasSnapshot: alumno.planDiasSemana,
-        planNombreSnapshot: alumno.planNombre,
+        // plan de ESTE pago en este momento, y nadie la puede corregir
+        // después.
+        planId: plan.id,
+        planDiasSnapshot: plan.diasSemana,
+        planNombreSnapshot: plan.nombre,
         modalidad: input.modalidad,
         monto: input.monto.toFixed(2),
-        metodo: input.metodo,
+        metodo: METODO_SIN_DATO,
         nota: input.nota ?? null,
         idempotencyKey: input.idempotencyKey,
       },
@@ -138,10 +156,11 @@ export const registrarPagoAction = withAuth<
       accion: "payment.created",
       entidad: "payment",
       entidadId: fila.id,
-      resumen: `Pago de ${nombre}: ${ETIQUETA_MODALIDAD[input.modalidad]} del ${cobertura.desde} al ${cobertura.hasta}`,
+      resumen: `Pago de ${nombre}: ${ETIQUETA_MODALIDAD[input.modalidad]} (${plan.nombre}) del ${cobertura.desde} al ${cobertura.hasta}`,
       cambios: {
         monto: { antes: null, despues: input.monto },
         cobertura: { antes: null, despues: `${cobertura.desde}..${cobertura.hasta}` },
+        plan: { antes: null, despues: plan.nombre },
       },
     });
 
@@ -150,7 +169,7 @@ export const registrarPagoAction = withAuth<
       studentId: alumno.id,
       alumno: nombre,
       telefono: alumno.telefono,
-      planNombre: alumno.planNombre,
+      planNombre: plan.nombre,
       monto: input.monto,
       cubreDesde: cobertura.desde,
       cubreHasta: cobertura.hasta,

@@ -6,8 +6,9 @@ import { motion, useReducedMotion } from "motion/react";
 import { ArrowDown, ArrowUp, ArrowUpDown, Receipt } from "lucide-react";
 import type { PagoDelHistorial } from "@/use-cases/pagos/consultas";
 import { ETIQUETA_MODALIDAD, type Modalidad } from "@/domain/pagos/modalidad";
+import { pagosPorDia } from "@/domain/pagos/pagos-por-dia";
 import { etiquetaCorta } from "@/domain/fechas/calendario";
-import { ETIQUETA_METODO } from "@/schemas/payment";
+import { diaCorto } from "@/lib/formato";
 import { DURACION, SALIDA } from "@/components/motion/tokens";
 import { BotonLink } from "@/components/boton-link";
 import { BotonWhatsapp } from "@/components/boton-whatsapp";
@@ -27,6 +28,12 @@ import { cn } from "@/lib/utils";
  *   · El encabezado se queda pegado al hacer scroll. Con cuarenta filas,
  *     perder de vista qué columna es "Cubre" es perder la tabla.
  *
+ * Ordenada por fecha, la tabla es EL MES COMPLETO: una franja por cada día
+ * del 1 al último (28, 29, 30 o 31, según el mes), con lo que se cobró ese
+ * día — o "Sin pagos". Un día sin cobros también es información, y antes
+ * no aparecía. Ordenada por nombre es una lista de pagos, sin días vacíos:
+ * ahí lo que se busca es a una persona, no un día.
+ *
  * La columna que la mayoría de los sistemas no tiene es "Cubre": el
  * período real. Sin ella, "$65.000 el 3 de septiembre" no dice si pagó
  * septiembre, agosto atrasado o los primeros quince días de octubre —y esa
@@ -35,16 +42,23 @@ import { cn } from "@/lib/utils";
  * Un pago anulado NO desaparece: se muestra tachado y con su motivo. El
  * historial es un registro contable, no una lista de lo que quedó lindo.
  * Quien puede anular (hoy, el DUENO) ve "Anular" debajo del importe.
+ *
+ * La forma de pago ya no se muestra: el dueño pidió sacarla del cobro
+ * (2026-10-22), así que los pagos nuevos no la tienen. Los viejos la
+ * conservan en la base.
  */
 export function TablaDePagos({
   pagos,
+  rango,
   moneda,
   hoy,
   puedeAnular = false,
   ordenarPor = "fecha",
-  direccion = "desc",
+  direccion = "asc",
 }: {
   pagos: PagoDelHistorial[];
+  /** El mes que se está mirando: de acá salen los días, haya pagos o no. */
+  rango: { desde: string; hasta: string };
   moneda: string;
   hoy: string;
   puedeAnular?: boolean;
@@ -81,18 +95,51 @@ export function TablaDePagos({
     );
   }
 
+  const porDia = ordenarPor === "fecha";
+  const dias = porDia ? pagosPorDia(pagos, rango, direccion) : null;
+
+  // Dónde arranca cada día en la tabla entera: la entrada escalonada corta
+  // en la fila 14 de la tabla, no en la 14 de cada día.
+  const inicioDeCadaDia: number[] = [];
+  let filasAntes = 0;
+  for (const dia of dias ?? []) {
+    inicioDeCadaDia.push(filasAntes);
+    filasAntes += dia.pagos.length;
+  }
+
+  const fila = (pago: PagoDelHistorial, indice: number) => (
+    <FilaDePago
+      key={pago.id}
+      pago={pago}
+      indice={indice}
+      quieto={quieto}
+      moneda={moneda}
+      hoy={hoy}
+      puedeAnular={puedeAnular}
+      conFecha={!porDia}
+    />
+  );
+
   return (
     <section className="superficie overflow-hidden">
       {/* En pantalla chica no se manda la tabla entera a un scroll lateral:
           el importe quedaba fuera de la vista, que es lo primero que se
-          viene a mirar. Se caen "Modalidad", "Cubre" y "Método" —el
-          período reaparece bajo el nombre, y "1/2 mes" solo cuando es la
-          excepción— y lo que queda entra en 375px. De `sm` para arriba
-          vuelve la tabla completa. */}
+          viene a mirar. Se caen "Modalidad" y "Cubre" —el período reaparece
+          bajo el nombre, y "1/2 mes" solo cuando es la excepción— y lo que
+          queda entra en 375px. De `sm` para arriba vuelve la tabla
+          completa. */}
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-sm sm:min-w-[46rem]">
-          <caption className="sr-only">Pagos registrados en el período consultado</caption>
-          <thead className="hundido sticky top-14 z-10 lg:top-0">
+        <table className="w-full border-collapse text-sm sm:min-w-[40rem]">
+          <caption className="sr-only">
+            {porDia
+              ? "Pagos del mes, día por día, incluidos los días sin pagos"
+              : "Pagos registrados en el período consultado"}
+          </caption>
+          {/* Sin `top-14`: dentro de un `overflow-x-auto` el sticky se ancla
+              a ese contenedor, no a la página, y el desplazamiento de 3.5rem
+              en pantalla chica bajaba el encabezado encima de las primeras
+              filas en vez de pegarlo arriba. */}
+          <thead className="hundido sticky top-0 z-10">
             <tr className="border-b border-border text-left">
               <Encabezado className="w-[4.5rem] pl-5">
                 <EncabezadoOrdenable
@@ -114,134 +161,189 @@ export function TablaDePagos({
               </Encabezado>
               <Encabezado className="hidden w-[7.5rem] sm:table-cell">Modalidad</Encabezado>
               <Encabezado className="hidden w-[9.5rem] sm:table-cell">Cubre</Encabezado>
-              <Encabezado className="hidden w-[9rem] sm:table-cell">Método</Encabezado>
               <Encabezado className="w-[7.5rem] pr-3 text-right">Importe</Encabezado>
               <Encabezado className="w-9 pr-5">
                 <span className="sr-only">WhatsApp</span>
               </Encabezado>
             </tr>
           </thead>
-          <tbody>
-            {pagos.map((pago, i) => (
-              <motion.tr
-                key={pago.id}
-                initial={quieto || i > 14 ? false : { opacity: 0, y: 4 }}
-                // La opacidad va en `animate`: motion la fija en línea y una
-                // clase `opacity-*` quedaba sin efecto.
-                animate={{ opacity: pago.anulado ? 0.55 : 1, y: 0 }}
-                transition={{
-                  duration: DURACION.rapido,
-                  ease: SALIDA,
-                  delay: quieto ? 0 : Math.min(i, 14) * 0.016,
-                }}
-                className="fila border-b border-border last:border-0"
-              >
-                <td className="tabular py-3 pl-5 align-top font-mono text-xs whitespace-nowrap text-muted-foreground">
-                  {etiquetaCorta(pago.fechaPago, hoy)}
-                </td>
 
-                <td className="py-3 pr-3 align-top">
-                  <Link
-                    href={`/alumnos/${pago.studentId}`}
-                    className={cn(
-                      "rounded-sm font-medium underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-verde focus-visible:outline-none",
-                      pago.anulado && "line-through",
-                    )}
-                  >
-                    {pago.nombre} {pago.apellido}
-                  </Link>
-                  {pago.marca ? <MarcaDeMovimiento marca={pago.marca} /> : null}
-                  <span className="block text-xs text-muted-foreground">
-                    {pago.planNombreSnapshot}
-                  </span>
-                  {pago.cubreDesde && pago.cubreHasta ? (
-                    <span className="tabular block font-mono text-[0.7rem] whitespace-nowrap text-muted-foreground/80 sm:hidden">
-                      {etiquetaCorta(pago.cubreDesde, hoy)} → {etiquetaCorta(pago.cubreHasta, hoy)}
-                    </span>
-                  ) : null}
-                  {pago.modalidad === "MEDIO_MES" ? (
-                    <span className="mt-1 inline-flex items-center rounded-md bg-revisar-suave px-1.5 py-0.5 text-[0.7rem] text-revisar sm:hidden">
-                      {ETIQUETA_MODALIDAD.MEDIO_MES}
-                    </span>
-                  ) : null}
-                  {pago.anulado ? (
-                    <span className="mt-0.5 block text-xs text-descubierto">
-                      Anulado{pago.anuladoMotivo ? ` · ${pago.anuladoMotivo}` : ""}
-                    </span>
-                  ) : pago.nota ? (
-                    <span className="mt-0.5 block max-w-[18rem] truncate text-xs text-muted-foreground/80">
-                      {pago.nota}
-                    </span>
-                  ) : null}
-                </td>
-
-                <td className="hidden py-3 pr-3 align-top whitespace-nowrap sm:table-cell">
-                  <Modalidad valor={pago.modalidad} />
-                </td>
-
-                <td className="tabular hidden py-3 pr-3 align-top font-mono text-xs whitespace-nowrap text-muted-foreground sm:table-cell">
-                  {pago.cubreDesde && pago.cubreHasta ? (
-                    <>
-                      {etiquetaCorta(pago.cubreDesde, hoy)}
-                      <span className="mx-1 text-border-strong">→</span>
-                      {etiquetaCorta(pago.cubreHasta, hoy)}
-                    </>
-                  ) : (
-                    "—"
-                  )}
-                </td>
-
-                <td className="hidden py-3 pr-3 align-top text-xs whitespace-nowrap text-muted-foreground sm:table-cell">
-                  {ETIQUETA_METODO[pago.metodo as keyof typeof ETIQUETA_METODO] ?? pago.metodo}
-                  <span className="block max-w-[9rem] truncate text-[0.7rem] text-muted-foreground/70">
-                    {pago.registradoPorNombre}
-                  </span>
-                </td>
-
-                <td
-                  className={cn(
-                    "py-3 pr-3 text-right align-top font-mono text-[0.9375rem] whitespace-nowrap",
-                    pago.anulado && "line-through",
-                  )}
-                >
-                  <Importe valor={pago.monto} moneda={moneda} simboloClassName="text-xs" />
-                  {puedeAnular && !pago.anulado ? (
-                    <div className="mt-1 flex justify-end font-sans">
-                      <AnularPago
-                        pago={pago}
-                        moneda={moneda}
-                        alumno={`${pago.nombre} ${pago.apellido}`}
-                      />
-                    </div>
-                  ) : null}
-                </td>
-
-                <td className="py-3 pr-5 align-top">
-                  {!pago.anulado && pago.cubreHasta ? (
-                    <BotonWhatsapp
-                      telefono={pago.telefono}
-                      mensaje={mensajeConfirmacionDePago({
-                        nombre: pago.nombre,
-                        monto: pago.monto,
-                        moneda,
-                        modalidad: pago.modalidad,
-                        planNombre: pago.planNombreSnapshot,
-                        cubreHasta: pago.cubreHasta,
-                      })}
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={`Enviar WhatsApp a ${pago.nombre} ${pago.apellido}`}
+          {dias ? (
+            dias.map((dia, d) => {
+              const futuro = dia.fecha > hoy;
+              return (
+                <tbody key={dia.fecha} className="border-b border-border last:border-0">
+                  <tr className={cn("bg-muted/40", futuro && "opacity-60")}>
+                    <th
+                      scope="rowgroup"
+                      colSpan={6}
+                      className="px-5 py-1.5 text-left text-xs font-normal"
                     >
-                      <span className="sr-only">Enviar WhatsApp</span>
-                    </BotonWhatsapp>
-                  ) : null}
-                </td>
-              </motion.tr>
-            ))}
-          </tbody>
+                      <span className="flex items-baseline justify-between gap-3">
+                        <span
+                          className={cn(
+                            "tabular font-mono capitalize",
+                            dia.cantidad > 0 ? "font-medium text-foreground" : "text-muted-foreground",
+                          )}
+                        >
+                          {diaCorto(dia.fecha)}
+                          {dia.fecha === hoy ? (
+                            <span className="ml-1.5 font-sans text-[0.7rem] font-medium text-verde-fuerte normal-case">
+                              hoy
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="tabular text-muted-foreground">
+                          {dia.cantidad > 0 ? (
+                            <>
+                              {dia.cantidad} {dia.cantidad === 1 ? "pago" : "pagos"} ·{" "}
+                              <span className="font-mono text-foreground">
+                                <Importe valor={dia.total} moneda={moneda} simboloClassName="text-[0.65rem]" />
+                              </span>
+                            </>
+                          ) : futuro ? (
+                            "—"
+                          ) : dia.pagos.length > 0 ? (
+                            "Solo anulados"
+                          ) : (
+                            "Sin pagos"
+                          )}
+                        </span>
+                      </span>
+                    </th>
+                  </tr>
+                  {dia.pagos.map((pago, j) => fila(pago, inicioDeCadaDia[d]! + j))}
+                </tbody>
+              );
+            })
+          ) : (
+            <tbody>{pagos.map((pago, i) => fila(pago, i))}</tbody>
+          )}
         </table>
       </div>
     </section>
+  );
+}
+
+function FilaDePago({
+  pago,
+  indice,
+  quieto,
+  moneda,
+  hoy,
+  puedeAnular,
+  conFecha,
+}: {
+  pago: PagoDelHistorial;
+  indice: number;
+  quieto: boolean | null;
+  moneda: string;
+  hoy: string;
+  puedeAnular: boolean;
+  /** En la vista por día la fecha ya está en la franja del día. */
+  conFecha: boolean;
+}) {
+  return (
+    <motion.tr
+      initial={quieto || indice > 14 ? false : { opacity: 0, y: 4 }}
+      // La opacidad va en `animate`: motion la fija en línea y una
+      // clase `opacity-*` quedaba sin efecto.
+      animate={{ opacity: pago.anulado ? 0.55 : 1, y: 0 }}
+      transition={{
+        duration: DURACION.rapido,
+        ease: SALIDA,
+        delay: quieto ? 0 : Math.min(indice, 14) * 0.016,
+      }}
+      className="fila border-t border-border/60"
+    >
+      <td className="tabular py-3 pl-5 align-top font-mono text-xs whitespace-nowrap text-muted-foreground">
+        {conFecha ? etiquetaCorta(pago.fechaPago, hoy) : null}
+      </td>
+
+      <td className="py-3 pr-3 align-top">
+        <Link
+          href={`/alumnos/${pago.studentId}`}
+          className={cn(
+            "rounded-sm font-medium underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-verde focus-visible:outline-none",
+            pago.anulado && "line-through",
+          )}
+        >
+          {pago.nombre} {pago.apellido}
+        </Link>
+        {pago.marca ? <MarcaDeMovimiento marca={pago.marca} /> : null}
+        <span className="block text-xs text-muted-foreground">{pago.planNombreSnapshot}</span>
+        {pago.cubreDesde && pago.cubreHasta ? (
+          <span className="tabular block font-mono text-[0.7rem] whitespace-nowrap text-muted-foreground/80 sm:hidden">
+            {etiquetaCorta(pago.cubreDesde, hoy)} → {etiquetaCorta(pago.cubreHasta, hoy)}
+          </span>
+        ) : null}
+        {pago.modalidad === "MEDIO_MES" ? (
+          <span className="mt-1 inline-flex items-center rounded-md bg-revisar-suave px-1.5 py-0.5 text-[0.7rem] text-revisar sm:hidden">
+            {ETIQUETA_MODALIDAD.MEDIO_MES}
+          </span>
+        ) : null}
+        {pago.anulado ? (
+          <span className="mt-0.5 block text-xs text-descubierto">
+            Anulado{pago.anuladoMotivo ? ` · ${pago.anuladoMotivo}` : ""}
+          </span>
+        ) : pago.nota ? (
+          <span className="mt-0.5 block max-w-[18rem] truncate text-xs text-muted-foreground/80">
+            {pago.nota}
+          </span>
+        ) : null}
+      </td>
+
+      <td className="hidden py-3 pr-3 align-top whitespace-nowrap sm:table-cell">
+        <Modalidad valor={pago.modalidad} />
+      </td>
+
+      <td className="tabular hidden py-3 pr-3 align-top font-mono text-xs whitespace-nowrap text-muted-foreground sm:table-cell">
+        {pago.cubreDesde && pago.cubreHasta ? (
+          <>
+            {etiquetaCorta(pago.cubreDesde, hoy)}
+            <span className="mx-1 text-border-strong">→</span>
+            {etiquetaCorta(pago.cubreHasta, hoy)}
+          </>
+        ) : (
+          "—"
+        )}
+      </td>
+
+      <td
+        className={cn(
+          "py-3 pr-3 text-right align-top font-mono text-[0.9375rem] whitespace-nowrap",
+          pago.anulado && "line-through",
+        )}
+      >
+        <Importe valor={pago.monto} moneda={moneda} simboloClassName="text-xs" />
+        {puedeAnular && !pago.anulado ? (
+          <div className="mt-1 flex justify-end font-sans">
+            <AnularPago pago={pago} moneda={moneda} alumno={`${pago.nombre} ${pago.apellido}`} />
+          </div>
+        ) : null}
+      </td>
+
+      <td className="py-3 pr-5 align-top">
+        {!pago.anulado && pago.cubreHasta ? (
+          <BotonWhatsapp
+            telefono={pago.telefono}
+            mensaje={mensajeConfirmacionDePago({
+              nombre: pago.nombre,
+              monto: pago.monto,
+              moneda,
+              modalidad: pago.modalidad,
+              planNombre: pago.planNombreSnapshot,
+              cubreHasta: pago.cubreHasta,
+            })}
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Enviar WhatsApp a ${pago.nombre} ${pago.apellido}`}
+          >
+            <span className="sr-only">Enviar WhatsApp</span>
+          </BotonWhatsapp>
+        ) : null}
+      </td>
+    </motion.tr>
   );
 }
 
@@ -262,10 +364,7 @@ function Modalidad({ valor }: { valor: string }) {
     >
       <span
         aria-hidden
-        className={cn(
-          "size-1.5 rounded-[1.5px]",
-          esMedio ? "bg-foreground" : "bg-border-strong",
-        )}
+        className={cn("size-1.5 rounded-[1.5px]", esMedio ? "bg-foreground" : "bg-border-strong")}
       />
       {ETIQUETA_MODALIDAD[valor as Modalidad] ?? valor}
     </span>

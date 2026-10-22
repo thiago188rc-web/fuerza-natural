@@ -97,6 +97,31 @@ export default async function PagosPage({
             </dd>
           </div>
 
+          {/* PERSONAS, no pagos. Quien paga dos meses juntos suma dos pagos
+              y una persona: por eso este número y el de arriba pueden no
+              coincidir, y por eso se muestran los dos. */}
+          <div>
+            <dt className="t-rotulo">Alumnos que pagaron</dt>
+            <dd className="t-cifra mt-2 text-[2rem]">
+              <NumeroAnimado valor={datos.alumnosQuePagaron} />
+            </dd>
+            {datos.alumnosConMasDeUnPago > 0 ? (
+              <dd className="mt-1 text-xs text-muted-foreground">
+                {datos.alumnosConMasDeUnPago === 1
+                  ? "1 pagó más de una vez"
+                  : `${datos.alumnosConMasDeUnPago} pagaron más de una vez`}
+              </dd>
+            ) : null}
+          </div>
+
+          {/* El padrón de hoy, haya pagado alguien o no. */}
+          <div>
+            <dt className="t-rotulo">Activos hoy</dt>
+            <dd className="t-cifra mt-2 text-[2rem] text-muted-foreground">
+              <NumeroAnimado valor={datos.activos} />
+            </dd>
+          </div>
+
           <ResumenDeAnulados anulados={datos.anulados} moneda={datos.moneda} hoy={datos.hoy} />
         </dl>
       </Aparece>
@@ -104,6 +129,7 @@ export default async function PagosPage({
       <Aparece retraso={0.08}>
         <TablaDePagos
           pagos={datos.filas}
+          rango={datos.rango}
           moneda={datos.moneda}
           hoy={datos.hoy}
           puedeAnular={datos.puedeAnularPagos}

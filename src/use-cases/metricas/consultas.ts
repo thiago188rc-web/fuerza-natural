@@ -4,7 +4,6 @@ import { conflict, ok, type Result } from "@/use-cases/_kernel/result";
 import {
   primerPagoRegistrado,
   totalCobrado,
-  totalesPorMetodo,
   totalesPorModalidad,
   totalesPorPeriodo,
   type GranularidadFacturacion,
@@ -63,7 +62,7 @@ import {
 } from "@/domain/metricas/captacion";
 import type { VistaMetricas } from "@/domain/metricas/vista";
 import { ETIQUETA_MODALIDAD } from "@/domain/pagos/modalidad";
-import { METODOS_PAGO, ETIQUETA_METODO, MODALIDADES_PAGO } from "@/schemas/payment";
+import { MODALIDADES_PAGO } from "@/schemas/payment";
 
 /**
  * MÉTRICAS DEL NEGOCIO. Una sola transacción, mismo patrón que `panelQuery`.
@@ -176,7 +175,6 @@ export interface Metricas {
    */
   activosPorMesNavegable: { mesReferencia: string; puntos: PuntoDeHistorial[] };
 
-  porMetodo: SegmentoImporte[];
   porModalidad: SegmentoImporte[];
 
   porEdad: SegmentoDistribucion[];
@@ -331,7 +329,6 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
         totalesTendencia,
         cobradoDelPeriodo,
         movimiento,
-        filasMetodo,
         filasModalidad,
         demografia,
         activos,
@@ -348,7 +345,6 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
         totalesPorPeriodo(tx, ctx, rangoTendencia, config.granularidad),
         totalCobrado(tx, ctx, rango),
         contarMovimientoDelPadron(tx, ctx, rango),
-        totalesPorMetodo(tx, ctx, rango),
         totalesPorModalidad(tx, ctx, rango),
         datosDemograficosDeActivos(tx, ctx),
         listarAlumnosActivosParaCobertura(tx, ctx),
@@ -558,7 +554,6 @@ export const metricasQuery = withAuth<MetricasInput | undefined, Metricas>(
         activosPorMes,
         activosPorMesNavegable,
 
-        porMetodo: segmentosDeImporte(filasMetodo, ETIQUETA_METODO, METODOS_PAGO),
         porModalidad: segmentosDeImporte(filasModalidad, ETIQUETA_MODALIDAD, MODALIDADES_PAGO),
 
         porEdad: distribucionPorEdad(demografia, hoy),

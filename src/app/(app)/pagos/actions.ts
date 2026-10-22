@@ -30,7 +30,9 @@ export async function registrarPagoFormAction(
     modalidad: texto(formData, "modalidad") as "MES_COMPLETO" | "MEDIO_MES",
     cubreDesde: texto(formData, "cubreDesde"),
     monto: texto(formData, "monto"),
-    metodo: texto(formData, "metodo") as "EFECTIVO",
+    // Ausente (una pantalla abierta antes de este cambio) = plan habitual.
+    // Presente pero vacío = no eligió cuántos días: lo rechaza el schema.
+    planId: formData.has("planId") ? texto(formData, "planId") : undefined,
     nota: texto(formData, "nota"),
     idempotencyKey: texto(formData, "idempotencyKey"),
     confirmarSuperposicion: formData.get("confirmarSuperposicion") === "1",
@@ -42,6 +44,7 @@ export async function registrarPagoFormAction(
     revalidatePath("/dashboard");
     revalidatePath("/pagos");
     revalidatePath("/alumnos");
+    revalidatePath("/metricas");
     revalidatePath(`/alumnos/${resultado.data.studentId}`);
     return { ok: true, registrado: resultado.data };
   }

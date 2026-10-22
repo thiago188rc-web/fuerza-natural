@@ -133,6 +133,16 @@ describe("situacionDeCobertura — se deriva, nunca se guarda", () => {
     expect(s.detalle).toBe("Vence en 2 días");
   });
 
+  it("'cubierto hasta' dice el mes: un ciclo del 10 al 9 termina el mes siguiente", () => {
+    const s = situacionDeCobertura(
+      "2026-10-12",
+      [{ desde: "2026-10-10", hasta: "2026-11-09" }],
+      PARAMETROS,
+      ACTIVO,
+    );
+    expect(s.detalle).toBe("Cubierto hasta el 9 nov");
+  });
+
   it("un 1/2 mes vigente cubre igual que un mes completo", () => {
     const s = situacionDeCobertura(
       "2026-09-10",
@@ -318,5 +328,12 @@ describe("compararPorUrgencia — orden del padrón por vencimiento", () => {
     const venceAntes = situacion({ estado: "CUBIERTO", cubiertoHasta: "2026-10-05" });
     const venceDespues = situacion({ estado: "CUBIERTO", cubiertoHasta: "2026-10-20" });
     expect(compararPorUrgencia(venceAntes, venceDespues)).toBeLessThan(0);
+  });
+
+  it("dos que vencen el mismo día empatan (0): el desempate lo decide quien ordena", () => {
+    const a = situacion({ estado: "CUBIERTO", cubiertoHasta: "2026-10-31" });
+    const b = situacion({ estado: "CUBIERTO", cubiertoHasta: "2026-10-31" });
+    expect(compararPorUrgencia(a, b)).toBe(0);
+    expect(compararPorUrgencia(b, a)).toBe(0);
   });
 });

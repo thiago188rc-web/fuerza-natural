@@ -6,18 +6,24 @@ import { opcional } from "./_helpers";
  * desde el pago". La construcción del período concreto la hace el caso de
  * uso con `coberturaDe()`, no este schema.
  *
- * Dos campos que ESTE schema no tiene, a propósito:
+ * `gymId` no existe acá a propósito: nunca viene del cliente, sale de la
+ * sesión.
  *
- *   · `gymId` — nunca viene del cliente; sale de la sesión.
- *   · `planId` — el snapshot del plan se lee de la base en el momento de
- *     registrar. Aceptarlo del formulario permitiría que un cliente
- *     manipulado guardara un pago con el nombre y los días de otro plan,
- *     y el snapshot es justamente lo que después nadie puede corregir
- *     (`payments` es append-only salvo anulación).
+ * `planId` es CUÁNTOS DÍAS cubre este pago (2, 3, 4 o 5: los planes
+ * activos del gimnasio), que el dueño elige al cobrar
+ * (docs/REGLAS-DE-NEGOCIO.md §4bis). Llega solo el id: el nombre y los
+ * días del snapshot los lee el caso de uso de la base, y un id que no sea
+ * un plan activo de ESTE gimnasio se rechaza. Un cliente manipulado puede,
+ * como mucho, elegir otro plan real — lo mismo que ofrece la pantalla. Sin
+ * `planId`, el pago va con el plan habitual del alumno.
  *
  * Tampoco existe `decisionPlan`: un pago NUNCA cambia el plan habitual del
  * alumno (docs/REGLAS-DE-NEGOCIO.md §4). Cambiar de plan es otra
  * operación, con su propio registro en el historial.
+ *
+ * Ni `metodo`: la forma de pago ya no se pregunta (pedido del dueño,
+ * 2026-10-22). El caso de uso guarda `OTRO`, el valor que ya significaba
+ * "sin dato" en los pagos importados — no un `EFECTIVO` que nadie dijo.
  */
 
 /**
@@ -34,14 +40,14 @@ import { opcional } from "./_helpers";
 export const MODALIDADES_PAGO = ["MES_COMPLETO", "MEDIO_MES"] as const;
 export type ModalidadPago = (typeof MODALIDADES_PAGO)[number];
 
+/**
+ * Los valores que admite `payments.metodo` (CHECK en la base). Ya no se
+ * eligen al cobrar; quedan por los pagos viejos, que los tienen.
+ */
 export const METODOS_PAGO = ["EFECTIVO", "TRANSFERENCIA", "BILLETERA", "OTRO"] as const;
 
-export const ETIQUETA_METODO: Record<(typeof METODOS_PAGO)[number], string> = {
-  EFECTIVO: "Efectivo",
-  TRANSFERENCIA: "Transferencia",
-  BILLETERA: "Billetera virtual",
-  OTRO: "Otro",
-};
+/** Lo que se guarda desde que no se pregunta la forma de pago: "sin dato". */
+export const METODO_SIN_DATO = "OTRO" satisfies (typeof METODOS_PAGO)[number];
 
 export const registrarPagoSchema = z.object({
   studentId: z.string().uuid("Elegí un alumno."),
@@ -67,7 +73,8 @@ export const registrarPagoSchema = z.object({
     .number({ error: "Ingresá un importe." })
     .min(0, "El importe no puede ser negativo.")
     .max(99_999_999, "Importe demasiado alto."),
-  metodo: z.enum(METODOS_PAGO).default("EFECTIVO"),
+  /** Cuántos días cubre este pago. Sin él, el plan habitual del alumno. */
+  planId: z.string().uuid("Elegí cuántos días por semana paga.").optional(),
   nota: opcional(z.string().trim().max(300, "La nota no puede superar los 300 caracteres.")),
   /** Evita el pago doble por doble clic o por reenvío del formulario. */
   idempotencyKey: z.string().uuid(),

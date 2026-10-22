@@ -71,30 +71,35 @@ export function FormularioDeCobro({
   const cubreDesde = contexto.sugerenciaDesde;
   const [fechaPago, setFechaPago] = useState(contexto.hoy);
   const [montoManual, setMontoManual] = useState<string | null>(null);
-  // Siempre efectivo: el dueño pidió sacar el selector de método del
-  // cobro. El dominio y los pagos viejos con otros métodos siguen intactos.
-  const metodo = "EFECTIVO";
+  // La forma de pago ya no se pregunta (pedido del dueño): no se manda, y
+  // el servidor guarda "sin dato" en vez de suponer una.
   const [confirmarSuperposicion, setConfirmar] = useState(false);
   const [superposicionCerrada, setSuperposicionCerrada] = useState<string | null>(null);
 
-  const cobertura = coberturaDe(modalidad, cubreDesde);
-  const precioConfigurado = contexto.alumno.planPrecio;
+  // CUÁNTOS DÍAS cubre este pago: uno de los planes activos del gimnasio
+  // (2, 3, 4 o 5 días). Arranca en el plan habitual del alumno; si ese
+  // plan ya no se ofrece (por ejemplo, "Libre" desactivado), no se elige
+  // ninguno por él — elegir por equivalencia sería inventar una regla.
+  const planes = contexto.planesActivos;
+  const planHabitualEnOferta = planes.some((p) => p.id === contexto.alumno.planId);
+  const [planId, setPlanId] = useState(planHabitualEnOferta ? contexto.alumno.planId : "");
+  const planElegido = planes.find((p) => p.id === planId) ?? null;
+  const difiereDelHabitual = planElegido !== null && planElegido.id !== contexto.alumno.planId;
 
-  // El importe se DERIVA del precio configurado hasta que el usuario
-  // escribe uno propio. Sin efectos: lo que el usuario tipeó gana siempre.
+  const cobertura = coberturaDe(modalidad, cubreDesde);
+  const precioConfigurado = planElegido?.precio ?? null;
+
+  // El importe se DERIVA del precio del plan elegido hasta que el usuario
+  // escribe uno propio (un ajuste, un pago parcial). Elegir otro plan
+  // vuelve a poner su precio: el importe nunca queda de un plan y los días
+  // de otro. Sin efectos: lo que el usuario tipeó gana mientras no cambie
+  // de plan.
   const monto = montoManual ?? (precioConfigurado === null ? "" : String(precioConfigurado));
   const montoNumero = Number(monto);
   const difiereDelPrecio =
     precioConfigurado !== null && monto !== "" && Number.isFinite(montoNumero)
       ? Math.abs(montoNumero - precioConfigurado) > 0.5
       : false;
-
-  // Qué botón de plan está "apretado": el que tenga exactamente el precio
-  // que está cargado ahora. Si el dueño lo edita a mano, ninguno queda
-  // marcado — es justo lo que corresponde mostrar.
-  const planesConPrecio = contexto.planesActivos.filter((p) => p.precio !== null);
-  const planRapidoActivo =
-    planesConPrecio.find((p) => String(p.precio) === monto)?.id ?? "";
 
   const yaCubierto = contexto.tramos.some(
     (t) => t.hasta >= cobertura.desde && t.desde <= cobertura.hasta,
@@ -120,7 +125,7 @@ export function FormularioDeCobro({
       <input type="hidden" name="fechaPago" value={fechaPago} />
       <input type="hidden" name="modalidad" value={modalidad} />
       <input type="hidden" name="cubreDesde" value={cubreDesde} />
-      <input type="hidden" name="metodo" value={metodo} />
+      <input type="hidden" name="planId" value={planId} />
       <input type="hidden" name="idempotencyKey" value={claveIdempotencia} />
       <input
         type="hidden"
@@ -129,35 +134,46 @@ export function FormularioDeCobro({
       />
 
       <div className="superficie divide-y divide-border">
-        {/* CUÁNTO */}
+        {/* CUÁNTOS DÍAS Y CUÁNTO */}
         <fieldset className="px-5 py-5">
-          <legend className="t-rotulo">
-            Importe
-          </legend>
+          <legend className="t-rotulo">Días por semana</legend>
           <p className="mt-1 text-xs text-muted-foreground">
             Cubre un mes desde el {fechaCompleta(cobertura.desde)}, hasta el{" "}
-            {fechaCompleta(cobertura.hasta)} — con el plan habitual: {contexto.alumno.planNombre}.
+            {fechaCompleta(cobertura.hasta)}.
           </p>
 
-          {planesConPrecio.length > 1 ? (
-            <Segmentado
-              className="mt-3"
-              size="compacto"
-              nombre="plan-rapido"
-              valor={planRapidoActivo}
-              onCambio={(id) => {
-                const plan = planesConPrecio.find((p) => p.id === id);
-                if (plan && plan.precio !== null) setMontoManual(String(plan.precio));
-              }}
-              opciones={planesConPrecio.map((p) => ({
-                valor: p.id,
-                etiqueta: p.nombre,
-                detalle: importe(p.precio as number, contexto.moneda),
-              }))}
-            />
+          <Segmentado
+            className="mt-3"
+            size="compacto"
+            nombre="plan-del-pago"
+            valor={planId}
+            onCambio={(id) => {
+              setPlanId(id);
+              // El importe vuelve a ser el precio del plan nuevo.
+              setMontoManual(null);
+            }}
+            opciones={planes.map((p) => ({
+              valor: p.id,
+              etiqueta: p.nombre,
+              detalle: p.precio === null ? "a confirmar" : importe(p.precio, contexto.moneda),
+            }))}
+          />
+          {estado.errores?.planId ? (
+            <p className="mt-1.5 text-xs text-destructive">{estado.errores.planId}</p>
+          ) : !planHabitualEnOferta && planElegido === null ? (
+            <p className="mt-1.5 text-xs text-revisar">
+              Su plan habitual ({contexto.alumno.planNombre}) ya no se ofrece: elegí cuántos días
+              paga este mes.
+            </p>
+          ) : difiereDelHabitual ? (
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              Su plan habitual es {contexto.alumno.planNombre}: este pago queda como{" "}
+              {planElegido.nombre}. El plan habitual no cambia.
+            </p>
           ) : null}
 
-          <div className="mt-3 grid gap-4 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)]">
+          <p className="t-rotulo mt-5">Importe</p>
+          <div className="mt-2 grid gap-4 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)]">
             <div>
               <Label htmlFor="monto" className="sr-only">
                 Importe cobrado
@@ -172,7 +188,13 @@ export function FormularioDeCobro({
                   inputMode="numeric"
                   value={monto}
                   onChange={(e) => setMontoManual(e.target.value)}
-                  placeholder={precioConfigurado === null ? "A confirmar" : undefined}
+                  placeholder={
+                    planElegido === null
+                      ? "Elegí los días"
+                      : precioConfigurado === null
+                        ? "A confirmar"
+                        : undefined
+                  }
                   className="tabular pl-7 font-mono"
                   aria-invalid={Boolean(estado.errores?.monto)}
                 />
@@ -184,10 +206,14 @@ export function FormularioDeCobro({
 
             <div className="flex items-center">
               <AnimatePresence mode="wait" initial={false}>
-                {precioConfigurado === null ? (
+                {planElegido === null ? (
+                  <Aviso key="sin-plan" tono="neutro" quieto={quieto}>
+                    El importe sale de los días que elijas.
+                  </Aviso>
+                ) : precioConfigurado === null ? (
                   <Aviso key="sin-precio" tono="revisar" quieto={quieto}>
-                    El precio de &ldquo;{contexto.alumno.planNombre}&rdquo; todavía no está
-                    confirmado. Ingresá el importe a mano.
+                    El precio de &ldquo;{planElegido.nombre}&rdquo; todavía no está confirmado.
+                    Ingresá el importe a mano.
                   </Aviso>
                 ) : difiereDelPrecio ? (
                   <Aviso key="difiere" tono="neutro" quieto={quieto}>
@@ -196,7 +222,7 @@ export function FormularioDeCobro({
                   </Aviso>
                 ) : montoManual === null ? (
                   <Aviso key="sugerido" tono="neutro" quieto={quieto}>
-                    Precio configurado del plan.
+                    Precio configurado de {planElegido.nombre}.
                   </Aviso>
                 ) : null}
               </AnimatePresence>
@@ -258,8 +284,7 @@ export function FormularioDeCobro({
                 {contexto.alumno.nombre} {contexto.alumno.apellido}
               </span>
               <span className="block truncate text-xs text-muted-foreground">
-                {contexto.alumno.planNombre}
-                {contexto.alumno.planAcceso === "LIBRE" ? " · acceso libre" : ""}
+                Plan habitual: {contexto.alumno.planNombre}
               </span>
             </span>
           </div>
@@ -303,7 +328,9 @@ export function FormularioDeCobro({
 
         <div className="px-5 py-4">
           <div className="flex items-baseline justify-between gap-3">
-            <span className="text-sm text-muted-foreground">Total</span>
+            <span className="text-sm text-muted-foreground">
+              Total{planElegido ? ` · ${planElegido.nombre}` : ""}
+            </span>
             <span className="tabular font-heading text-2xl leading-none font-semibold">
               {monto === "" || !Number.isFinite(montoNumero)
                 ? "—"

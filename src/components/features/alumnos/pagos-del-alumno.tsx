@@ -6,7 +6,6 @@ import { ArrowRight, ChevronDown, Receipt } from "lucide-react";
 import type { PagoDeLaFicha } from "@/use-cases/alumnos/ficha";
 import { ETIQUETA_MODALIDAD, type Modalidad } from "@/domain/pagos/modalidad";
 import { etiquetaCorta } from "@/domain/fechas/calendario";
-import { ETIQUETA_METODO } from "@/schemas/payment";
 import { DURACION, SALIDA } from "@/components/motion/tokens";
 import { BotonLink } from "@/components/boton-link";
 import { Importe } from "@/components/importe";
@@ -129,8 +128,7 @@ export function PagosDelAlumno({
                       ) : null}
                     </span>
                     <span className="mt-0.5 block text-xs text-muted-foreground">
-                      {pago.planNombreSnapshot} ·{" "}
-                      {ETIQUETA_METODO[pago.metodo as keyof typeof ETIQUETA_METODO] ?? pago.metodo}
+                      {pago.planNombreSnapshot}
                       {pago.nota ? ` · ${pago.nota}` : ""}
                     </span>
                     {pago.anulado ? (

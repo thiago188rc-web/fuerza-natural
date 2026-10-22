@@ -440,32 +440,6 @@ export async function listarPagosDelPeriodo(
   return filas.map((f) => ({ ...f, monto: Number(f.monto) }));
 }
 
-/** Lo cobrado en un rango, agrupado por método de pago. */
-export async function totalesPorMetodo(
-  tx: TxClient,
-  ctx: AuthContext,
-  rango: { desde: string; hasta: string },
-) {
-  const filas = await tx
-    .select({
-      clave: payments.metodo,
-      total: sql<string>`coalesce(sum(${payments.monto}), 0)`,
-      cantidad: sql<number>`count(*)::int`,
-    })
-    .from(payments)
-    .where(
-      and(
-        eq(payments.gymId, ctx.gymId),
-        isNull(payments.anuladoEn),
-        gte(payments.fechaPago, rango.desde),
-        lte(payments.fechaPago, rango.hasta),
-      ),
-    )
-    .groupBy(payments.metodo);
-
-  return filas.map((f) => ({ clave: f.clave, total: Number(f.total), cantidad: f.cantidad }));
-}
-
 /** Lo cobrado en un rango, agrupado por modalidad (mes completo / 1-2 mes). */
 export async function totalesPorModalidad(
   tx: TxClient,

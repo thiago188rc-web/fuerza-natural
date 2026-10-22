@@ -31,6 +31,11 @@ export function fechaLarga(iso: string): string {
   return `${DIAS[diaDeLaSemana(iso)]} ${dia} de ${etiquetaDeMes(iso, { conAnio: false })}`;
 }
 
+/** "lun 7" — el día dentro de una lista que ya dice de qué mes es. */
+export function diaCorto(iso: string): string {
+  return `${DIAS[diaDeLaSemana(iso)]!.slice(0, 3)} ${Number(iso.slice(8, 10))}`;
+}
+
 /** "7 de septiembre de 2026" — para fichas y comprobantes. */
 export function fechaCompleta(iso: string): string {
   const dia = Number(iso.slice(8, 10));

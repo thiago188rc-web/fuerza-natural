@@ -354,6 +354,19 @@ export async function listarPlanesActivos(tx: TxClient, ctx: AuthContext) {
     .orderBy(asc(plans.orden), asc(plans.nombre));
 }
 
+/**
+ * Un plan ACTIVO del gimnasio, para el snapshot de un pago: el cobro
+ * elige cuántos días cubre ese pago, y el nombre y los días que quedan
+ * guardados salen de acá, nunca del formulario.
+ */
+export async function obtenerPlanActivo(tx: TxClient, ctx: AuthContext, planId: string) {
+  const [row] = await tx
+    .select({ id: plans.id, nombre: plans.nombre, diasSemana: plans.diasSemana })
+    .from(plans)
+    .where(and(eq(plans.id, planId), eq(plans.gymId, ctx.gymId), eq(plans.activo, true)));
+  return row ?? null;
+}
+
 export async function existePlanEnGimnasio(tx: TxClient, ctx: AuthContext, planId: string) {
   const [row] = await tx
     .select({ id: plans.id })

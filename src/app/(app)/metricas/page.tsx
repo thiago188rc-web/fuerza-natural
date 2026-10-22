@@ -197,20 +197,14 @@ export default async function MetricasPage({
         </Aparece>
       ) : null}
 
-      {/* `lg:` y no `sm:` a propósito: en el rango intermedio (tablet, o el
-          celular apaisado) tres columnas no dejan lugar para el círculo de
-          la rueda + su leyenda, y eso es justamente lo que se salía de
-          cuadro. Con dos columnas hay aire; el tercer bloque baja solo. */}
-      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Dos bloques: la rueda de "Método de pago" se sacó cuando el dueño
+          pidió dejar de cargar la forma de pago (2026-10-22) — sin el dato,
+          la rueda iba a decir "sin dato" cada vez más. Los pagos viejos lo
+          conservan en la base. */}
+      <div className="grid gap-5 sm:grid-cols-2">
         <Aparece retraso={0.08} className="min-w-0">
           <section className="superficie h-full p-5">
             <MovimientoDelPeriodo movimiento={m.movimiento} etiquetaDelRango={m.etiquetaDelRango} />
-          </section>
-        </Aparece>
-
-        <Aparece retraso={0.1} className="min-w-0">
-          <section className="superficie h-full p-5">
-            <Rueda titulo="Método de pago" segmentos={m.porMetodo} moneda={m.moneda} />
           </section>
         </Aparece>
 
