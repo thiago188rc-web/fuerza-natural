@@ -41,6 +41,17 @@ LIBRE se muestra como una opción diferenciada en la interfaz, igual que
 cualquier otro plan, porque sale de la tabla `plans` — no hay ninguna
 lista de planes en el código.
 
+**Actualización — 2026-10-22 (pedido del dueño, vía Thiago):** "en los
+planes, eliminá la opción Libre; deben quedar solamente 2, 3, 4 y 5
+días", tanto en el alta como al cobrar. Se hizo **desactivando** el plan
+LIBRE (`plans.activo = false`, el interruptor de Configuración), no
+borrándolo: los alumnos que ya lo tenían lo conservan y sus pagos viejos
+no se tocan. El dueño puede volver a activarlo desde Configuración.
+**Pendiente de decidir con Diego:** qué plan pasan a tener los alumnos
+activos que hoy figuran con LIBRE. No se les cambió el plan: LIBRE no es
+un alias de 5 días (ver arriba), y elegir por equivalencia sería
+inventar. Mientras tanto, al cobrarles el formulario pide elegir los días.
+
 ---
 
 ## 2. Precios
@@ -120,7 +131,7 @@ Un pago con modalidad `MEDIO_MES` guarda:
 | Plan habitual en ese momento | `payments.plan_id` + `plan_*_snapshot` |
 | Fecha de inicio de cobertura | `payment_periods.cubre_desde` |
 | Fecha de fin de cobertura | `payment_periods.cubre_hasta` |
-| Método de pago | `payments.metodo` |
+| Método de pago | `payments.metodo` — ya no se pregunta (ver §4bis) |
 | Gimnasio | `payments.gym_id` |
 | Timestamps | `payments.created_at` |
 
@@ -142,10 +153,14 @@ documento** (más abajo, §5: "del día 1 al último día del mes de
   formulario de cobro sugiere `cubreDesde` como "el día después del
   último día ya cubierto", así el ciclo se mantiene anclado al mismo
   número de día automáticamente, pago tras pago.
-- Ese día es **ajustable a mano** en el formulario de cobro (un
-  `<input type="date">`, no solo flechas de mes) — para el primer pago de
-  un alumno, para corregir un ciclo mal anclado, o para cualquier ajuste
-  puntual que el dueño necesite.
+- ~~Ese día es **ajustable a mano** en el formulario de cobro.~~
+  **Reemplazado el 2026-10-21/22 (pedido del dueño: "una sola fecha
+  calendario al imputar un pago"):** la única fecha que se carga al cobrar
+  es la **fecha del pago**. El día de arranque sale solo: el día después
+  del último cubierto o, en el primer pago, la fecha de alta. **Efecto a
+  tener en cuenta:** un ciclo mal anclado ya no se corrige desde el cobro;
+  hoy no hay pantalla para re-anclarlo. Si hace falta, se decide con
+  Diego cómo (ver "Pendiente").
 - Un pago ya registrado sigue siendo **intocable** (§4.6 / inmutabilidad
   de `payments`): ajustar el día es algo que se hace ANTES de confirmar
   un pago nuevo, nunca editando uno existente. Para corregir un pago mal
@@ -177,6 +192,38 @@ Esto es coherente con la regla que ya regía desde Fase 1: **ninguna
 transición de estado ocurre automáticamente**. Cambiar el plan de un
 alumno es una edición explícita de su ficha, y queda registrada como
 `CAMBIO_PLAN` en su historial.
+
+---
+
+## 4bis. Al cobrar se elige cuántos días cubre ese pago
+
+**Pedido del dueño — 2026-10-22 (vía Thiago).** "Para los días que se
+eligen al registrar un pago, ofrecé únicamente 2, 3, 4 y 5 días; sin
+'Libre', sin valores duplicados y sin tener que escribir el importe a
+mano para resolver esa selección."
+
+- Las opciones son los **planes activos** del gimnasio (hoy: 2, 3, 4 y 5
+  días). Arranca marcado el plan habitual del alumno. Si su plan ya no se
+  ofrece (LIBRE), no se marca ninguno y hay que elegir.
+- Elegir los días **pone el importe** con el precio de ese plan. El
+  importe sigue siendo editable para un ajuste o un pago parcial (§2),
+  pero ya no hace falta escribirlo.
+- El pago guarda como snapshot **el plan elegido** (`plan_id`,
+  `plan_nombre_snapshot`, `plan_dias_snapshot`), así que en Pagos, en la
+  ficha y en el comprobante se ven los mismos días que se cobraron. Antes
+  se guardaba siempre el plan habitual aunque se cobrara el precio de
+  otro, y el historial mostraba, por ejemplo, "2 días · $55.000".
+- **No cambia el plan habitual** (§4). Pagar un mes de 3 días no convierte
+  a nadie en alumno de 3 días; eso es una edición de la ficha.
+- El servidor solo acepta un plan **activo de este gimnasio**. El nombre
+  y los días los lee de la base, nunca del formulario.
+
+**Forma de pago:** el dueño pidió sacarla del cobro (2026-10-22). Desde
+entonces no se pregunta y se guarda `OTRO`, el valor que ya significaba
+"sin dato" en los pagos importados. Antes, entre el 2026-10-21 y este
+cambio, el formulario guardaba `EFECTIVO` sin preguntar. Esos pagos
+quedan como están: no se puede saber cómo se pagaron. Las pantallas ya no
+muestran la forma de pago. Los pagos viejos la conservan en la base.
 
 ---
 
@@ -244,3 +291,20 @@ correcto.
 5. **¿LIBRE incluye domingos?** Diego confirmó "5 días o más, incluye
    sábados". No dijo nada de domingos ni de si el gimnasio abre. No se
    asumió nada.
+
+6. **Alumnos activos con plan LIBRE** (2026-10-22). LIBRE se desactivó a
+   pedido del dueño, pero los que ya lo tenían lo conservan. ¿Pasan a 5
+   días, a otro plan, o se decide uno por uno? No se cambió ninguno.
+
+7. **¿Cómo se corrige un ciclo mal anclado?** Con una sola fecha en el
+   cobro (§3bis), el día de arranque ya no se puede ajustar. Si alguien
+   quedó con el ciclo corrido, hoy la única vía es anular y volver a
+   registrar, que vuelve a calcular el mismo día. Falta definir si hace
+   falta otra forma.
+
+8. **El dato de "Disciplina" de los alumnos que ya lo tenían.** El campo
+   se sacó del alta (2026-10-21), pero la columna sigue en la base con
+   datos. La migración `0010_deep_husk.sql`, que la borra, está en el
+   repositorio y **no se aplicó**: borraría ese dato para siempre. Antes
+   de correr cualquier migración nueva en producción hay que decidir si
+   se conserva (y sacar la 0010) o si se borra (y hacer backup antes).

@@ -579,6 +579,44 @@ las alertas.
 
 ---
 
+## Panel vs. Pagos: qué cuenta cada número (desde 2026-10-22)
+
+El dueño notó una diferencia de uno: el Panel decía 191 y Pagos, 192. No
+era un error de cálculo. Son dos números que cuentan cosas distintas:
+
+| Pantalla | Número | Qué cuenta |
+|---|---|---|
+| Panel | "**X** de Y activos con el mes cubierto" | **Personas** activas que **hoy** caen dentro de un tramo pagado (`situacionDeLosActivos`, la misma cuenta que usa Métricas). No importa en qué mes pagaron. |
+| Panel y Pagos | "Pagos registrados" | **Pagos** vigentes con fecha de pago en el mes (`totalCobrado`). |
+| Pagos | "Alumnos que pagaron" | **Personas** distintas con al menos un pago vigente en el mes. |
+| Pagos | "Activos hoy" | El padrón de hoy, haya pagado alguien o no. |
+
+**La causa del +1, verificada en la base el 2026-10-22 (solo lectura):**
+en octubre había 193 pagos vigentes de **192 personas**. Una persona
+activa pagó dos veces el 10/10, con una hora de diferencia: septiembre
+atrasado (cubre 10/09–09/10) y octubre (cubre 10/10–09/11). Son 2 pagos
+y 1 persona. Las 192 personas que pagaron en octubre son exactamente las
+192 activas que hoy tienen cobertura (Panel: 192 de 200).
+
+- **Los anulados no cuentan en ninguno de los dos números** (3 en
+  octubre).
+- **Los que volvieron después de una baja** (12 reactivaciones en
+  octubre) cuentan en los dos como cualquier activo. Ninguno de los pagos
+  de octubre era de alguien que hoy esté de baja.
+
+**Cuándo NO coinciden, y está bien:**
+- Alguien paga dos meses juntos: suma más pagos que personas.
+- Alguien está cubierto hoy por un pago del mes anterior (un ciclo que
+  arranca el 25): cuenta en el Panel y no en "pagaron este mes".
+- Alguien pagó este mes y hoy está de baja: cuenta en Pagos, no en el
+  Panel.
+
+Lo que se cambió fue que Pagos muestre, además de los pagos, las personas
+("Alumnos que pagaron", con "N pagó más de una vez" cuando pasa) y los
+activos de hoy. No se tocó ningún dato ni se forzó que coincidan.
+
+---
+
 ## Historial de simulacros y procedimientos ejecutados
 
 | Fecha | Procedimiento | Resultado |
