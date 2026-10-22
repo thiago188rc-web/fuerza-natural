@@ -641,5 +641,9 @@ activos de hoy. No se tocó ningún dato ni se forzó que coincidan.
 | 2026-10-09 | Contraseña del dueño cambiada desde `/cuenta/contrasena` (queda en Actividad como `user.password_changed`) | ✓ La inicial ya no entra ("Email o contraseña incorrectos"); `DUENO_PASSWORD_INICIAL` borrada del archivo de credenciales |
 | 2026-10-09 | Contraseña del dueño cambiada de nuevo desde `/cuenta/contrasena`, a pedido de Thiago (la elige el dueño; no se anota) | ✓ Confirmación del formulario, otras sesiones cerradas; entra con la nueva |
 | 2026-10-09 | Revisión del repositorio, ahora público: secretos en todo el historial y datos personales | ✓ Sin credenciales (la única URL con contraseña es de un test, con un valor falso). Se sacó del RUNBOOK el nombre real de una alumna |
+| 2026-10-22 | Diagnóstico Panel 191 vs. Pagos 192, de solo lectura (ver "Panel vs. Pagos") | ✓ Pagos cuenta pagos y el Panel cuenta personas: 193 pagos de 192 personas, una pagó dos meses el 10/10. Ningún dato tocado |
+| 2026-10-22 | Backup + simulacro antes de cambiar datos (`…2026-10-22T15-41-24`) | ✓ 12/12 tablas, conteo y contenido, 6 s |
+| 2026-10-22 | Push `4c565d9` + `08c2720` → `dpl_GgPC93DFtqYcS74rEmpqtpKHpexu`. Volver atrás: `dpl_54aQTL9K3bxQENcTno7JV1RihYHK` (`ce61b2a`), compatible con la base porque no hubo migración | ✓ `/api/salud` ok con `08c2720` |
+| 2026-10-22 | Desde Configuración, con la cuenta del dueño y a su pedido (lo hizo NEXA): plan LIBRE desactivado; motivos "Viaje" y "Enfermedad" agregados antes de "Otro" | ✓ 3 entradas en Actividad; alta y cobro ofrecen solo 2/3/4/5 días; los 8 motivos anteriores siguen. La verificación no registró ningún pago ni ninguna baja |
 | — | Recuperación de contraseña de punta a punta en producción | Pendiente — requiere configurar URLs y SMTP en Supabase Auth |
 | — | Prueba del dueño (revisión de datos) | Pendiente — presencial con Diego |
