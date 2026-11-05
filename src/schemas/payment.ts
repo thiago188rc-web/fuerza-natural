@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAXIMO_MESES_POR_COBRO } from "@/domain/pagos/periodos";
 import { opcional } from "./_helpers";
 
 /**
@@ -29,7 +30,7 @@ import { opcional } from "./_helpers";
 /**
  * QUÉ cobertura se compró. No es el plan del alumno.
  *
- *   MES_COMPLETO — el mes calendario completo, con el plan habitual.
+ *   MES_COMPLETO — un mes corrido desde el día de arranque (§3bis).
  *   MEDIO_MES    — "1/2 MES": 15 días consecutivos, que pueden empezar
  *                  cualquier día (principio, medio o fin de mes).
  *
@@ -51,23 +52,40 @@ export const METODO_SIN_DATO = "OTRO" satisfies (typeof METODOS_PAGO)[number];
 
 export const registrarPagoSchema = z.object({
   studentId: z.string().uuid("Elegí un alumno."),
-  /** Cuándo se cobró. Puede ser anterior a hoy (se carga un pago de ayer). */
+  /**
+   * FECHA DE COBRO: cuándo entró la plata. Puede ser anterior a hoy (se
+   * carga un pago de ayer), nunca posterior — eso lo rechaza el caso de
+   * uso y un CHECK de la base. No es el período que se paga: para
+   * adelantar un mes se elige `cubreDesde`, no se corre esta fecha
+   * (docs/REGLAS-DE-NEGOCIO.md §5bis).
+   */
   fechaPago: z.string().date("Fecha inválida. Usá el formato AAAA-MM-DD."),
   modalidad: z.enum(MODALIDADES_PAGO).default("MES_COMPLETO"),
   /**
-   * Desde cuándo corre la cobertura.
+   * PERÍODO IMPUTADO: desde qué día corre lo que se paga. Puede ser
+   * atrasado, el que corre o futuro — independiente de `fechaPago`.
    *
-   * En MEDIO_MES es el primer día de los 15: el dueño confirmó que puede
-   * arrancar CUALQUIER día, así que no se deriva de nada.
-   * En MES_COMPLETO alcanza con cualquier día del mes que se está
-   * pagando — `coberturaDe()` lo normaliza al día 1. Eso permite pagar un
-   * mes atrasado o adelantado sin un campo extra.
+   * En MES_COMPLETO es el día de arranque del primer mes: cubre un mes
+   * corrido desde ahí (§3bis). En MEDIO_MES es el primero de los 15 días.
+   * El caso de uso rechaza un arranque a más de 12 meses de hoy.
    */
   cubreDesde: z.string().date("Fecha inválida. Usá el formato AAAA-MM-DD."),
   /**
-   * El importe. Se autocompleta con el precio vigente configurado, y el
-   * dueño puede editarlo (un pago parcial, un ajuste). Nunca sale de una
-   * constante del código.
+   * Cuántos meses seguidos se pagan juntos, desde `cubreDesde`. Cada mes
+   * queda como un pago propio (anulable por separado) con su período.
+   * Solo MES_COMPLETO: un 1/2 mes se cobra de a uno.
+   */
+  meses: z.coerce
+    .number({ error: "Elegí cuántos meses paga." })
+    .int("Elegí cuántos meses paga.")
+    .min(1, "Elegí cuántos meses paga.")
+    .max(MAXIMO_MESES_POR_COBRO, `Se pueden cobrar hasta ${MAXIMO_MESES_POR_COBRO} meses juntos.`)
+    .default(1),
+  /**
+   * El importe DE CADA MES. Se autocompleta con el precio vigente
+   * configurado, y el dueño puede editarlo (un pago parcial, un ajuste).
+   * Nunca sale de una constante del código. Con `meses` > 1, cada pago
+   * guarda este importe y el total cobrado es `monto × meses`.
    */
   monto: z.coerce
     .number({ error: "Ingresá un importe." })
@@ -79,9 +97,10 @@ export const registrarPagoSchema = z.object({
   /** Evita el pago doble por doble clic o por reenvío del formulario. */
   idempotencyKey: z.string().uuid(),
   /**
-   * El usuario ya vio la advertencia de cobertura superpuesta y decidió
-   * seguir. Sin esto, el caso de uso devuelve CONFIRMACION_REQUERIDA en
-   * vez de escribir.
+   * El usuario ya vio la advertencia —cobertura superpuesta, u otro pago
+   * del mismo alumno con la misma fecha de cobro— y decidió seguir. Sin
+   * esto, el caso de uso devuelve CONFIRMACION_REQUERIDA en vez de
+   * escribir.
    */
   confirmarSuperposicion: z.coerce.boolean().optional(),
 });

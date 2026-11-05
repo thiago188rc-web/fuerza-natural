@@ -21,6 +21,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { esVinculo, etiquetaVinculo } from "@/domain/alumnos/vinculo";
 import { esGenero, etiquetaGenero } from "@/domain/alumnos/genero";
 import { etiquetaCanal, ordenarCanales } from "@/domain/alumnos/como-conocio";
+import { resumenLaboral } from "@/domain/alumnos/situacion-laboral";
 import { distanciaRelativa } from "@/domain/fechas/calendario";
 import { fechaCompleta } from "@/lib/formato";
 import { cn } from "@/lib/utils";
@@ -235,6 +236,10 @@ export default async function FichaAlumnoPage({
                     <Dato
                       etiqueta="Género"
                       valor={esGenero(alumno.genero) ? etiquetaGenero(alumno.genero) : null}
+                    />
+                    <Dato
+                      etiqueta="Situación laboral"
+                      valor={resumenLaboral(alumno.situacionLaboral, alumno.situacionLaboralDetalle)}
                     />
                     <Dato
                       etiqueta="Cómo nos conoció"

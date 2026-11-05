@@ -289,6 +289,13 @@ La base de desarrollo no se limpia entre corridas: los specs generan un
 sufijo único por alumno para no pisarse. Si querés empezar de cero,
 recreá la base con el bootstrap de más arriba.
 
+Durante los e2e, `next dev` imprime `The destination stream errored while
+writing data` después de casi cada login. No es un error de la app: los
+tests navegan apenas la URL cambia a `/dashboard`, y el servidor anota que
+el navegador dejó de leer el panel a medio enviar. Comprobado el
+2026-11-03: con el mismo login, esperando la carga completa no aparece
+nunca; cortando, apareció 4 veces en 3 logins.
+
 ## Carga inicial desde las planillas del gimnasio
 
 Una sola vez por gimnasio, sobre una base migrada y sin datos cargados a
@@ -413,22 +420,23 @@ npx tsx scripts/db/produccion.ts scripts/db/backup.ts --salida "<carpeta>" \
   --gym de62a012-…   # el gym_id completo de Fuerza Natural
 ```
 
-Deja `fuerza-natural-<fecha>.dump.gpg` (esquemas `app` y `drizzle`,
-cifrado AES-256) y `…conteos.json` (filas por tabla + SHA-256 del
-cifrado, sin datos personales). No incluye `auth`: el usuario y la
-contraseña de Diego los guarda Supabase Auth; si hubiera que rearmar todo
-en otro proyecto, se lo vuelve a crear y se vincula con
-`db:prod:provision-owner`. **La opción B depende de que el pooler de
-Supabase respete el parámetro de sesión del gym_id: no está probado
-contra producción. Si el dump sale sin filas o falla con "row-level
-security", usar la opción A.** El simulacro lo detecta.
+Deja `fuerza-natural-<fecha>.sql.gpg` (esquemas `app` y `drizzle`,
+cifrado AES-256) y `…conteos.json` (filas por tabla, huella del contenido
+de cada tabla y SHA-256 del cifrado, sin datos personales). No incluye
+`auth`: el usuario y la contraseña de Diego los guarda Supabase Auth; si
+hubiera que rearmar todo en otro proyecto, se lo vuelve a crear y se
+vincula con `db:prod:provision-owner`. La opción B es la que se usa desde
+el 2026-10-03: lee los datos con `set_config` dentro de una transacción
+de solo lectura, y los cuatro backups de producción hechos así pasaron el
+simulacro con conteo y contenido. Si alguna vez un dump sale sin filas o
+falla con "row-level security", el simulacro lo detecta: usar la opción A.
 
 **Simulacro** (obligatorio después de cada backup que se quiera dar por
 bueno):
 
 ```bash
 npx tsx scripts/db/simulacro-restauracion.ts \
-  --backup "<carpeta>/fuerza-natural-<fecha>.dump.gpg" \
+  --backup "<carpeta>/fuerza-natural-<fecha>.sql.gpg" \
   --conteos "<carpeta>/fuerza-natural-<fecha>.conteos.json"
 ```
 
@@ -437,10 +445,34 @@ Postgres descartable local, compara el conteo de cada tabla y que RLS siga
 encendido, y borra todo. Anotar resultado y duración en el historial de
 abajo. **Sin un simulacro registrado, no hay backup: solo una hipótesis.**
 
+### Copia fuera de la PC y verificación
+
+**Al 2026-11-03 los backups están solo en esta PC**
+(`C:\Users\Thiago\FuerzaNatural-Backups`): si se pierde la PC, se pierden
+con ella, y un dato que se pierda en la base solo vuelve desde acá.
 Destino y responsable del archivo cifrado: _(a definir — por ejemplo, una
 carpeta privada de Google Drive o Backblaze B2, con acceso de dos personas
 de NEXA)_. Frecuencia sugerida: semanal y antes de cualquier operación
 masiva (importación, migración).
+
+- **Se copian juntos** `fuerza-natural-<fecha>.sql.gpg` y
+  `fuerza-natural-<fecha>.conteos.json` (conteos, huellas y el SHA-256 del
+  cifrado; sin datos personales).
+- **No se copia** la frase de gpg ni nada de `~/.fuerza-natural/`. La frase
+  va a un gestor de contraseñas y nunca junto a los backups: quien tenga
+  las dos cosas tiene la base entera. Tampoco un `.sql` sin cifrar:
+  `backup.ts` borra sus temporales, y si alguna vez quedara uno, no se sube.
+- **Al subir cada uno**, comparar la huella de la copia con la del JSON
+  (tienen que ser iguales):
+  ```bash
+  sha256sum "<destino>/fuerza-natural-<fecha>.sql.gpg"
+  node -p "require('<destino>/fuerza-natural-<fecha>.conteos.json').sha256"
+  ```
+- **Una vez por mes, y antes de depender de una copia**, bajarla del
+  destino a una carpeta temporal fuera del repo y de OneDrive y correr el
+  simulacro de arriba **sobre lo bajado**, no sobre el original de la PC.
+  El simulacro verifica la huella antes de descifrar y tiene que decir
+  `SIMULACRO OK`. Anotarlo en el historial y borrar la carpeta temporal.
 
 ## Estado de producción (2026-10-03)
 
@@ -473,6 +505,8 @@ cifrados con la frase de `~/.fuerza-natural/backup-gpg.pass`):
 |---|---|---|
 | `fuerza-natural-2026-10-03T04-42-53.sql.gpg` | Antes de migrar y cargar (119 alumnos, 0 pagos) | ✓ 11/11 tablas, conteo y contenido |
 | `fuerza-natural-2026-10-03T05-00-42.sql.gpg` | Con la carga aplicada | ✓ 12/12 tablas, conteo y contenido |
+| `fuerza-natural-2026-10-22T15-41-24.sql.gpg` | Antes de los cambios del 2026-10-22 | ✓ 12/12 tablas, conteo y contenido |
+| `fuerza-natural-2026-11-02T02-34-56.sql.gpg` | Migraciones hasta la 0009; 482 alumnos, 1521 pagos (5 anulados), 1708 tramos | ✓ 12/12 tablas, conteo y contenido; base de los ensayos de la 0010/0011 |
 
 Pendiente: guardar la frase en un gestor de contraseñas, y una segunda
 copia de los backups fuera de esta computadora (destino y responsable a
@@ -615,6 +649,275 @@ Lo que se cambió fue que Pagos muestre, además de los pagos, las personas
 ("Alumnos que pagaron", con "N pagó más de una vez" cuando pasa) y los
 activos de hoy. No se tocó ningún dato ni se forzó que coincidan.
 
+### 2026-11-01: "197 activos / 198 pagos"
+
+El gimnasio volvió a ver una diferencia de uno. Diagnóstico de solo
+lectura en producción, reconstruyendo cada número momento a momento
+(`created_at` de los pagos y eventos de vínculo; el control dio 0
+diferencias con el estado actual):
+
+- Entre el **27/10 20:19 y el 28/10 13:49 (UTC)** el sistema mostraba
+  **198 pagos registrados** de octubre y **197** en dos lugares: "Alumnos
+  que pagaron" (Pagos) y "197 de N activos con el mes cubierto" (Panel).
+  En ningún momento hubo 198 pagos con 197 *activos* (los activos eran
+  199–203).
+- **El +1 es el mismo caso del 22/10:** un alumno activo con dos pagos
+  vigentes el 10/10, por períodos distintos y sin superposición
+  (septiembre atrasado y octubre). 198 pagos = 197 personas + 1.
+- **Integridad, sin hallazgos:** 0 pagos sin tramos, 0 tramos cuyo alumno
+  no es el del pago, 0 coberturas superpuestas entre pagos vigentes. Los
+  anulados (5 en octubre) no cuentan en ningún número.
+- Al 01/11 los números de octubre ya eran otros (201 pagos, 196 activos):
+  ese día se dieron de baja 5 alumnos que habían pagado en octubre.
+
+Lo que se cambió (sin tocar datos): Pagos ahora cierra la cuenta debajo de
+cada número — "N hoy no están activos" bajo "Alumnos que pagaron" y "N sin
+pago cobrado en el mes" bajo "Activos hoy" — y el listado tiene N.º, cuyo
+último valor es exactamente "Pagos registrados". La cuenta siempre cierra:
+
+```
+pagos − activos = (pagos − personas) + (pagaron y hoy no activos) − (activos sin pago en el mes)
+```
+
+**Para repetir el diagnóstico** (solo lectura, rol `fn_readonly`,
+transacción READ ONLY; imprime nombres en la terminal, no pegarlos en el
+repo):
+
+```bash
+npm run db:prod:conciliar -- --mes 2026-10
+```
+
+Muestra los números de cada pantalla, cómo se cruzan, quién explica cada
+diferencia y los chequeos de integridad de arriba.
+
+---
+
+## Migración 0010 + 0011 (opción B decidida el 2026-11-03, SIN ejecutar)
+
+**Estado verificado (solo lectura, 2026-11-02):** producción tiene
+aplicadas 0000–0009, con el mismo hash que los archivos del repositorio;
+la 0010 (borra `disciplina`) y la 0011 (situación laboral) están
+pendientes. drizzle aplica **todas** las migraciones cuyo `when` es
+posterior a la última aplicada, en una sola transacción: no hay forma de
+correr la 0011 sola sin tocar el journal o la 0010. La capa `infra/` no
+cambió desde la última migración de producción (`a6b3522`) y el esquema y
+la seguridad de producción son iguales a los del repositorio migrado desde
+cero (columnas, constraints, índices, RLS, policies, triggers, funciones y
+permisos).
+
+**Decisión (2026-11-03):** Diego autorizó la opción B: conservar
+`students.disciplina` en la base, sin uso funcional y sin perder los 10
+valores (docs/REGLAS-DE-NEGOCIO.md, pendiente 8; docs/DECISIONES.md). La
+0010 ya es el `COMMENT ON COLUMN` ensayado, en el árbol de la entrega 2,
+sin commitear. Esa autorización **no** incluye migrar ni publicar: eso lo
+decide Thiago después de validar.
+
+### Ensayo sobre una copia de producción
+
+```bash
+export GPG_PASSPHRASE_FILE="$HOME/.fuerza-natural/backup-gpg.pass"
+npx tsx scripts/db/ensayo-de-migracion.ts \
+  --backup  "C:/Users/<usuario>/FuerzaNatural-Backups/fuerza-natural-<fecha>.sql.gpg" \
+  --conteos "C:/Users/<usuario>/FuerzaNatural-Backups/fuerza-natural-<fecha>.conteos.json"
+#  [--migraciones <otra carpeta db/migrations>]   para ensayar una variante
+#  [--aceptar-perdida students.disciplina]        solo con la pérdida autorizada
+#  [--despues "<comando>"]                        con la copia viva (p. ej. recorrer la app)
+```
+
+Restaura el backup en un Postgres descartable, compara su esquema contra el
+repositorio migrado desde cero, corre `scripts/db/migrate.ts` (las 3
+capas, con `fn_owner`, igual que `db:prod:migrate`) y compara fila por fila
+y columna por columna: una columna que se va con datos hace fallar el
+ensayo salvo `--aceptar-perdida`. Prueba los CHECK nuevos y el aislamiento
+con `fn_app`, y borra todo al terminar. No imprime datos personales.
+
+Resultado con el backup del 2026-11-02 (18–25 s cada uno): en las tres
+variantes, todas las tablas quedan con las mismas filas y los mismos
+valores, 12/12 tablas con RLS, misma huella de seguridad, columnas nuevas
+con permisos para `fn_app`/`fn_readonly`, CHECK nuevos rechazando valores
+inválidos y la migración idempotente. Lo que cambia es solo `disciplina`:
+
+| Variante | 0010 | Resultado |
+|---|---|---|
+| A | copia a `notas`, con FORCE RLS apagado en la transacción y un control que aborta si falta alguno | 10 notas con "Disciplina al darse de alta: Musculación."; columna borrada |
+| A "obvia" | `UPDATE` sin tener en cuenta FORCE RLS | **0 filas actualizadas, 10 valores perdidos, sin ningún error.** No usar |
+| B | `COMMENT ON COLUMN` (no borra) | `disciplina` intacta (10 valores), también después de editar alumnos desde la app |
+| C | la del repo | 10 valores perdidos (solo quedan en backups) |
+
+Con la variante B se recorrió además la app entera sobre la copia migrada
+(`next dev` con sesión de desarrollo, datos reales, sin capturas): 21
+rutas sin errores de consola ni de red y sin scroll horizontal de 375 a
+1440; N.º 1→201 en octubre (5 anulados sin número) y 1→12 en noviembre;
+un cobro de 2 meses a un alumno real; el aviso del mismo día; alta con
+situación laboral y edición de 5 alumnos reales sin que cambie ninguna otra
+columna. La variante elegida, B, es la que quedó en el repositorio.
+
+### Antes de correr `db:prod:migrate`
+
+**El comando aplica la carpeta local, sin preguntar.** `db:prod:migrate`
+corre `migrate.ts` sobre `db/migrations` tal como está en el disco
+(commiteado o no), y no muestra qué va a aplicar ni pide confirmación. La
+0010 original (`DROP COLUMN "disciplina"`) sigue en `8426c35` y en
+cualquier copia que no tenga el cambio a B: un `git checkout -- db/`, un
+`git stash`, un clon nuevo o la máquina del otro autor la traen de vuelta,
+y correr el comando ahí borra los 10 valores en menos de un segundo, sin
+ningún error. Inmediatamente antes de migrar:
+
+```bash
+git status --short -- db/migrations        # vacío: se migra lo commiteado
+git log -1 --format='%h %s' -- db/migrations/0010_deep_husk.sql   # el commit de la B
+grep -c -i "drop" db/migrations/0010_deep_husk.sql                 # tiene que dar 0
+npx drizzle-kit check                      # "Everything's fine" (no se conecta a ninguna base)
+```
+
+y leer enteras las migraciones pendientes (hoy, la 0010 y la 0011).
+
+**Procedencia de lo pendiente:**
+
+| Migración | De dónde sale | Qué hace |
+|---|---|---|
+| `0010_deep_husk` | drizzle-kit, en `17ba310` (otro autor, 2026-10-21), al sacar `disciplina` del alta. Reemplazada el 2026-11-03 por la variante B ensayada, con la autorización de Diego | `COMMENT ON COLUMN` sobre `disciplina`: no cambia datos ni estructura |
+| `0011_situacion_laboral` | drizzle-kit, 2026-11-01 (entrega 2) | 2 columnas que aceptan vacío y 2 CHECK |
+
+**Revisión de cualquier migración nueva** (propia o del otro autor) antes
+de llevarla a producción:
+
+- Leer el SQL entero. `DROP`, `UPDATE`, `DELETE`, `TRUNCATE` o
+  `ALTER … TYPE` piden backup, simulacro y ensayo; si algo se va con
+  datos, autorización escrita y `--aceptar-perdida` en el ensayo.
+- Un `UPDATE` o `DELETE` sobre una tabla con FORCE RLS, hecho desde una
+  migración (sin `app.gym_id`), no toca ninguna fila y no da error: es la
+  variante A "obvia" del ensayo.
+- drizzle compara solo contra la **última** migración aplicada: aplica, en
+  una transacción, todas las del journal con `when` posterior, y una con
+  `when` anterior no corre nunca. Por eso **no se saca una migración del
+  journal para postergarla**: una vez aplicada la siguiente, no vuelve a
+  correr. Postergar es reemplazar su contenido (como la B), y lo que se
+  decida después va en una migración nueva.
+- Después de cada `git pull`: `git diff --stat HEAD@{1} -- db/migrations`.
+  Si el otro autor trajo una migración, pasa por esta misma revisión; si
+  su cadena no sigue a la 0011 (`npx drizzle-kit check` marca dos
+  migraciones que salen de la misma), frenar y rearmarla antes de migrar.
+
+### La diferencia de esquema que deja la opción B
+
+- **En producción** (y en toda base migrada desde cero con esta 0010, como
+  la de `test:aislado`), `students.disciplina` sigue: `text` que acepta
+  vacío, con `students_disciplina_check` y el comentario; en producción,
+  con los 10 valores.
+- **En el esquema de Drizzle** (`src/data/schema/students.ts`) y en los
+  snapshots `0010` y `0011` no existe. Es a propósito: el código no la lee
+  ni la escribe (drizzle pide columnas explícitas) y los alumnos nuevos
+  quedan con NULL. **No volver a agregarla al esquema:** `drizzle-kit
+  generate` produciría un `ADD COLUMN` que en producción falla porque la
+  columna ya está, y la transacción se lleva la migración entera.
+- **En las bases donde ya corrió la 0010 original** (la de desarrollo en
+  5433, desde el 2026-10-21, y quizás la del otro autor) no está: drizzle
+  no vuelve a correr una migración ya registrada. Para el código da
+  igual; para igualarla con producción, recrear la base ("Recrear la base
+  desde cero", arriba).
+- **Borrarla o volver a usarla más adelante** es otra decisión y una
+  migración nueva escrita a mano (`npx drizzle-kit generate --custom
+  --name <nombre>`), con backup, simulacro y ensayo. `generate` desde el
+  esquema nunca la va a proponer: para drizzle ya no existe.
+- El ensayo compara contra el repositorio migrado desde cero, y con B los
+  dos tienen la columna: no marca diferencia.
+
+### `drizzle-kit push`, `migrate` y `studio`: nunca contra producción
+
+`drizzle.config.ts` toma `DATABASE_URL_OWNER` del entorno, sin la barrera
+de `migrate.ts`. Contra producción, `drizzle-kit push` compara el esquema
+con la base viva y propone borrar lo que el esquema no tiene: hoy,
+`disciplina` con sus 10 valores. Con `strict: true` pide confirmación,
+pero un "sí" lo borra sin backup. `drizzle-kit migrate` aplicaría la
+carpeta sin las capas `infra/`, y `studio` edita datos por fuera de la
+app. La única forma de migrar producción es `npm run db:prod:migrate`, y
+las credenciales de producción no se exportan en la terminal:
+`produccion.ts` las carga solo para el script que corre.
+
+### Procedimiento (opción B)
+
+Los pasos marcados **(autorización)** los decide Thiago, cada uno en su
+momento: la decisión de Diego habilita la B, no la ejecución.
+
+1. **Código.** `git fetch` y `git pull --ff-only`, con la revisión de
+   migraciones ajenas de arriba. La 0010 ya es la variante B; el journal y
+   los snapshots no cambian (drizzle no vuelve a leer el hash de una
+   migración ya aplicada, así que en las bases de desarrollo donde la 0010
+   original ya corrió no pasa nada). `npx next typegen`, `npm run verify` y
+   `npm run test:e2e`. **(autorización)** Commit local, **sin push**: lo
+   que se migra tiene que ser lo commiteado.
+2. **(autorización) Backup** (solo lectura sobre producción):
+   ```bash
+   GPG_PASSPHRASE_FILE="$HOME/.fuerza-natural/backup-gpg.pass" \
+     npx tsx scripts/db/produccion.ts scripts/db/backup.ts \
+     --salida "C:/Users/Thiago/FuerzaNatural-Backups" --gym <gym_id completo>
+   ```
+   Tiene que dejar `….sql.gpg` (más de 300 KB con la base actual) y
+   `….conteos.json`, y los conteos impresos tienen que coincidir con lo
+   esperado (482 alumnos y 1521 pagos al 2026-11-02, más lo cargado
+   después).
+3. **Simulacro de restauración** de ese backup
+   (`scripts/db/simulacro-restauracion.ts`): tiene que decir `SIMULACRO OK`.
+4. **Ensayo de migración** con ese mismo backup y la carpeta
+   `db/migrations` del paso 1: tiene que decir `ENSAYO OK` **sin**
+   `--aceptar-perdida` (con B no se va ningún dato) y con `disciplina`
+   intacta. Conviene sumar `--despues` para recorrer la app sobre la copia:
+   el recorrido del 2026-11-02 fue con Next.js 16.3.8.
+5. **(autorización) Migrar:** los controles de "Antes de correr
+   `db:prod:migrate`" y `npm run db:prod:migrate`. Tarda menos de un
+   segundo (en el ensayo, ~0,5 s); las dos migraciones entran o fallan
+   juntas.
+6. **Verificar** (solo lectura): 12 migraciones aplicadas;
+   `situacion_laboral` y `situacion_laboral_detalle` presentes;
+   `disciplina` con sus 10 valores y el comentario; `npm run
+   db:prod:conciliar -- --mes <mes actual>` sin hallazgos de integridad;
+   `/api/salud` en ok. El
+   código publicado (`8426c35`) sigue funcionando con la base migrada: no
+   usa `disciplina` desde `17ba310` y nunca lee columnas que no conoce
+   (drizzle pide columnas explícitas). Es lo mismo que pasa hoy con
+   `disciplina`, que existe en la base y el código ignora.
+7. **(autorización) Publicar** el código nuevo (push a `main`), nunca
+   antes del paso 5: el código nuevo lee `situacion_laboral`, y cada push
+   se publica solo. Comprobar que `/api/salud` muestre el commit nuevo.
+8. **Anotar** backup, simulacro, ensayo y migración en el historial.
+
+**Volver atrás:** la app, promoviendo `dpl_4wQ9Q9bk7qKCzEYQuMQQM3M81zP7`
+(`8426c35`, el deploy actual desde la actualización de seguridad), que
+funciona con la base migrada. **No** volver a `dpl_3TeaZ…` (`b49b712`):
+es anterior al arreglo de seguridad. La base
+no hace falta revertirla (la 0011 solo agrega columnas que aceptan vacío,
+y con B no se borra ni se modifica ningún dato).
+
+### Actualización de seguridad (publicada el 2026-11-02)
+
+**Publicada:** commit `8426c35` → `dpl_4wQ9Q9bk7qKCzEYQuMQQM3M81zP7`, sin
+migraciones (producción sigue en la 0009). Ver el historial.
+
+`npm audit` (2026-11-02) marcaba en `next` 16.3.8, la versión publicada entonces, un
+DoS sin autenticación en Server Actions (GHSA-p3m5-59mp-jv5r, la app las
+usa en todas las pantallas, sin workaround) y dos RCE (GHSA-2464-fhr4-w9xw,
+optimización de imágenes con SVG vía `sharp` < 0.35.5; GHSA-673q-mjm6-r5xr,
+`use cache`, que la app no usa). Corregido en 16.4.1. También `zod` <
+4.6.6 (GHSA-mrhx-c7xc-m3w5). Lo demás que marca entra por el CLI `shadcn`
+(herramienta de desarrollo, no llega al bundle).
+
+```bash
+npm install --save-exact next@16.4.3
+npm install zod@^4.6.6
+npm install -D --save-exact eslint-config-next@16.4.3
+npx next typegen   # en un clon nuevo, `verify` lo necesita antes de tsc
+npm run verify
+```
+
+Probado el 2026-11-02 en un worktree de `b49b712` (lo publicado entonces): verify
+completo (445/445) y build OK; los e2e que fallan son los mismos que
+fallan sin la actualización (tests viejos). Y con los cambios del
+2026-11-01 encima: 491/491, build y e2e de pagos 10/10. No toca la base:
+se publicó antes que la migración. Volver atrás de esa entrega (solo si
+fallara): promover `dpl_3TeaZLyGuh75fTYiZ8DsBDPiYLQK`, que vuelve a dejar
+expuesto el DoS.
+
 ---
 
 ## Historial de simulacros y procedimientos ejecutados
@@ -645,5 +948,14 @@ activos de hoy. No se tocó ningún dato ni se forzó que coincidan.
 | 2026-10-22 | Backup + simulacro antes de cambiar datos (`…2026-10-22T15-41-24`) | ✓ 12/12 tablas, conteo y contenido, 6 s |
 | 2026-10-22 | Push `4c565d9` + `08c2720` → `dpl_GgPC93DFtqYcS74rEmpqtpKHpexu`. Volver atrás: `dpl_54aQTL9K3bxQENcTno7JV1RihYHK` (`ce61b2a`), compatible con la base porque no hubo migración | ✓ `/api/salud` ok con `08c2720` |
 | 2026-10-22 | Desde Configuración, con la cuenta del dueño y a su pedido (lo hizo NEXA): plan LIBRE desactivado; motivos "Viaje" y "Enfermedad" agregados antes de "Otro" | ✓ 3 entradas en Actividad; alta y cobro ofrecen solo 2/3/4/5 días; los 8 motivos anteriores siguen. La verificación no registró ningún pago ni ninguna baja |
+| 2026-11-01 | Diagnóstico "197 activos / 198 pagos", de solo lectura (`conciliar-pagos.ts` + reconstrucción temporal) | ✓ 198 pagos de 197 personas entre el 27 y el 28/10: el alumno con dos pagos legítimos del 10/10. Integridad sin hallazgos. Ningún dato tocado |
+| 2026-11-01 | Estado de migraciones en producción, de solo lectura | Aplicadas 0000–0009. La 0010 (borra `disciplina`, 10 alumnos con dato) y la nueva 0011 (situación laboral) NO aplicadas: van juntas, decidir la 0010 antes |
+| 2026-11-02 | Auditoría de solo lectura para la 0010/0011 (transacciones READ ONLY; un intento de escritura de control fue rechazado) | 0000–0009 aplicadas con el hash del repo; `disciplina`: 10 alumnos, todos `MUSCULACION`, activos, altas manuales del 10 al 20/10, sin rastro en Actividad y sin dependencias en la base. Ningún dato tocado |
+| 2026-11-02 | Backup + simulacro (`…2026-11-02T02-34-56`) | ✓ 12/12 tablas, conteo y contenido, 7 s |
+| 2026-11-02 | Ensayo de la 0010 + 0011 sobre la copia (`ensayo-de-migracion.ts`), variantes A, A "obvia", B y C, y recorrido de la app con B | ✓ Ver "Migración 0010 + 0011". La A "obvia" pierde los 10 valores en silencio por FORCE RLS. Producción no se tocó |
+| 2026-11-02 | `next` 16.4.3 + `zod` 4.6.7 en un worktree de `b49b712`, y con los cambios del 2026-11-01 encima | ✓ verify (445/445 y 491/491) y build; e2e de pagos 10/10 con los cambios. Sin publicar |
+| 2026-11-02 | Entrega 1 (seguridad), con autorización de Thiago: worktree desde `origin/main` (`b49b712`, sin cambios de terceros), los mismos e2e antes y después, app recorrida contra una copia de producción SIN migrar (esquema y journal idénticos después) → commit `8426c35` (solo `package.json`, `package-lock.json`, `AGENTS.md`) → push → `dpl_4wQ9Q9bk7qKCzEYQuMQQM3M81zP7` | ✓ Build en Vercel con Next.js 16.4.3, sin errores. `/api/salud` ok con `8426c35`; `/login` y `/recuperar` sin errores de consola (escritorio y celular); 9 rutas privadas 307 a `/login`; headers de seguridad completos; 40 registros de runtime sin 4xx/5xx; producción sigue en la 0009 (lectura). Volver atrás: `dpl_3TeaZLyGuh75fTYiZ8DsBDPiYLQK` |
+| 2026-11-02 | `8426c35` traído al árbol local de la entrega 2 (respaldo, stash, `pull --ff-only`, pop, `npm ci`) | ✓ Sin conflictos; los 41 cambios intactos; verify 491/491 y build con Next.js 16.4.3; e2e de pagos 5/5 (alumnos: los 3 tests viejos de siempre) |
+| 2026-11-03 | Opción B de la 0010, con la autorización de Diego: `0010_deep_husk.sql` pasa a ser el `COMMENT ON COLUMN` ensayado (journal y snapshots sin tocar); 3 e2e de alumnos actualizados a la interfaz actual y 1 nuevo (teléfono sin prefijo → +549). Todo local: sin migrar (ni siquiera bases descartables), sin commit ni push | ✓ typecheck, lint y build (Next.js 16.4.3); vitest 408/408 sin base (los 83 de integración no corrieron: necesitan migrar una base); e2e 9/9 (5 de pagos, 4 de alumnos); los 41 cambios anteriores intactos |
 | — | Recuperación de contraseña de punta a punta en producción | Pendiente — requiere configurar URLs y SMTP en Supabase Auth |
 | — | Prueba del dueño (revisión de datos) | Pendiente — presencial con Diego |

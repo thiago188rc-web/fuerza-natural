@@ -1,0 +1,4 @@
+ALTER TABLE "app"."students" ADD COLUMN "situacion_laboral" text;--> statement-breakpoint
+ALTER TABLE "app"."students" ADD COLUMN "situacion_laboral_detalle" text;--> statement-breakpoint
+ALTER TABLE "app"."students" ADD CONSTRAINT "students_situacion_laboral_check" CHECK ("app"."students"."situacion_laboral" is null or "app"."students"."situacion_laboral" in ('SECTOR_PRIVADO','SECTOR_PUBLICO','JUBILADO','ESTUDIANTE','OTRO'));--> statement-breakpoint
+ALTER TABLE "app"."students" ADD CONSTRAINT "students_situacion_laboral_detalle_len_check" CHECK ("app"."students"."situacion_laboral_detalle" is null or length("app"."students"."situacion_laboral_detalle") between 1 and 120);

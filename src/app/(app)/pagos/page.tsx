@@ -99,7 +99,9 @@ export default async function PagosPage({
 
           {/* PERSONAS, no pagos. Quien paga dos meses juntos suma dos pagos
               y una persona: por eso este número y el de arriba pueden no
-              coincidir, y por eso se muestran los dos. */}
+              coincidir, y por eso se muestran los dos. Las líneas de abajo
+              de cada número cierran la cuenta contra "Activos hoy" sin
+              tener que preguntar (docs/RUNBOOK.md, "Panel vs. Pagos"). */}
           <div>
             <dt className="t-rotulo">Alumnos que pagaron</dt>
             <dd className="t-cifra mt-2 text-[2rem]">
@@ -112,6 +114,13 @@ export default async function PagosPage({
                   : `${datos.alumnosConMasDeUnPago} pagaron más de una vez`}
               </dd>
             ) : null}
+            {datos.pagaronYHoyNoEstanActivos > 0 ? (
+              <dd className="mt-0.5 text-xs text-muted-foreground">
+                {datos.pagaronYHoyNoEstanActivos === 1
+                  ? "1 hoy no está activo"
+                  : `${datos.pagaronYHoyNoEstanActivos} hoy no están activos`}
+              </dd>
+            ) : null}
           </div>
 
           {/* El padrón de hoy, haya pagado alguien o no. */}
@@ -120,6 +129,13 @@ export default async function PagosPage({
             <dd className="t-cifra mt-2 text-[2rem] text-muted-foreground">
               <NumeroAnimado valor={datos.activos} />
             </dd>
+            {datos.activosSinPagoEnElRango > 0 ? (
+              <dd className="mt-1 text-xs text-muted-foreground">
+                {datos.activosSinPagoEnElRango === 1
+                  ? "1 sin pago cobrado en el mes"
+                  : `${datos.activosSinPagoEnElRango} sin pago cobrado en el mes`}
+              </dd>
+            ) : null}
           </div>
 
           <ResumenDeAnulados anulados={datos.anulados} moneda={datos.moneda} hoy={datos.hoy} />

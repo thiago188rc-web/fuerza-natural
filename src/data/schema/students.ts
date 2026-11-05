@@ -54,6 +54,12 @@ export const students = appSchema.table(
     // no un solo valor: "RECOMENDACIÓN/VIVE CERCA" son dos datos. NULL =
     // sin dato; nunca un array vacío (el CHECK lo impide).
     comoConocio: text("como_conocio").array(),
+    // "¿Dónde trabaja o cuál es su situación actual?" (domain/alumnos/
+    // situacion-laboral.ts): una categoría de catálogo cerrado para poder
+    // contarla, y un detalle libre ("Registro Civil", "Comercio"). Las dos
+    // opcionales e independientes; NULL = sin dato, nunca se infiere.
+    situacionLaboral: text("situacion_laboral"),
+    situacionLaboralDetalle: text("situacion_laboral_detalle"),
 
     // El único estado persistido. Ninguna transición ocurre automáticamente
     // — cambia solo por una acción humana explícita (alta/pausa/baja/reactivación).
@@ -108,6 +114,14 @@ export const students = appSchema.table(
     check(
       "students_como_conocio_check",
       sql`${t.comoConocio} is null or (cardinality(${t.comoConocio}) between 1 and 5 and ${t.comoConocio} <@ array['RECOMENDACION','VIVE_CERCA','REDES_SOCIALES','YA_VENIA','OTRO']::text[])`,
+    ),
+    check(
+      "students_situacion_laboral_check",
+      sql`${t.situacionLaboral} is null or ${t.situacionLaboral} in ('SECTOR_PRIVADO','SECTOR_PUBLICO','JUBILADO','ESTUDIANTE','OTRO')`,
+    ),
+    check(
+      "students_situacion_laboral_detalle_len_check",
+      sql`${t.situacionLaboralDetalle} is null or length(${t.situacionLaboralDetalle}) between 1 and 120`,
     ),
 
     // Reglas de integridad exigidas por SPEC V1 §4.5 — se verifican en la

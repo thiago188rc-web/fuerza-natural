@@ -34,6 +34,8 @@ const ETIQUETAS_DE_CAMPO: Record<string, string> = {
   documento: "DNI",
   direccion: "Dirección",
   comoConocio: "Cómo conoció el gimnasio",
+  situacionLaboral: "Situación laboral",
+  situacionLaboralDetalle: "Dónde trabaja o estudia",
 };
 
 /** Dos valores de un campo son iguales si dicen lo mismo (las listas, por contenido). */
@@ -113,6 +115,8 @@ export const editarAlumnoAction = withAuth<EditarAlumnoRaw, AlumnoEditado>(
         documento: input.documento ?? null,
         direccion: input.direccion ?? null,
         comoConocio: input.comoConocio ?? null,
+        situacionLaboral: input.situacionLaboral ?? null,
+        situacionLaboralDetalle: input.situacionLaboralDetalle ?? null,
       };
 
       const cambios: Record<string, CambioCampo> = {};

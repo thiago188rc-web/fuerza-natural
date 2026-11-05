@@ -117,6 +117,8 @@ export interface ContextoDeCobro {
     apellido: string;
     telefono: string | null;
     vinculo: string;
+    /** No se ofrecen períodos que terminaron antes de que empezara. */
+    fechaAltaOriginal: string;
     planId: string;
     planNombre: string;
     planDiasSemana: number;
@@ -131,12 +133,12 @@ export interface ContextoDeCobro {
   cubiertoHasta: string | null;
   tramos: TramoCubierto[];
   /**
-   * Desde cuándo corre la cobertura: el día después del último cubierto,
-   * o la fecha de alta si todavía no pagó nunca. Ya no es editable desde
-   * el formulario de cobro — el dueño pidió que la única fecha que se
-   * carga a mano sea la del pago.
+   * El ANCLA del ciclo: el día después del último cubierto, o la fecha de
+   * alta si todavía no pagó nunca. De acá salen los períodos que ofrece el
+   * cobro (`periodosParaCobrar`), todos con el mismo día de arranque; cuál
+   * se paga lo elige el dueño, sin depender de la fecha de cobro.
    */
-  sugerenciaDesde: string;
+  anclaDelCiclo: string;
   /** Los planes activos con su precio, para los atajos de importe al cobrar. */
   planesActivos: { id: string; nombre: string; precio: number | null }[];
 }
@@ -181,7 +183,7 @@ export const contextoDeCobroQuery = withAuth<string, ContextoDeCobro>(
       // todos (sin cobertura previa) ancla al día real de alta — "se
       // identifica desde el primer día que ingresó la persona" — y no al
       // día en que se hace ese primer pago, que puede ser más tarde.
-      const sugerenciaDesde = ultimoCubierto ? sumarDias(ultimoCubierto, 1) : alumno.fechaAltaOriginal;
+      const anclaDelCiclo = ultimoCubierto ? sumarDias(ultimoCubierto, 1) : alumno.fechaAltaOriginal;
 
       return ok({
         hoy,
@@ -192,6 +194,7 @@ export const contextoDeCobroQuery = withAuth<string, ContextoDeCobro>(
           apellido: alumno.apellido,
           telefono: alumno.telefono,
           vinculo: alumno.vinculo,
+          fechaAltaOriginal: alumno.fechaAltaOriginal,
           planId: alumno.planId,
           planNombre: alumno.planNombre,
           planDiasSemana: alumno.planDiasSemana,
@@ -203,7 +206,7 @@ export const contextoDeCobroQuery = withAuth<string, ContextoDeCobro>(
         detalle: situacion.detalle,
         cubiertoHasta: situacion.cubiertoHasta,
         tramos,
-        sugerenciaDesde,
+        anclaDelCiclo,
         planesActivos: planes.map((p) => ({
           id: p.id,
           nombre: p.nombre,
@@ -266,8 +269,20 @@ export interface HistorialDePagos {
   alumnosQuePagaron: number;
   /** Cuántas de esas personas tienen más de un pago vigente en el rango. */
   alumnosConMasDeUnPago: number;
+  /**
+   * Cuántas de esas personas HOY no están activas (se dieron de baja o se
+   * pausaron después de pagar). Cuentan en "Alumnos que pagaron" y no en
+   * "Activos hoy".
+   */
+  pagaronYHoyNoEstanActivos: number;
   /** Activos del padrón HOY: no depende de que alguien haya pagado. */
   activos: number;
+  /**
+   * Activos de hoy sin ningún pago vigente con fecha de cobro en el rango.
+   * Con los dos números de arriba, cierra la cuenta entre "Pagos
+   * registrados" y "Activos hoy" (docs/RUNBOOK.md, "Panel vs. Pagos").
+   */
+  activosSinPagoEnElRango: number;
   /** Lo anulado en el rango consultado — ya excluido de `cobradoEnElRango`. */
   anuladoEnElRango: { total: number; cantidad: number };
   /** El detalle de cada uno: quién, cuándo se cobró, cuándo y por quién se anuló. */
@@ -305,11 +320,15 @@ export const historialDePagosQuery = withAuth<Partial<FiltrosDePagos>, Historial
       // Pagos vigentes por persona. Sale del mismo listado que se muestra,
       // así que no puede contar distinto que la tabla.
       const pagosPorAlumno = new Map<string, number>();
+      const pagaronYNoActivos = new Set<string>();
       for (const f of listado.filas) {
         if (f.anuladoEn !== null) continue;
         pagosPorAlumno.set(f.studentId, (pagosPorAlumno.get(f.studentId) ?? 0) + 1);
+        if (f.vinculo !== "ACTIVO") pagaronYNoActivos.add(f.studentId);
       }
       const alumnosConMasDeUnPago = [...pagosPorAlumno.values()].filter((n) => n > 1).length;
+      const activos = conteo.ACTIVO ?? 0;
+      const activosQuePagaron = pagosPorAlumno.size - pagaronYNoActivos.size;
 
       return ok({
         hoy,
@@ -342,7 +361,9 @@ export const historialDePagosQuery = withAuth<Partial<FiltrosDePagos>, Historial
         cobradoEnElRango: cobrado,
         alumnosQuePagaron: pagosPorAlumno.size,
         alumnosConMasDeUnPago,
-        activos: conteo.ACTIVO ?? 0,
+        pagaronYHoyNoEstanActivos: pagaronYNoActivos.size,
+        activos,
+        activosSinPagoEnElRango: activos - activosQuePagaron,
         anuladoEnElRango: anulado,
         anulados: anulados.map((a) => ({
           id: a.id,

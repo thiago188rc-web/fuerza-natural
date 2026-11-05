@@ -3,6 +3,7 @@ import { normalizarTelefono, normalizarTexto, telefonoArgentino } from "@/domain
 import { CANALES, ordenarCanales } from "@/domain/alumnos/como-conocio";
 import { VINCULOS } from "@/domain/alumnos/vinculo";
 import { GENEROS } from "@/domain/alumnos/genero";
+import { LARGO_DETALLE_LABORAL, SITUACIONES_LABORALES } from "@/domain/alumnos/situacion-laboral";
 import { opcional } from "./_helpers";
 
 /**
@@ -89,6 +90,21 @@ const notas = z
   .transform(normalizarTexto)
   .pipe(z.string().max(1000, "Las observaciones no pueden superar los 1000 caracteres."));
 
+/** La categoría laboral, del catálogo cerrado. Vacía = sin dato. */
+const situacionLaboral = z
+  .string({ error: "Situación inválida." })
+  .pipe(z.enum(SITUACIONES_LABORALES, { error: "Situación inválida." }));
+
+/** El detalle libre: "Registro Civil", "Comercio", el nombre de la escuela. */
+const situacionLaboralDetalle = z
+  .string()
+  .transform(normalizarTexto)
+  .pipe(
+    z
+      .string()
+      .max(LARGO_DETALLE_LABORAL, `El detalle no puede superar los ${LARGO_DETALLE_LABORAL} caracteres.`),
+  );
+
 const planId = z.string().uuid("Elegí un plan.");
 const fechaCivil = z.string().date("Fecha inválida. Usá el formato AAAA-MM-DD.");
 const genero = z.string({ error: "Género inválido." }).pipe(z.enum(GENEROS, { error: "Género inválido." }));
@@ -108,6 +124,8 @@ export const crearAlumnoSchema = z.object({
   genero: opcional(genero),
   direccion: opcional(direccion),
   comoConocio: comoConocio.optional(),
+  situacionLaboral: opcional(situacionLaboral),
+  situacionLaboralDetalle: opcional(situacionLaboralDetalle),
 });
 
 /** Lo que sale de validar (normalizado). Lo consume el caso de uso. */
@@ -134,6 +152,8 @@ export const editarAlumnoSchema = z.object({
   documento: opcional(documento),
   direccion: opcional(direccion),
   comoConocio: comoConocio.optional(),
+  situacionLaboral: opcional(situacionLaboral),
+  situacionLaboralDetalle: opcional(situacionLaboralDetalle),
 });
 
 export type EditarAlumnoInput = z.infer<typeof editarAlumnoSchema>;

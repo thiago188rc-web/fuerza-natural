@@ -94,9 +94,10 @@ test.describe("módulo de pagos", () => {
     await page.goto(`/pagos/nuevo?alumno=${idAlumno}`);
     await expect(periodo).not.toHaveValue(mesCobrado);
 
-    // Volver al mes YA cubierto. La pantalla avisa antes de que apretemos
-    // nada: advierte, no corrige ni bloquea.
-    await page.getByRole("button", { name: "Mes anterior" }).click();
+    // Volver al mes YA cubierto, con "otra fecha de inicio". La pantalla
+    // avisa antes de que apretemos nada: advierte, no corrige ni bloquea.
+    await page.getByRole("button", { name: "Elegir otra fecha de inicio" }).click();
+    await page.getByLabel("Arranca el").fill(mesCobrado);
     await expect(periodo).toHaveValue(mesCobrado);
     await expect(page.getByText("Ya hay cobertura registrada en este período")).toBeVisible();
 
@@ -125,11 +126,13 @@ test.describe("módulo de pagos", () => {
     const idAlumno = ficha.split("/").pop();
 
     await page.goto(`/pagos/nuevo?alumno=${idAlumno}`);
+    const mesCobrado = await page.locator('input[name="cubreDesde"]').inputValue();
     await page.getByRole("button", { name: "Registrar pago" }).click();
     await expect(page.getByRole("heading", { name: "Pago registrado" })).toBeVisible();
 
     await page.goto(`/pagos/nuevo?alumno=${idAlumno}`);
-    await page.getByRole("button", { name: "Mes anterior" }).click();
+    await page.getByRole("button", { name: "Elegir otra fecha de inicio" }).click();
+    await page.getByLabel("Arranca el").fill(mesCobrado);
     await page.getByRole("button", { name: "Registrar pago" }).click();
 
     const dialogo = page.getByRole("dialog");
@@ -142,10 +145,10 @@ test.describe("módulo de pagos", () => {
     await expect(page.getByText("2 registros").first()).toBeVisible();
   });
 
-  test("un 1/2 mes cubre 15 días desde el día elegido y no cambia el plan", async ({
+  test("adelantar dos meses: período futuro elegido, un pago por mes, el plan no cambia", async ({
     page,
   }) => {
-    const apellido = `MedioMes${sufijo()}`;
+    const apellido = `Adelanto${sufijo()}`;
     await iniciarSesion(page);
 
     // El plan habitual se lee del alta, no se supone: es exactamente el que
@@ -166,19 +169,29 @@ test.describe("módulo de pagos", () => {
     const idAlumno = ficha.split("/").pop();
 
     await page.goto(`/pagos/nuevo?alumno=${idAlumno}`);
+    // Esperar a que el formulario se VEA: con streaming llega primero dentro
+    // de un <div hidden> y React lo muestra después. Las aserciones de
+    // atributo y de valor no esperan eso, y el check de abajo fallaba.
+    await expect(page.getByText("Período que paga", { exact: true })).toBeVisible();
 
-    await page.getByRole("radio", { name: /1\/2 mes/ }).check();
-    await expect(
-      page.getByText("15 días corridos desde el día que elijas. No cambia el plan habitual"),
-    ).toBeVisible();
+    // La fecha de cobro no acepta el futuro: para adelantar se elige el
+    // período, no se corre la fecha (docs/REGLAS-DE-NEGOCIO.md §5bis).
+    const fechaDeCobro = page.getByLabel("Fecha de cobro");
+    await expect(fechaDeCobro).toHaveAttribute("max", await fechaDeCobro.inputValue());
+
+    // El segundo período ofrecido es un adelanto; dos meses desde ahí.
+    await page.locator('input[name="periodo-del-pago"]').nth(1).check({ force: true });
+    await expect(page.getByText("Adelantado").first()).toBeVisible();
+    await page.getByRole("radio", { name: "2", exact: true }).check();
+    await expect(page.getByText(/× 2 meses/)).toBeVisible();
 
     await page.getByRole("button", { name: "Registrar pago" }).click();
     await expect(page.getByRole("heading", { name: "Pago registrado" })).toBeVisible();
-    await expect(page.getByText("1/2 mes")).toBeVisible();
+    await expect(page.getByText(/^2 × /)).toBeVisible();
 
-    // La regla que no se puede romper: el plan del alumno sigue siendo el
-    // mismo. Un 1/2 mes es una modalidad de cobro, no un plan.
+    // Dos pagos (uno por mes) y el plan del alumno sigue siendo el mismo.
     await page.goto(ficha);
+    await expect(page.getByText("2 registros").first()).toBeVisible();
     await expect(page.getByText(planHabitual, { exact: true }).first()).toBeVisible();
   });
 
@@ -192,5 +205,7 @@ test.describe("módulo de pagos", () => {
     // no solo cuándo se cobró.
     await expect(page.getByRole("columnheader", { name: "Cubre" })).toBeVisible();
     await expect(page.getByText("Total del mes")).toBeVisible();
+    // El N.º para contar: arranca en 1.
+    await expect(page.getByRole("columnheader", { name: /N\.º/ })).toBeVisible();
   });
 });

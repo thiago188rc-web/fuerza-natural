@@ -35,10 +35,38 @@ cubierto. Abajo, **los que hay que mirar**: quién se venció, quién empezó
 y todavía no pagó. Desde ahí podés cobrar o mandar un WhatsApp.
 
 **Cobrar una cuota.** **Registrar pago** (en el Panel, en Pagos o en la
-ficha del alumno). Elegís al alumno, el mes que cubre, el importe (sale
-solo con el precio del plan; lo podés cambiar) y cómo pagó. Si ese mes ya
-estaba pagado, el sistema te avisa antes de guardar. Después podés
-mandarle la confirmación por **WhatsApp** con un toque.
+ficha del alumno). Elegís al alumno y después:
+
+1. **Período que paga.** El sistema te propone uno y te muestra los de
+   al lado: **Atrasado**, **En curso** o **Adelantado**. Tocá el que
+   corresponda. Si paga varios meses juntos, elegí la **cantidad de
+   meses** (hasta 6): queda un pago por mes.
+2. **Días por semana** e **importe** (sale solo con el precio del plan; lo
+   podés cambiar). Con varios meses, el importe es por mes y abajo ves el
+   total.
+3. **Fecha de cobro:** el día que te dieron la plata, normalmente hoy.
+   **Para adelantar un mes no cambies esta fecha**: elegí el período en el
+   paso 1. No se puede poner una fecha futura.
+
+Ejemplo: el 28 de octubre alguien te paga noviembre → fecha de cobro
+28/10, período noviembre. Suma en lo cobrado de octubre y deja noviembre
+cubierto.
+
+Si ese período ya estaba pagado, o si a esa persona ya le cargaste otro
+pago con la misma fecha de cobro, el sistema te avisa antes de guardar.
+Si el ciclo de alguien quedó en un día que no corresponde, tocá **Elegir
+otra fecha de inicio**: los próximos cobros siguen desde esa fecha.
+Después podés mandarle la confirmación por **WhatsApp** con un toque.
+
+**El listado de Pagos** numera cada pago (**N.º**) del 1 al último del
+mes, en el orden en que lo estés viendo. El último número es igual a
+**Pagos registrados**. Los anulados se ven tachados y sin número.
+
+**¿Por qué "Pagos registrados" no da igual que "Activos hoy"?** Porque
+cuentan cosas distintas: pagos y personas. Debajo de cada número dice qué
+explica la diferencia: quién pagó más de una vez, quién pagó y hoy ya no
+está activo, y cuántos activos todavía no tienen un pago cobrado en el
+mes.
 
 **Asistencias.** En **Asistencias**, tocá **Marcar** al lado de cada
 persona que vino hoy. Si te equivocaste, tocalo de nuevo y se desmarca.
@@ -55,8 +83,13 @@ nacimiento, cómo conocieron el gimnasio).
   cargues de nuevo: se duplicaría.
 - **Alguien nuevo de verdad:** **Nuevo alumno**. Nombre, apellido y plan
   son obligatorios; lo demás, si lo tenés. El teléfono se escribe con
-  característica, por ejemplo 280 400 1234.
-- **Corregir datos:** en la ficha, **Editar**.
+  característica, por ejemplo 280 400 1234. En **¿Dónde trabaja o cuál es
+  su situación actual?** tocás una opción (sector privado, sector público,
+  jubilado/a, estudiante, otro) y, si querés, escribís el detalle: la
+  empresa, el comercio, el organismo o la escuela. Si no lo quiere decir,
+  dejalo vacío.
+- **Corregir datos:** en la ficha, **Editar** (también la situación
+  laboral, sin tener que cargar al alumno de nuevo).
 - **Se va:** en la ficha, **Dar de baja**, con el motivo si lo sabés. No se
   borra nada: queda en **Bajas** con su historia y lo podés reactivar
   cuando vuelva. **Pausar** es para una ausencia con fecha de vuelta

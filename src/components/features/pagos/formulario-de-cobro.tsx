@@ -7,7 +7,17 @@ import { Check, CircleAlert, Loader2, TriangleAlert } from "lucide-react";
 import { registrarPagoFormAction } from "@/app/(app)/pagos/actions";
 import { ESTADO_PAGO_INICIAL, type EstadoPago } from "@/app/(app)/pagos/estado-formulario";
 import type { ContextoDeCobro } from "@/use-cases/pagos/consultas";
-import { coberturaDe, ETIQUETA_MODALIDAD, type Modalidad } from "@/domain/pagos/modalidad";
+import { ETIQUETA_MODALIDAD, type Modalidad } from "@/domain/pagos/modalidad";
+import {
+  ETIQUETA_UBICACION,
+  MAXIMO_MESES_POR_COBRO,
+  MESES_DE_MARGEN,
+  mesesEncadenados,
+  periodosParaCobrar,
+  ubicacionDelPeriodo,
+  type UbicacionDelPeriodo,
+} from "@/domain/pagos/periodos";
+import { etiquetaCorta, sumarMeses } from "@/domain/fechas/calendario";
 import { Segmentado } from "@/components/segmentado";
 import { VistaPreviaDeCobertura } from "./vista-previa-de-cobertura";
 import { Senal, TEXTO_DE_ESTADO } from "@/components/features/cobertura/senal";
@@ -44,6 +54,10 @@ import { cn } from "@/lib/utils";
  *   3. Si un precio no está confirmado, el campo queda vacío y se explica
  *      por qué. Inventar un número acá sería inventar una regla de negocio
  *      (docs/REGLAS-DE-NEGOCIO.md §1, §2).
+ *   4. Qué período se paga y cuándo se cobró son dos preguntas distintas,
+ *      en dos bloques distintos (§5bis). El período se elige —atrasado, el
+ *      que corre o adelantado, uno o varios meses—; la fecha de cobro es
+ *      cuándo entró la plata y nunca es futura.
  */
 export function FormularioDeCobro({
   contexto,
@@ -66,10 +80,25 @@ export function FormularioDeCobro({
   // pidió sacar "1/2 mes" del formulario. El dominio y los pagos viejos con
   // MEDIO_MES siguen intactos; esto solo achica lo que se puede elegir acá.
   const modalidad: Modalidad = "MES_COMPLETO";
-  // Desde cuándo corre la cobertura: ya no se edita a mano. El dueño pidió
-  // que la única fecha que se carga en el cobro sea la del pago en sí.
-  const cubreDesde = contexto.sugerenciaDesde;
   const [fechaPago, setFechaPago] = useState(contexto.hoy);
+
+  // QUÉ PERÍODO SE PAGA. Se propone el que contiene la fecha de cobro (o,
+  // si ese día ya estaba cubierto, el siguiente: un adelanto), y el dueño
+  // elige otro con un toque. "Otra fecha" es para arrancar un ciclo en un
+  // día que no está en la lista — los cobros siguientes siguen desde ahí.
+  const opciones = periodosParaCobrar({
+    ancla: contexto.anclaDelCiclo,
+    // Un `<input type="date">` borrado da "": la propuesta sigue con hoy
+    // (el servidor rechaza igual una fecha de cobro vacía).
+    fechaDeCobro: fechaPago || contexto.hoy,
+    hoy: contexto.hoy,
+    cubiertos: contexto.tramos,
+    noAntesDe: contexto.alumno.fechaAltaOriginal,
+  });
+  const [periodoElegido, setPeriodoElegido] = useState<string | null>(null);
+  const [otraFecha, setOtraFecha] = useState<string | null>(null);
+  const [meses, setMeses] = useState(1);
+  const cubreDesde = otraFecha || periodoElegido || opciones.sugerido;
   const [montoManual, setMontoManual] = useState<string | null>(null);
   // La forma de pago ya no se pregunta (pedido del dueño): no se manda, y
   // el servidor guarda "sin dato" en vez de suponer una.
@@ -86,7 +115,12 @@ export function FormularioDeCobro({
   const planElegido = planes.find((p) => p.id === planId) ?? null;
   const difiereDelHabitual = planElegido !== null && planElegido.id !== contexto.alumno.planId;
 
-  const cobertura = coberturaDe(modalidad, cubreDesde);
+  const mesesCubiertos = mesesEncadenados(cubreDesde, meses);
+  const cobertura = {
+    desde: mesesCubiertos[0]!.desde,
+    hasta: mesesCubiertos[mesesCubiertos.length - 1]!.hasta,
+  };
+  const ubicacion = ubicacionDelPeriodo(mesesCubiertos[0]!, contexto.hoy);
   const precioConfigurado = planElegido?.precio ?? null;
 
   // El importe se DERIVA del precio del plan elegido hasta que el usuario
@@ -96,6 +130,7 @@ export function FormularioDeCobro({
   // de plan.
   const monto = montoManual ?? (precioConfigurado === null ? "" : String(precioConfigurado));
   const montoNumero = Number(monto);
+  const totalNumero = montoNumero * meses;
   const difiereDelPrecio =
     precioConfigurado !== null && monto !== "" && Number.isFinite(montoNumero)
       ? Math.abs(montoNumero - precioConfigurado) > 0.5
@@ -125,6 +160,7 @@ export function FormularioDeCobro({
       <input type="hidden" name="fechaPago" value={fechaPago} />
       <input type="hidden" name="modalidad" value={modalidad} />
       <input type="hidden" name="cubreDesde" value={cubreDesde} />
+      <input type="hidden" name="meses" value={meses} />
       <input type="hidden" name="planId" value={planId} />
       <input type="hidden" name="idempotencyKey" value={claveIdempotencia} />
       <input
@@ -134,13 +170,119 @@ export function FormularioDeCobro({
       />
 
       <div className="superficie divide-y divide-border">
+        {/* QUÉ PERÍODO PAGA — la pregunta principal del cobro. */}
+        <fieldset className="px-5 py-5">
+          <legend className="t-rotulo">Período que paga</legend>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Un mes corrido desde su día de arranque. Elegí uno atrasado, el que corre o uno
+            adelantado.
+          </p>
+
+          {otraFecha === null ? (
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {opciones.periodos.map((p) => {
+                const elegido = p.desde === cubreDesde;
+                return (
+                  <label
+                    key={p.desde}
+                    className={cn(
+                      "flex cursor-pointer flex-col gap-0.5 rounded-lg border border-border px-3 py-2 transition-colors duration-150 hover:bg-muted/60",
+                      "has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-verde",
+                      elegido && "border-verde bg-verde-suave hover:bg-verde-suave dark:bg-verde/15",
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="periodo-del-pago"
+                      value={p.desde}
+                      checked={elegido}
+                      onChange={() => setPeriodoElegido(p.desde)}
+                      className="sr-only"
+                    />
+                    {/* Sin año en la línea de fechas (no entra en dos columnas
+                        a 375px); el año va abajo cuando no es el actual. */}
+                    <span className="tabular font-mono text-[0.8125rem] font-medium whitespace-nowrap">
+                      {etiquetaCorta(p.desde, p.desde)} → {etiquetaCorta(p.hasta, p.hasta)}
+                    </span>
+                    <span className={cn("text-[0.7rem]", TONO_UBICACION[p.ubicacion])}>
+                      {ETIQUETA_UBICACION[p.ubicacion]}
+                      {p.desde.slice(0, 4) !== contexto.hoy.slice(0, 4) ? ` · ${p.desde.slice(0, 4)}` : ""}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="mt-3 max-w-[14rem]">
+              <Label htmlFor="otra-fecha" className="text-xs text-muted-foreground">
+                Arranca el
+              </Label>
+              <Input
+                id="otra-fecha"
+                type="date"
+                // Los mismos límites que valida el servidor.
+                min={sumarMeses(contexto.hoy, -MESES_DE_MARGEN)}
+                max={sumarMeses(contexto.hoy, MESES_DE_MARGEN)}
+                value={otraFecha}
+                onChange={(e) => setOtraFecha(e.target.value)}
+                className="tabular mt-1.5"
+                aria-invalid={Boolean(estado.errores?.cubreDesde)}
+              />
+            </div>
+          )}
+
+          {estado.errores?.cubreDesde ? (
+            <p className="mt-1.5 text-xs text-destructive">{estado.errores.cubreDesde}</p>
+          ) : otraFecha !== null ? (
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              Los próximos cobros van a seguir el ciclo desde esta fecha.
+            </p>
+          ) : opciones.sinPagarDesde && cubreDesde > opciones.sinPagarDesde ? (
+            <p className="mt-2 text-xs text-revisar">
+              Tiene sin pagar desde el {fechaCompleta(opciones.sinPagarDesde)}. Si está pagando lo
+              atrasado, elegí ese período.
+            </p>
+          ) : null}
+
+          <button
+            type="button"
+            onClick={() => {
+              if (otraFecha === null) {
+                setOtraFecha(cubreDesde);
+              } else {
+                setOtraFecha(null);
+                setPeriodoElegido(null);
+              }
+            }}
+            className="mt-2 rounded-sm text-xs text-muted-foreground underline underline-offset-2 transition-colors duration-150 hover:text-foreground focus-visible:ring-2 focus-visible:ring-verde focus-visible:outline-none"
+          >
+            {otraFecha === null ? "Elegir otra fecha de inicio" : "Volver a los períodos sugeridos"}
+          </button>
+
+          <p className="t-rotulo mt-5">Cantidad de meses</p>
+          <Segmentado
+            className="mt-2"
+            size="compacto"
+            nombre="meses-del-pago"
+            valor={String(meses)}
+            onCambio={(valor) => setMeses(Number(valor))}
+            opciones={Array.from({ length: MAXIMO_MESES_POR_COBRO }, (_, i) => ({
+              valor: String(i + 1),
+              etiqueta: String(i + 1),
+            }))}
+          />
+          {estado.errores?.meses ? (
+            <p className="mt-1.5 text-xs text-destructive">{estado.errores.meses}</p>
+          ) : meses > 1 ? (
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              Queda un pago por mes, cada uno con su período: se pueden anular por separado.
+            </p>
+          ) : null}
+        </fieldset>
+
         {/* CUÁNTOS DÍAS Y CUÁNTO */}
         <fieldset className="px-5 py-5">
           <legend className="t-rotulo">Días por semana</legend>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Cubre un mes desde el {fechaCompleta(cobertura.desde)}, hasta el{" "}
-            {fechaCompleta(cobertura.hasta)}.
-          </p>
 
           <Segmentado
             className="mt-3"
@@ -172,7 +314,7 @@ export function FormularioDeCobro({
             </p>
           ) : null}
 
-          <p className="t-rotulo mt-5">Importe</p>
+          <p className="t-rotulo mt-5">{meses > 1 ? "Importe por mes" : "Importe"}</p>
           <div className="mt-2 grid gap-4 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)]">
             <div>
               <Label htmlFor="monto" className="sr-only">
@@ -230,26 +372,29 @@ export function FormularioDeCobro({
           </div>
         </fieldset>
 
-        {/* CUÁNDO */}
+        {/* CUÁNDO ENTRÓ LA PLATA — no es el período que se paga. */}
         <fieldset className="px-5 py-5">
-          <legend className="t-rotulo">
-            Fecha del pago
-          </legend>
+          <legend className="t-rotulo">Fecha de cobro</legend>
 
           <div className="mt-3">
             <Input
               id="fecha-pago"
               type="date"
-              aria-label="Fecha del pago"
+              aria-label="Fecha de cobro"
               max={contexto.hoy}
               value={fechaPago}
-              onChange={(e) => setFechaPago(e.target.value)}
+              onChange={(e) => {
+                setFechaPago(e.target.value);
+                // La propuesta sigue a la fecha de cobro; lo elegido a mano
+                // en "otra fecha" se respeta.
+                setPeriodoElegido(null);
+              }}
               className="tabular"
               aria-invalid={Boolean(estado.errores?.fechaPago)}
             />
             <p className="mt-1.5 text-xs text-muted-foreground">
-              Cuándo se cobró de verdad. Cargá un pago atrasado con su fecha real, no con la de
-              hoy.
+              El día que entró la plata, no el período que paga: para adelantar un mes no cambies
+              esta fecha, elegí el período arriba. No puede ser posterior a hoy.
             </p>
             {estado.errores?.fechaPago ? (
               <p className="mt-1.5 text-xs text-destructive">{estado.errores.fechaPago}</p>
@@ -302,8 +447,12 @@ export function FormularioDeCobro({
         </div>
 
         <div className="px-5 py-4">
-          <p className="t-rotulo">
-            Va a cubrir
+          <p className="flex items-baseline justify-between gap-3">
+            <span className="t-rotulo">Va a cubrir</span>
+            <span className={cn("text-xs", TONO_UBICACION[ubicacion])}>
+              {ETIQUETA_UBICACION[ubicacion]}
+              {meses > 1 ? ` · ${meses} meses` : ""}
+            </span>
           </p>
           <p className="mt-2 text-sm">
             Del <span className="tabular font-medium">{fechaCompleta(cobertura.desde)}</span> al{" "}
@@ -330,13 +479,19 @@ export function FormularioDeCobro({
           <div className="flex items-baseline justify-between gap-3">
             <span className="text-sm text-muted-foreground">
               Total{planElegido ? ` · ${planElegido.nombre}` : ""}
+              {meses > 1 ? ` × ${meses} meses` : ""}
             </span>
             <span className="tabular font-heading text-2xl leading-none font-semibold">
-              {monto === "" || !Number.isFinite(montoNumero)
+              {monto === "" || !Number.isFinite(totalNumero)
                 ? "—"
-                : importe(montoNumero, contexto.moneda)}
+                : importe(totalNumero, contexto.moneda)}
             </span>
           </div>
+          {meses > 1 && monto !== "" && Number.isFinite(montoNumero) ? (
+            <p className="mt-1 text-right text-xs text-muted-foreground">
+              {meses} pagos de {importe(montoNumero, contexto.moneda)}
+            </p>
+          ) : null}
 
           {estado.mensaje ? (
             <p className="mt-3 flex items-start gap-1.5 text-xs text-destructive">
@@ -356,7 +511,7 @@ export function FormularioDeCobro({
             )}
           </Button>
           <p className="mt-2 text-center text-[0.7rem] text-muted-foreground">
-            Se registra con fecha {fechaCompleta(fechaPago)}
+            {fechaPago ? `Cobrado el ${fechaCompleta(fechaPago)}` : "Falta la fecha de cobro"}
           </p>
         </div>
       </aside>
@@ -368,30 +523,65 @@ export function FormularioDeCobro({
         }}
       >
         <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Este período ya está cubierto</DialogTitle>
-            <DialogDescription>
-              {estado.superposicion?.alumno} ya tiene cobertura registrada que se superpone con lo
-              que estás por cobrar. Puede ser correcto —dos medios meses seguidos, un ajuste—, pero
-              conviene mirarlo.
-            </DialogDescription>
-          </DialogHeader>
+          {estado.superposicion && estado.superposicion.existentes.length > 0 ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Este período ya está cubierto</DialogTitle>
+                <DialogDescription>
+                  {estado.superposicion.alumno} ya tiene cobertura registrada que se superpone con
+                  lo que estás por cobrar. Puede ser correcto —dos medios meses seguidos, un
+                  ajuste—, pero conviene mirarlo.
+                </DialogDescription>
+              </DialogHeader>
 
-          <ul className="space-y-2 text-sm">
-            {estado.superposicion?.existentes.map((e) => (
-              <li
-                key={`${e.desde}-${e.hasta}`}
-                className="flex items-baseline justify-between gap-3 rounded-lg bg-muted px-3 py-2"
-              >
-                <span className="tabular">
-                  {fechaCompleta(e.desde)} → {fechaCompleta(e.hasta)}
-                </span>
-                <span className="tabular font-mono text-xs text-muted-foreground">
-                  {importe(e.monto, contexto.moneda)}
-                </span>
-              </li>
-            ))}
-          </ul>
+              <ul className="space-y-2 text-sm">
+                {estado.superposicion.existentes.map((e) => (
+                  <li
+                    key={`${e.desde}-${e.hasta}`}
+                    className="flex items-baseline justify-between gap-3 rounded-lg bg-muted px-3 py-2"
+                  >
+                    <span className="tabular">
+                      {fechaCompleta(e.desde)} → {fechaCompleta(e.hasta)}
+                    </span>
+                    <span className="tabular font-mono text-xs text-muted-foreground">
+                      {importe(e.monto, contexto.moneda)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : estado.superposicion ? (
+            // El pago doble que NO se superpone: el mismo cobro cargado dos
+            // veces cae solo en el mes siguiente y parece un adelanto.
+            <>
+              <DialogHeader>
+                <DialogTitle>Ya hay un pago con esta fecha de cobro</DialogTitle>
+                <DialogDescription>
+                  {estado.superposicion.alumno} ya tiene un pago cobrado el{" "}
+                  {fechaCompleta(fechaPago)}. Si está pagando otro período, está bien; si es el
+                  mismo cobro cargado dos veces, no lo registres.
+                </DialogDescription>
+              </DialogHeader>
+
+              <ul className="space-y-2 text-sm">
+                {estado.superposicion.mismoDia.map((p, i) => (
+                  <li
+                    key={`${p.desde}-${i}`}
+                    className="flex items-baseline justify-between gap-3 rounded-lg bg-muted px-3 py-2"
+                  >
+                    <span className="tabular">
+                      {p.desde && p.hasta
+                        ? `Cubre ${fechaCompleta(p.desde)} → ${fechaCompleta(p.hasta)}`
+                        : "Sin período"}
+                    </span>
+                    <span className="tabular font-mono text-xs text-muted-foreground">
+                      {importe(p.monto, contexto.moneda)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
 
           <DialogFooter>
             <Button
@@ -419,6 +609,13 @@ export function FormularioDeCobro({
     </form>
   );
 }
+
+/** El color de "atrasado / en curso / adelantado": solo lo atrasado pide atención. */
+const TONO_UBICACION: Record<UbicacionDelPeriodo, string> = {
+  ATRASADO: "text-revisar",
+  EN_CURSO: "text-verde-fuerte",
+  ADELANTADO: "text-muted-foreground",
+};
 
 function Aviso({
   children,
@@ -473,13 +670,21 @@ function Comprobante({
       <dl className="mt-5 space-y-2 border-t border-border pt-5 text-sm">
         <div className="flex justify-between gap-3">
           <dt className="text-muted-foreground">Importe</dt>
-          <dd className="tabular font-medium">{importe(registrado.monto, moneda)}</dd>
+          <dd className="tabular font-medium">
+            {registrado.meses > 1
+              ? `${registrado.meses} × ${importe(registrado.monto, moneda)} = ${importe(registrado.total, moneda)}`
+              : importe(registrado.monto, moneda)}
+          </dd>
         </div>
         <div className="flex justify-between gap-3">
           <dt className="text-muted-foreground">Cubre</dt>
           <dd className="tabular">
             {fechaCompleta(registrado.cubreDesde)} → {fechaCompleta(registrado.cubreHasta)}
           </dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="text-muted-foreground">Cobrado el</dt>
+          <dd className="tabular">{fechaCompleta(registrado.fechaPago)}</dd>
         </div>
       </dl>
 
@@ -488,7 +693,7 @@ function Comprobante({
           telefono={registrado.telefono}
           mensaje={mensajeConfirmacionDePago({
             nombre: registrado.alumno.split(" ")[0] ?? registrado.alumno,
-            monto: registrado.monto,
+            monto: registrado.total,
             moneda,
             modalidad: registrado.modalidad,
             planNombre: registrado.planNombre,

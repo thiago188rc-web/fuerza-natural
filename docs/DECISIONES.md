@@ -727,3 +727,122 @@ pierde la posibilidad de corregir a mano lo que haga falta.
 **Qué NO cambia:** crear un alumno nuevo sigue sin inferir género — eso
 sigue siendo 100% manual y opcional (`domain/alumnos/genero.ts`). Esto
 es solo para la lista de alumnos que YA existen sin el dato.
+
+## 2026-11-01 — Fecha de cobro ≠ período imputado; varios meses = varios pagos
+
+**Decisión:** el cobro vuelve a dejar elegir el período (se había sacado
+el 2026-10-21/22, docs/REGLAS-DE-NEGOCIO.md §3bis), ahora como un bloque
+propio separado de la fecha de cobro (§5bis). `periodosParaCobrar()`
+(`src/domain/pagos/periodos.ts`) arma los períodos con el día de arranque
+del alumno —hacia atrás y hacia adelante del último cubierto, sin los ya
+cubiertos enteros ni los anteriores al alta— y propone el que contiene la
+fecha de cobro. Cobrar N meses (1 a 6) inserta **N pagos**, uno por mes,
+en una transacción; la clave de idempotencia va en el primero.
+
+**Motivo:** pedido del gimnasio. Antes el período salía siempre del día
+después del último cubierto: no se podía adelantar dos meses de una vez y,
+con un hueco de meses, se imputaba el más viejo (el alumno pagaba y seguía
+"sin cubrir").
+
+**Alternativas descartadas:**
+- *Un solo pago que cubra N meses* (columna `meses` en `payments`):
+  rompe "un pago = un período" en el que se apoyan el historial, la ficha
+  y Métricas, y obliga a anular todo junto. N pagos dan exactamente lo
+  mismo que cobrarlos de a uno.
+- *Permitir fecha de cobro futura:* sumaría en la caja de un mes que no
+  pasó. El CHECK `payments_fecha_no_futura_check` se mantiene.
+
+**Qué NO cambia:** `payments` sigue inmutable salvo anulación; ningún pago
+existente se recalcula. La advertencia de superposición sigue igual, y se
+suma otra: un segundo pago vigente con la misma fecha de cobro pide
+confirmación (es el doble registro que, por caer en el mes siguiente, no
+se superpone).
+
+## 2026-11-01 — N.º del listado de Pagos: posicional y sin anulados
+
+**Decisión:** primera columna "N.º" en Pagos, calculada en la pantalla
+(`numeracionVisual()`): 1…N en el orden visible, sin reiniciarse por día,
+sin guardarse en la base. Los anulados se muestran sin número. Dentro de
+un mismo día, los pagos ahora siguen el sentido elegido también por hora
+de registro (antes, el más nuevo primero aunque el orden fuera
+ascendente), para que el 1 sea el primer cobro que se ve.
+
+**Motivo:** que el dueño pueda contar y ubicar pagos, y que el último
+número coincida con "Pagos registrados" (si los anulados contaran, no
+coincidiría y volvería la pregunta de por qué los números no dan).
+
+**Nota:** el listado de Pagos no tiene páginas (un mes entero entra en una
+consulta). `numeracionVisual()` acepta un inicio por si alguna vez las
+tiene: la página 2 seguiría donde terminó la 1.
+
+## 2026-11-01 — Situación laboral: catálogo cerrado + detalle libre
+
+**Decisión:** dos columnas opcionales en `students` (migración 0011):
+`situacion_laboral` (SECTOR_PRIVADO, SECTOR_PUBLICO, JUBILADO, ESTUDIANTE,
+OTRO, con CHECK) y `situacion_laboral_detalle` (texto, 1–120). En el alta
+y la edición, chips de un toque (mismo lenguaje que "¿Cómo conoció el
+gimnasio?") y un campo de detalle cuyo ejemplo cambia según lo elegido.
+
+**Motivo:** pedido del gimnasio. Mismo criterio que "cómo conoció": la
+categoría cerrada se puede contar; el detalle libre guarda lo que el
+dueño quiere recordar ("Registro Civil", "Comercio").
+
+**Despliegue:** la 0011 es aditiva (nulables, CHECK que aceptan NULL),
+pero en el journal va después de la 0010, que borra `disciplina` y no está
+aplicada en producción. No se puede publicar este código sin antes migrar
+(el código lee las columnas nuevas), y no se puede migrar sin decidir la
+0010 (docs/REGLAS-DE-NEGOCIO.md, pendiente 8).
+
+## 2026-11-02 — Una migración se ensaya sobre la copia de producción, no solo contra una base vacía
+
+**Decisión:** antes de `db:prod:migrate`, `scripts/db/ensayo-de-migracion.ts`
+sobre el backup recién hecho: restaura, migra con el mismo `migrate.ts` y
+compara antes y después fila por fila y columna por columna. Una columna
+que se va con datos hace fallar el ensayo salvo que la pérdida se nombre
+(`--aceptar-perdida`).
+
+**Motivo:** los tests corren contra una base vacía y no ven los datos. El
+primer ensayo de la 0010 lo demostró: la forma "obvia" de conservar
+`disciplina` antes de borrarla (un `UPDATE` en la migración) no toca
+ninguna fila por FORCE RLS —la migración corre sin `app.gym_id`— y la
+columna se borraba igual, sin un solo error. Solo comparando con los datos
+reales se ve.
+
+## 2026-11-02 — Tabla de Pagos y padrón en celular, medidos con los datos reales
+
+**Decisión:** en la tabla de Pagos, la nota del pago se corta al ancho de
+la celda (`w-0 min-w-full truncate`) en vez de pedir hasta 288px, y la
+línea "Cubre" del celular puede partirse antes de la flecha. El N.º usa
+el gris de texto secundario sin transparencia. En el padrón, las pestañas
+de estado van más compactas en celular.
+
+**Motivo:** con los datos de demo todo entraba; recorriendo la copia de
+producción, no. Las notas de los pagos importados y los períodos con año
+("16 dic → 15 ene 2027", que los adelantos van a hacer comunes) ensanchaban
+la tabla hasta sacar el importe de la pantalla en 375–430px, y en la vista
+por día además había scroll horizontal de página (también en 768 y 1024).
+Los conteos de tres cifras del padrón (482 alumnos, 285 bajas) hacían
+desbordar las pestañas en 375 y 390. Las dos cosas ya pasaban en
+producción. El N.º con `/70` quedaba en 3,07:1, por debajo de WCAG AA; el
+token sólido da ~5,9:1.
+
+**Pendiente de dirección de arte (no se tocó):** `--revisar` sobre blanco
+da 3,3:1 y algunos rótulos de la barra lateral entre 2,1 y 3,0:1. Mejorarlos
+es cambiar la paleta, y eso se decide aparte.
+
+## 2026-11-03 — `disciplina` se conserva sin uso (opción B de la 0010)
+
+**Decisión:** con la autorización de Diego, la columna `students.disciplina`
+queda en la base, con sus 10 valores, y el código no la usa. La 0010 deja
+de borrarla: es solo un `COMMENT ON COLUMN`, la variante ensayada. El
+esquema de Drizzle y los snapshots siguen sin la columna, a propósito (ver
+docs/RUNBOOK.md, "La diferencia de esquema que deja la opción B").
+
+**Motivo:** es la única opción que no modifica ni pierde datos reales y la
+única reversible: desde B se puede llegar después a cualquiera de las
+otras dos (pasar el dato a Observaciones o borrarlo), y desde esas no se
+vuelve. Destraba la 0011
+sin forzar la decisión de fondo. Las otras dos, ensayadas: pasar el dato a
+las notas modificaba 10 fichas reales (y la normalización de texto junta
+el salto de línea en la primera edición); borrarlo dejaba el dato solo en
+backups que todavía no tienen copia fuera de la PC.

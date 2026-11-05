@@ -172,6 +172,60 @@ export async function buscarCoberturaSuperpuesta(
     .limit(5);
 }
 
+/**
+ * Los pagos vigentes del alumno con ESA fecha de cobro.
+ *
+ * Es la otra forma de un pago doble: como el cobro propone el siguiente
+ * período sin pagar, cargar dos veces el mismo cobro NO se superpone — el
+ * segundo cae en el mes siguiente y parece un adelanto. Dos pagos de la misma
+ * persona el mismo día pueden ser legítimos (pagó el atrasado y el
+ * actual), así que tampoco se bloquea: se pide confirmación.
+ */
+export async function pagosVigentesDelDia(
+  tx: TxClient,
+  ctx: AuthContext,
+  studentId: string,
+  fechaPago: string,
+) {
+  return tx
+    .select({
+      paymentId: payments.id,
+      fechaPago: payments.fechaPago,
+      monto: payments.monto,
+      desde: sql<string | null>`(
+        select min(pp.cubre_desde)::text from app.payment_periods pp where pp.payment_id = ${payments.id}
+      )`,
+      hasta: sql<string | null>`(
+        select max(pp.cubre_hasta)::text from app.payment_periods pp where pp.payment_id = ${payments.id}
+      )`,
+    })
+    .from(payments)
+    .where(
+      and(
+        eq(payments.gymId, ctx.gymId),
+        eq(payments.studentId, studentId),
+        eq(payments.fechaPago, fechaPago),
+        isNull(payments.anuladoEn),
+      ),
+    )
+    .orderBy(asc(payments.createdAt))
+    .limit(5);
+}
+
+/**
+ * ¿Ya se registró un pago con esta clave? La base lo impide igual (índice
+ * único), pero preguntarlo antes permite contestar "ya quedó registrado"
+ * en vez de un error genérico cuando el mismo envío llega dos veces.
+ */
+export async function existePagoConClave(tx: TxClient, ctx: AuthContext, clave: string) {
+  const [fila] = await tx
+    .select({ id: payments.id })
+    .from(payments)
+    .where(and(eq(payments.gymId, ctx.gymId), eq(payments.idempotencyKey, clave)))
+    .limit(1);
+  return fila !== undefined;
+}
+
 export interface FiltrosDePagos {
   desde?: string | null;
   hasta?: string | null;
@@ -200,7 +254,9 @@ export async function listarPagos(tx: TxClient, ctx: AuthContext, filtros: Filtr
   const ordenamiento =
     filtros.ordenarPor === "nombre"
       ? [orden(students.apellido), orden(students.nombre)]
-      : [orden(payments.fechaPago), desc(payments.createdAt)];
+      : // Dentro del mismo día, en el orden en que entraron (o al revés si
+        // se pide descendente): el N.º 1 es el primer cobro que se ve.
+        [orden(payments.fechaPago), orden(payments.createdAt)];
 
   const filas = await tx
     .select({
@@ -217,6 +273,8 @@ export async function listarPagos(tx: TxClient, ctx: AuthContext, filtros: Filtr
       nombre: students.nombre,
       apellido: students.apellido,
       telefono: students.telefono,
+      /** El vínculo de HOY, no el del día del pago: cruza "pagaron" con "activos hoy". */
+      vinculo: students.vinculo,
       registradoPorNombre: appUsers.nombre,
       cubreDesde: sql<string | null>`(
         select min(pp.cubre_desde)

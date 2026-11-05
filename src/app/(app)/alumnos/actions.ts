@@ -91,6 +91,8 @@ export async function crearAlumnoFormAction(
     documento: texto(formData, "documento"),
     direccion: texto(formData, "direccion"),
     comoConocio: lista(formData, "comoConocio"),
+    situacionLaboral: texto(formData, "situacionLaboral"),
+    situacionLaboralDetalle: texto(formData, "situacionLaboralDetalle"),
     // El schema de Zod ignora cualquier otro campo que llegue: `gymId` no
     // existe en la forma de entrada, así que no hay manera de mandarlo.
   });
@@ -121,6 +123,8 @@ export async function editarAlumnoFormAction(
     documento: texto(formData, "documento"),
     direccion: texto(formData, "direccion"),
     comoConocio: lista(formData, "comoConocio"),
+    situacionLaboral: texto(formData, "situacionLaboral"),
+    situacionLaboralDetalle: texto(formData, "situacionLaboralDetalle"),
   });
 
   if (!resultado.ok) {

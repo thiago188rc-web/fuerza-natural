@@ -131,3 +131,33 @@ describe("registrarPagoSchema — §3 modalidad 1/2 MES", () => {
     if (r.success) expect(r.data).not.toHaveProperty("nuevoPlanId");
   });
 });
+
+describe("registrarPagoSchema — §5bis fecha de cobro ≠ período, varios meses", () => {
+  const base = {
+    studentId: UUID,
+    fechaPago: "2026-10-28",
+    cubreDesde: "2026-11-01",
+    monto: 65000,
+    idempotencyKey: UUID,
+  };
+
+  it("el período puede ser posterior a la fecha de cobro (pagar noviembre en octubre)", () => {
+    const r = registrarPagoSchema.safeParse(base);
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.cubreDesde > r.data.fechaPago).toBe(true);
+  });
+
+  it("sin `meses` es un mes; acepta de 1 a 6 y llega como número aunque venga como texto", () => {
+    const uno = registrarPagoSchema.safeParse(base);
+    expect(uno.success && uno.data.meses).toBe(1);
+    const dos = registrarPagoSchema.safeParse({ ...base, meses: "2" });
+    expect(dos.success && dos.data.meses).toBe(2);
+    expect(registrarPagoSchema.safeParse({ ...base, meses: 6 }).success).toBe(true);
+  });
+
+  it("rechaza 0, 7, fracciones y texto en `meses`", () => {
+    for (const meses of [0, 7, 1.5, "dos", ""]) {
+      expect(registrarPagoSchema.safeParse({ ...base, meses }).success).toBe(false);
+    }
+  });
+});

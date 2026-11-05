@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { BotonLink } from "@/components/boton-link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,13 @@ import {
 } from "@/app/(app)/alumnos/estado-formulario";
 import { GENEROS, etiquetaGenero, type Genero } from "@/domain/alumnos/genero";
 import { CANALES, etiquetaCanal } from "@/domain/alumnos/como-conocio";
+import {
+  LARGO_DETALLE_LABORAL,
+  SITUACIONES_LABORALES,
+  ejemploDeDetalleLaboral,
+  esSituacionLaboral,
+  etiquetaSituacionLaboral,
+} from "@/domain/alumnos/situacion-laboral";
 
 export interface PlanOpcion {
   id: string;
@@ -39,6 +46,8 @@ export interface ValoresAlumno {
   documento: string;
   direccion: string;
   comoConocio: string[];
+  situacionLaboral: string;
+  situacionLaboralDetalle: string;
 }
 
 interface Props {
@@ -235,6 +244,13 @@ export function FormularioAlumno({
         </Campo>
       </div>
 
+      <CampoSituacionLaboral
+        situacionInicial={valores.situacionLaboral}
+        detalleInicial={valores.situacionLaboralDetalle}
+        errorSituacion={errores.situacionLaboral}
+        errorDetalle={errores.situacionLaboralDetalle}
+      />
+
       <fieldset className="flex flex-col gap-2">
         <legend className="text-sm font-medium">¿Cómo conoció el gimnasio?</legend>
         <div className="flex flex-wrap gap-2">
@@ -288,6 +304,92 @@ export function FormularioAlumno({
         </BotonLink>
       </div>
     </form>
+  );
+}
+
+/**
+ * "¿Dónde trabaja o cuál es su situación actual?" — una categoría a un
+ * toque y un detalle libre. Las dos opcionales: nada acá frena un alta.
+ *
+ * El valor viaja en un input oculto y no en el `name` de los radios: así
+ * "Quitar" deja el campo vacío también en el `FormData`, y si el guardado
+ * falla por otro campo, el formulario vuelve con lo que se eligió (o con
+ * nada), no con lo que había antes.
+ */
+function CampoSituacionLaboral({
+  situacionInicial,
+  detalleInicial,
+  errorSituacion,
+  errorDetalle,
+}: {
+  situacionInicial: string;
+  detalleInicial: string;
+  errorSituacion?: string;
+  errorDetalle?: string;
+}) {
+  const [situacion, setSituacion] = useState(esSituacionLaboral(situacionInicial) ? situacionInicial : "");
+
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className="text-sm font-medium">¿Dónde trabaja o cuál es su situación actual?</legend>
+      <input type="hidden" name="situacionLaboral" value={situacion} />
+      <div className="flex flex-wrap items-center gap-2">
+        {SITUACIONES_LABORALES.map((opcion) => (
+          <label
+            key={opcion}
+            className="flex cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-sm transition-colors has-[:checked]:border-verde has-[:checked]:bg-verde-suave dark:has-[:checked]:bg-verde/15"
+          >
+            <input
+              type="radio"
+              name="situacionLaboralOpcion"
+              value={opcion}
+              checked={situacion === opcion}
+              onChange={() => setSituacion(opcion)}
+              className="size-3.5 accent-[var(--verde)]"
+            />
+            {etiquetaSituacionLaboral(opcion)}
+          </label>
+        ))}
+        {situacion ? (
+          <button
+            type="button"
+            onClick={() => setSituacion("")}
+            className="rounded-sm px-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-verde focus-visible:outline-none"
+          >
+            Quitar
+          </button>
+        ) : null}
+      </div>
+      {errorSituacion ? (
+        <p role="alert" className="text-sm text-destructive">
+          {errorSituacion}
+        </p>
+      ) : null}
+
+      <div className="mt-1 flex flex-col gap-1.5 sm:max-w-[calc(50%-0.625rem)]">
+        <Label htmlFor="situacionLaboralDetalle" className="text-xs text-muted-foreground">
+          Detalle
+        </Label>
+        <Input
+          id="situacionLaboralDetalle"
+          name="situacionLaboralDetalle"
+          defaultValue={detalleInicial}
+          maxLength={LARGO_DETALLE_LABORAL}
+          placeholder={ejemploDeDetalleLaboral(esSituacionLaboral(situacion) ? situacion : null)}
+          autoComplete="off"
+          aria-invalid={Boolean(errorDetalle)}
+        />
+        {errorDetalle ? (
+          <p role="alert" className="text-sm text-destructive">
+            {errorDetalle}
+          </p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Opcional. Empresa, comercio, organismo o institución.
+          </p>
+        )}
+      </div>
+    </fieldset>
   );
 }
 

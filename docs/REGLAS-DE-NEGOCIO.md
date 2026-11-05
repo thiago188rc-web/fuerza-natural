@@ -161,6 +161,12 @@ documento** (más abajo, §5: "del día 1 al último día del mes de
   tener en cuenta:** un ciclo mal anclado ya no se corrige desde el cobro;
   hoy no hay pantalla para re-anclarlo. Si hace falta, se decide con
   Diego cómo (ver "Pendiente").
+- **Actualización — 2026-11-01 (pedido del gimnasio, vía Thiago):** el
+  período que se paga **vuelve a elegirse** al cobrar, separado de la
+  fecha de cobro (ver §5bis). El día de arranque sigue saliendo solo y
+  los períodos que se ofrecen respetan ese día; "Elegir otra fecha de
+  inicio" permite arrancar un ciclo en otro día, que es la forma de
+  re-anclar un ciclo mal anclado (resuelve el pendiente 7).
 - Un pago ya registrado sigue siendo **intocable** (§4.6 / inmutabilidad
   de `payments`): ajustar el día es algo que se hace ANTES de confirmar
   un pago nuevo, nunca editando uno existente. Para corregir un pago mal
@@ -248,6 +254,50 @@ noviembre paga septiembre y noviembre, salteando octubre).
 
 ---
 
+## 5bis. Fecha de cobro ≠ período imputado
+
+**Pedido del gimnasio — 2026-11-01 (vía Thiago).** "Necesito separar la
+fecha real de cobro del período que está pagando el alumno": poder
+adelantar uno o varios meses, seguir cargando atrasados, y que el sistema
+no impute solo un mes incorrecto.
+
+| Concepto | Qué es | Dónde vive | Reglas |
+|---|---|---|---|
+| **Fecha de cobro** | Cuándo entró la plata | `payments.fecha_pago` | Nunca posterior a hoy (caso de uso + CHECK de la base). Decide en qué mes suma la caja ("Total del mes", Métricas). |
+| **Período imputado** | Qué mes paga el alumno | `payment_periods` (`periodo`, `cubre_desde`, `cubre_hasta`) | Atrasado, el que corre o adelantado. Hasta 12 meses antes o después de hoy (barrera contra tipeos). Decide la cobertura. |
+
+Ejemplo: cobrado el 28/10/2026, período 01/11/2026 → 30/11/2026. Suma en
+la caja de octubre y deja cubierto noviembre.
+
+- **Qué propone el cobro:** el período sin pagar que contiene la fecha de
+  cobro o, si ese día ya estaba cubierto, el siguiente (un adelanto).
+  Antes se proponía siempre "el día después del último cubierto", y a
+  alguien con un hueco de meses se le imputaba el más viejo: pagaba y
+  seguía figurando sin cubrir. Los períodos atrasados se siguen
+  ofreciendo a un toque, y la pantalla avisa "tiene sin pagar desde…"
+  cuando existen. No se ofrecen períodos ya cubiertos enteros ni
+  anteriores a la fecha de alta.
+- **Varios meses en un cobro (1 a 6):** quedan como **un pago por mes**,
+  cada uno con su período e importe, en la misma transacción. Así cada
+  mes se anula por separado y el historial queda igual que si se hubieran
+  cobrado de a uno. El total cobrado es importe × meses.
+- **Fecha de cobro futura: no.** Se evaluó y se descartó: un cobro con
+  fecha futura sumaría en la caja de un mes que todavía no pasó. Pagar por
+  adelantado se expresa con el período, no corriendo la fecha.
+- **Pago doble:** además de la superposición de períodos (que ya pedía
+  confirmación), el cobro pide confirmación si el alumno ya tiene otro pago vigente con
+  la **misma fecha de cobro**. Es el doble registro que no se superpone:
+  como el período sale solo, el segundo cae en el mes siguiente y parece
+  un adelanto. Puede ser legítimo (pagó el atrasado y el actual), así que
+  se advierte, no se bloquea.
+- El 1/2 mes (§3) sigue fuera del formulario y, si vuelve, se cobra de a
+  uno.
+
+Implementación: `periodosParaCobrar()` y `mesesEncadenados()` en
+`src/domain/pagos/periodos.ts`.
+
+---
+
 ## 6. Estado de la relación ≠ situación de pago
 
 Regla vigente desde Fase 1, **sin cambios**.
@@ -261,6 +311,23 @@ Regla vigente desde Fase 1, **sin cambios**.
 
 Un alumno puede estar `ACTIVO` sin ningún pago registrado, y eso es
 correcto.
+
+---
+
+## 7. Situación laboral en la ficha
+
+**Pedido del gimnasio — 2026-11-01 (vía Thiago).** "¿Dónde trabaja o
+cuál es su situación actual?" en el alta, con una selección rápida y un
+detalle libre.
+
+- Categoría de catálogo cerrado: Sector privado, Sector público,
+  Jubilado/a, Estudiante, Otro (`students.situacion_laboral`, con CHECK).
+- Detalle libre de hasta 120 caracteres: empresa, comercio, organismo
+  ("Municipalidad", "Registro Civil"), institución educativa
+  (`students.situacion_laboral_detalle`).
+- Las dos opcionales e independientes: si el alumno no quiere decirlo,
+  queda "sin dato". Nunca se infiere. Se editan desde la ficha como
+  cualquier otro dato y el cambio queda en la auditoría.
 
 ---
 
@@ -296,11 +363,10 @@ correcto.
    pedido del dueño, pero los que ya lo tenían lo conservan. ¿Pasan a 5
    días, a otro plan, o se decide uno por uno? No se cambió ninguno.
 
-7. **¿Cómo se corrige un ciclo mal anclado?** Con una sola fecha en el
-   cobro (§3bis), el día de arranque ya no se puede ajustar. Si alguien
-   quedó con el ciclo corrido, hoy la única vía es anular y volver a
-   registrar, que vuelve a calcular el mismo día. Falta definir si hace
-   falta otra forma.
+7. ~~**¿Cómo se corrige un ciclo mal anclado?**~~ **Resuelto el
+   2026-11-01:** el cobro vuelve a permitir elegir el período, y "Elegir
+   otra fecha de inicio" arranca el ciclo en el día que se indique (§3bis,
+   §5bis).
 
 8. **El dato de "Disciplina" de los alumnos que ya lo tenían.** El campo
    se sacó del alta (2026-10-21), pero la columna sigue en la base con
@@ -308,3 +374,43 @@ correcto.
    repositorio y **no se aplicó**: borraría ese dato para siempre. Antes
    de correr cualquier migración nueva en producción hay que decidir si
    se conserva (y sacar la 0010) o si se borra (y hacer backup antes).
+   **Desde 2026-11-01 esto bloquea una migración real:** la `0011`
+   (situación laboral) va después de la 0010, y `db:prod:migrate` aplica
+   las dos juntas. Verificado ese día en producción (solo lectura): sigue
+   aplicada hasta la 0009 y hay 10 alumnos con disciplina.
+
+   **Qué es el dato (auditoría de solo lectura, 2026-11-02):** los 10
+   tienen `MUSCULACION` (ninguno `CALISTENIA`), están activos y se dieron
+   de alta a mano entre el 10 y el 20 de octubre, cuando el campo existía:
+   de las 11 altas manuales de esos días, 10 lo completaron (el selector
+   arrancaba en "Sin especificar", así que fue una elección). Nadie lo
+   editó después y no quedó rastro en Actividad: si se borra, solo queda
+   en los backups. Ningún código, vista, índice, función ni policy lo usa.
+   La calistenia es otra actividad que no está en el sistema, así que hoy
+   "Musculación" es lo que hacen todos los alumnos cargados.
+
+   **Opciones** (ensayadas sobre una copia restaurada del backup del
+   2026-11-02, ver docs/RUNBOOK.md "Migración 0010 + 0011"):
+   - **A. Conservarlo como observación** ("Disciplina al darse de alta:
+     Musculación." en las notas de esos 10) y después borrar la columna.
+     Atención: `students` tiene FORCE RLS y un `UPDATE` hecho por la
+     migración sin el gimnasio fijado no toca ninguna fila, en silencio
+     (el ensayo lo mostró: los 10 valores se perdían). La versión
+     ensayada apaga FORCE dentro de la transacción y aborta si falta
+     copiar alguno. Modifica las notas de 10 alumnos reales: requiere su
+     autorización.
+   - **B. Conservar la columna, sin uso.** La 0010 pasa a ser un
+     `COMMENT ON COLUMN` que documenta la decisión pendiente; la 0011 se
+     aplica igual. No se pierde ni se modifica nada, no cambia el código y
+     la decisión de fondo queda para después (borrarla o volver a usarla
+     sería otra migración).
+   - **C. Borrarla** (la 0010 tal como está). Solo con autorización
+     expresa de la pérdida, y con el backup previo guardado.
+
+   **Decidido el 2026-11-03: opción B.** Diego autorizó conservar la
+   columna en la base, sin uso funcional y sin perder los 10 valores. La
+   0010 quedó como el `COMMENT ON COLUMN` ensayado. Lo único que queda
+   abierto es si algún día se borra o se vuelve a usar, y eso sería otra
+   decisión y otra migración. La autorización no incluye migrar ni
+   publicar: eso se decide aparte (docs/RUNBOOK.md, "Migración 0010 +
+   0011").

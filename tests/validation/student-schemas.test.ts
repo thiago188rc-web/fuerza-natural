@@ -183,3 +183,46 @@ describe("filtrosAlumnosSchema", () => {
     expect(r).toEqual({ q: "gomez", estado: "PAUSADO", pagina: 3 });
   });
 });
+
+describe("situación laboral (alta y edición)", () => {
+  const alta = { nombre: "Ana", apellido: "Gómez", planId: UUID };
+
+  it("es opcional: un alta sin ella sigue siendo válida", () => {
+    const r = crearAlumnoSchema.safeParse({ ...alta, situacionLaboral: "", situacionLaboralDetalle: "  " });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.situacionLaboral).toBeUndefined();
+      expect(r.data.situacionLaboralDetalle).toBeUndefined();
+    }
+  });
+
+  it("acepta una categoría del catálogo con su detalle, normalizado", () => {
+    const r = crearAlumnoSchema.safeParse({
+      ...alta,
+      situacionLaboral: "SECTOR_PUBLICO",
+      situacionLaboralDetalle: "  Registro   Civil ",
+    });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.situacionLaboral).toBe("SECTOR_PUBLICO");
+      expect(r.data.situacionLaboralDetalle).toBe("Registro Civil");
+    }
+  });
+
+  it("rechaza una categoría inventada y un detalle de más de 120 caracteres", () => {
+    expect(crearAlumnoSchema.safeParse({ ...alta, situacionLaboral: "Municipalidad" }).success).toBe(false);
+    expect(
+      crearAlumnoSchema.safeParse({ ...alta, situacionLaboralDetalle: "x".repeat(121) }).success,
+    ).toBe(false);
+  });
+
+  it("la edición acepta los mismos campos", () => {
+    const r = editarAlumnoSchema.safeParse({
+      id: UUID,
+      ...alta,
+      fechaAltaOriginal: "2026-01-10",
+      situacionLaboral: "JUBILADO",
+    });
+    expect(r.success).toBe(true);
+  });
+});

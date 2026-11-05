@@ -64,6 +64,8 @@ export default async function NuevoAlumnoPage() {
               documento: "",
               direccion: "",
               comoConocio: [],
+              situacionLaboral: "",
+              situacionLaboralDetalle: "",
             }}
           />
         </CardContent>

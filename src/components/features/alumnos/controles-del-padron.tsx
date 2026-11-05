@@ -93,7 +93,10 @@ export function ControlesDelPadron({
               aria-selected={activo}
               onClick={() => navegar(termino, filtro.valor)}
               className={cn(
-                "relative rounded-[calc(var(--radius)-2px)] px-3 py-1.5 text-sm transition-colors duration-150",
+                // px-2 (y gap-1 adentro) en celular: con conteos de tres
+                // cifras (la base real) las cuatro pestañas con px-3 no
+                // entraban en 375/390px.
+                "relative rounded-[calc(var(--radius)-2px)] px-2 py-1.5 text-sm transition-colors duration-150 sm:px-3",
                 "focus-visible:ring-2 focus-visible:ring-verde focus-visible:outline-none",
                 activo ? "text-foreground" : "text-muted-foreground hover:text-foreground",
               )}
@@ -105,7 +108,7 @@ export function ControlesDelPadron({
                   transition={{ duration: DURACION.rapido, ease: SALIDA }}
                 />
               ) : null}
-              <span className="relative flex items-center gap-1.5">
+              <span className="relative flex items-center gap-1 sm:gap-1.5">
                 {filtro.etiqueta}
                 <span
                   className={cn(

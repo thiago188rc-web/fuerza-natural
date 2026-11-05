@@ -29,6 +29,8 @@ export async function registrarPagoFormAction(
     fechaPago: texto(formData, "fechaPago"),
     modalidad: texto(formData, "modalidad") as "MES_COMPLETO" | "MEDIO_MES",
     cubreDesde: texto(formData, "cubreDesde"),
+    // Ausente (una pantalla abierta antes de este cambio) = un mes.
+    meses: formData.has("meses") ? texto(formData, "meses") : undefined,
     monto: texto(formData, "monto"),
     // Ausente (una pantalla abierta antes de este cambio) = plan habitual.
     // Presente pero vacío = no eligió cuántos días: lo rechaza el schema.

@@ -1,4 +1,4 @@
-import type { SuperposicionDeCobertura } from "@/use-cases/pagos/registrar-pago";
+import type { PagoRegistrado, SuperposicionDeCobertura } from "@/use-cases/pagos/registrar-pago";
 
 /**
  * El contrato entre la Server Action de pagos y el formulario de cobro.
@@ -18,16 +18,7 @@ export interface EstadoPago {
    */
   superposicion?: SuperposicionDeCobertura;
   /** El comprobante de lo que se acaba de registrar. */
-  registrado?: {
-    alumno: string;
-    studentId: string;
-    telefono: string | null;
-    planNombre: string;
-    monto: number;
-    cubreDesde: string;
-    cubreHasta: string;
-    modalidad: string;
-  };
+  registrado?: PagoRegistrado;
 }
 
 export const ESTADO_PAGO_INICIAL: EstadoPago = { ok: false };

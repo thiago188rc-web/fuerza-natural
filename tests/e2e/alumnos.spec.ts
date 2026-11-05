@@ -59,10 +59,14 @@ test.describe("módulo de alumnos", () => {
     // La búsqueda navega sola mientras se escribe: no hay botón que apretar.
     await page.goto("/alumnos");
     await page.getByRole("searchbox", { name: /Buscar alumnos/ }).fill(apellido.toLowerCase());
-    await expect(page.getByRole("link", { name: new RegExp(`${apellido}, Ana`) })).toBeVisible();
+    // Cada fila es un link superpuesto con su propio nombre ("Ver ficha de
+    // Nombre Apellido"); el texto visible, "Apellido, Nombre", va aparte.
+    const fila = page.getByRole("link", { name: `Ver ficha de Ana ${apellido}` });
+    await expect(fila).toBeVisible();
+    await expect(page.getByText(`${apellido}, Ana`)).toBeVisible();
 
     // --- ABRIR ---
-    await page.getByRole("link", { name: new RegExp(`${apellido}, Ana`) }).click();
+    await fila.click();
     await expect(page).toHaveURL(urlFicha.split("?")[0]);
 
     // --- EDITAR ---
@@ -102,6 +106,7 @@ test.describe("módulo de alumnos", () => {
     await page.getByLabel("Apellido").fill(apellido);
     await page.getByRole("button", { name: "Crear alumno" }).click();
     await expect(page).toHaveURL(/\/alumnos\/[0-9a-f-]{36}/);
+    const ficha = new URL(page.url()).pathname;
 
     await page.getByRole("button", { name: "Dar de baja" }).click();
     const dialogo = page.getByRole("dialog");
@@ -118,7 +123,15 @@ test.describe("módulo de alumnos", () => {
     // Y aparece en la pantalla de bajas, que existe justamente para dejar
     // claro que la baja no es un borrado.
     await page.goto("/bajas");
-    await expect(page.getByRole("link", { name: new RegExp(`${apellido}, Carlos`) })).toBeVisible();
+    const persona = new RegExp(`${apellido}, Carlos`);
+    const lista = page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name: "Quiénes se fueron" }) });
+    await expect(lista.getByRole("link", { name: persona })).toBeVisible();
+    await expect(lista.getByRole("link", { name: persona })).toHaveAttribute("href", ficha);
+    // "Bajas por mes" la repite (es el mes en curso), con link a la misma ficha.
+    const porMes = page.locator("section").filter({ hasText: "Bajas por mes" });
+    await expect(porMes.getByRole("link", { name: persona })).toHaveAttribute("href", ficha);
   });
 
   test("errores: el servidor rechaza un teléfono inválido con un mensaje claro", async ({
@@ -129,11 +142,26 @@ test.describe("módulo de alumnos", () => {
 
     await page.getByLabel("Nombre").fill("Telefono");
     await page.getByLabel("Apellido").fill(`Malo${sufijo()}`);
-    await page.getByLabel("Teléfono").fill("1155551234");
+    // "123" no se puede completar a un número argentino. Uno sin prefijo,
+    // como 1155551234, sí es válido: ver el test siguiente.
+    await page.getByLabel("Teléfono").fill("123");
     await page.getByRole("button", { name: "Crear alumno" }).click();
 
     await expect(page.getByText(/Teléfono inválido/)).toBeVisible();
     // Sigue en el formulario: no se creó nada.
     await expect(page).toHaveURL(/\/alumnos\/nuevo/);
+  });
+
+  test("un teléfono argentino sin prefijo se guarda normalizado, con +549", async ({ page }) => {
+    await iniciarSesion(page);
+    await page.goto("/alumnos/nuevo");
+
+    await page.getByLabel("Nombre").fill("Telefono");
+    await page.getByLabel("Apellido").fill(`Local${sufijo()}`);
+    await page.getByLabel("Teléfono").fill("1155551234");
+    await page.getByRole("button", { name: "Crear alumno" }).click();
+
+    await expect(page).toHaveURL(/\/alumnos\/[0-9a-f-]{36}/);
+    await expect(page.getByText("+5491155551234")).toBeVisible();
   });
 });

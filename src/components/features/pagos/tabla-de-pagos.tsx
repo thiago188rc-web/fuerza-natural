@@ -7,6 +7,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, Receipt } from "lucide-react";
 import type { PagoDelHistorial } from "@/use-cases/pagos/consultas";
 import { ETIQUETA_MODALIDAD, type Modalidad } from "@/domain/pagos/modalidad";
 import { pagosPorDia } from "@/domain/pagos/pagos-por-dia";
+import { numeracionVisual } from "@/domain/pagos/numeracion";
 import { etiquetaCorta } from "@/domain/fechas/calendario";
 import { diaCorto } from "@/lib/formato";
 import { DURACION, SALIDA } from "@/components/motion/tokens";
@@ -42,6 +43,12 @@ import { cn } from "@/lib/utils";
  * Un pago anulado NO desaparece: se muestra tachado y con su motivo. El
  * historial es un registro contable, no una lista de lo que quedó lindo.
  * Quien puede anular (hoy, el DUENO) ve "Anular" debajo del importe.
+ *
+ * La primera columna es el N.º: 1, 2, 3… hasta el último pago vigente, en
+ * el orden que se esté viendo y sin reiniciarse en cada día. Sirve para
+ * contar y para ubicar "el 120". Es posicional (no es el id del pago) y
+ * los anulados no llevan número, así el último coincide con "Pagos
+ * registrados" (domain/pagos/numeracion.ts).
  *
  * La forma de pago ya no se muestra: el dueño pidió sacarla del cobro
  * (2026-10-22), así que los pagos nuevos no la tienen. Los viejos la
@@ -97,6 +104,9 @@ export function TablaDePagos({
 
   const porDia = ordenarPor === "fecha";
   const dias = porDia ? pagosPorDia(pagos, rango, direccion) : null;
+  // En el orden en que se ven, de arriba abajo: por día, los días ya
+  // vienen en el sentido pedido.
+  const numeros = numeracionVisual(dias ? dias.flatMap((d) => d.pagos) : pagos);
 
   // Dónde arranca cada día en la tabla entera: la entrada escalonada corta
   // en la fila 14 de la tabla, no en la 14 de cada día.
@@ -111,6 +121,7 @@ export function TablaDePagos({
     <FilaDePago
       key={pago.id}
       pago={pago}
+      numero={numeros.get(pago.id) ?? null}
       indice={indice}
       quieto={quieto}
       moneda={moneda}
@@ -141,13 +152,22 @@ export function TablaDePagos({
               filas en vez de pegarlo arriba. */}
           <thead className="hundido sticky top-0 z-10">
             <tr className="border-b border-border text-left">
-              <Encabezado className="w-[4.5rem] pl-5">
+              <Encabezado className="w-8 pr-1 pl-2 text-right sm:w-12 sm:pr-2 sm:pl-5">
+                <abbr title="Número" className="no-underline">
+                  N.º
+                </abbr>
+              </Encabezado>
+              {/* "Día" en pantalla chica: la columna N.º se lleva ese ancho,
+                  y en la vista por día las filas ni muestran la fecha (va en
+                  la franja del día). */}
+              <Encabezado className="w-[3.25rem] pr-1 pl-2 sm:w-[4.5rem] sm:pr-3">
                 <EncabezadoOrdenable
                   href={hrefOrdenar("fecha")}
                   activo={ordenarPor === "fecha"}
                   direccion={direccion}
                 >
-                  Fecha
+                  <span className="sm:hidden">Día</span>
+                  <span className="hidden sm:inline">Fecha</span>
                 </EncabezadoOrdenable>
               </Encabezado>
               <Encabezado>
@@ -161,8 +181,8 @@ export function TablaDePagos({
               </Encabezado>
               <Encabezado className="hidden w-[7.5rem] sm:table-cell">Modalidad</Encabezado>
               <Encabezado className="hidden w-[9.5rem] sm:table-cell">Cubre</Encabezado>
-              <Encabezado className="w-[7.5rem] pr-3 text-right">Importe</Encabezado>
-              <Encabezado className="w-9 pr-5">
+              <Encabezado className="w-[5.25rem] pr-2 text-right sm:w-[7.5rem] sm:pr-3">Importe</Encabezado>
+              <Encabezado className="w-9 pr-3 sm:pr-5">
                 <span className="sr-only">WhatsApp</span>
               </Encabezado>
             </tr>
@@ -176,7 +196,7 @@ export function TablaDePagos({
                   <tr className={cn("bg-muted/40", futuro && "opacity-60")}>
                     <th
                       scope="rowgroup"
-                      colSpan={6}
+                      colSpan={7}
                       className="px-5 py-1.5 text-left text-xs font-normal"
                     >
                       <span className="flex items-baseline justify-between gap-3">
@@ -227,6 +247,7 @@ export function TablaDePagos({
 
 function FilaDePago({
   pago,
+  numero,
   indice,
   quieto,
   moneda,
@@ -235,6 +256,8 @@ function FilaDePago({
   conFecha,
 }: {
   pago: PagoDelHistorial;
+  /** El N.º visible; null para un anulado. */
+  numero: number | null;
   indice: number;
   quieto: boolean | null;
   moneda: string;
@@ -256,7 +279,17 @@ function FilaDePago({
       }}
       className="fila border-t border-border/60"
     >
-      <td className="tabular py-3 pl-5 align-top font-mono text-xs whitespace-nowrap text-muted-foreground">
+      <td className="tabular py-3 pr-1 pl-2 text-right align-top font-mono text-xs whitespace-nowrap text-muted-foreground sm:pr-2 sm:pl-5">
+        {numero !== null ? (
+          numero
+        ) : (
+          <span aria-label="Anulado, sin número" className="text-border-strong">
+            —
+          </span>
+        )}
+      </td>
+
+      <td className="tabular py-3 pl-3 align-top font-mono text-xs whitespace-nowrap text-muted-foreground sm:pl-2">
         {conFecha ? etiquetaCorta(pago.fechaPago, hoy) : null}
       </td>
 
@@ -273,8 +306,12 @@ function FilaDePago({
         {pago.marca ? <MarcaDeMovimiento marca={pago.marca} /> : null}
         <span className="block text-xs text-muted-foreground">{pago.planNombreSnapshot}</span>
         {pago.cubreDesde && pago.cubreHasta ? (
-          <span className="tabular block font-mono text-[0.7rem] whitespace-nowrap text-muted-foreground/80 sm:hidden">
-            {etiquetaCorta(pago.cubreDesde, hoy)} → {etiquetaCorta(pago.cubreHasta, hoy)}
+          // Puede cortarse antes de la flecha: con el año ("16 dic → 15 ene
+          // 2027", un adelanto que cruza el año) la línea entera sin corte
+          // ensanchaba la columna y sacaba el importe de la pantalla.
+          <span className="tabular block font-mono text-[0.7rem] text-muted-foreground/80 sm:hidden">
+            <span className="whitespace-nowrap">{etiquetaCorta(pago.cubreDesde, hoy)}</span>{" "}
+            <span className="whitespace-nowrap">→ {etiquetaCorta(pago.cubreHasta, hoy)}</span>
           </span>
         ) : null}
         {pago.modalidad === "MEDIO_MES" ? (
@@ -287,7 +324,11 @@ function FilaDePago({
             Anulado{pago.anuladoMotivo ? ` · ${pago.anuladoMotivo}` : ""}
           </span>
         ) : pago.nota ? (
-          <span className="mt-0.5 block max-w-[18rem] truncate text-xs text-muted-foreground/80">
+          // `w-0 min-w-full`: la nota se corta al ancho que ya tiene la
+          // celda y no lo define. Con `max-w-[18rem]` una nota larga (las de
+          // los pagos importados) pedía 288px y empujaba el importe fuera
+          // de la pantalla en el celular.
+          <span className="mt-0.5 block w-0 min-w-full truncate text-xs text-muted-foreground/80">
             {pago.nota}
           </span>
         ) : null}
@@ -311,7 +352,7 @@ function FilaDePago({
 
       <td
         className={cn(
-          "py-3 pr-3 text-right align-top font-mono text-[0.9375rem] whitespace-nowrap",
+          "py-3 pr-2 text-right align-top font-mono text-[0.9375rem] whitespace-nowrap sm:pr-3",
           pago.anulado && "line-through",
         )}
       >
@@ -323,7 +364,7 @@ function FilaDePago({
         ) : null}
       </td>
 
-      <td className="py-3 pr-5 align-top">
+      <td className="py-3 pr-3 align-top sm:pr-5">
         {!pago.anulado && pago.cubreHasta ? (
           <BotonWhatsapp
             telefono={pago.telefono}

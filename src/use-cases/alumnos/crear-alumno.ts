@@ -91,6 +91,8 @@ export const crearAlumnoAction = withAuth<CrearAlumnoRaw, AlumnoCreado>(
         genero: input.genero ?? null,
         direccion: input.direccion ?? null,
         comoConocio: input.comoConocio ?? null,
+        situacionLaboral: input.situacionLaboral ?? null,
+        situacionLaboralDetalle: input.situacionLaboralDetalle ?? null,
         notas: input.notas ?? null,
         origen: "MANUAL",
       };
