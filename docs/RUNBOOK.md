@@ -447,13 +447,41 @@ abajo. **Sin un simulacro registrado, no hay backup: solo una hipótesis.**
 
 ### Copia fuera de la PC y verificación
 
-**Al 2026-11-03 los backups están solo en esta PC**
-(`C:\Users\Thiago\FuerzaNatural-Backups`): si se pierde la PC, se pierden
-con ella, y un dato que se pierda en la base solo vuelve desde acá.
-Destino y responsable del archivo cifrado: _(a definir — por ejemplo, una
-carpeta privada de Google Drive o Backblaze B2, con acceso de dos personas
-de NEXA)_. Frecuencia sugerida: semanal y antes de cualquier operación
-masiva (importación, migración).
+**Destino (desde el 2026-11-05): el OneDrive personal de Thiago**, carpeta
+`FuerzaNatural-Backups` en la raíz de la nube. Los originales siguen en
+`C:\Users\Thiago\FuerzaNatural-Backups`. Frecuencia sugerida: semanal y
+antes de cualquier operación masiva (importación, migración).
+
+**Estado al 2026-11-05 (pendiente de corregir):**
+- El cliente de OneDrive quedó vinculado a una carpeta **dentro del repo**:
+  `C:\Users\Thiago\OneDrive\Desktop\gym fz system\OneDrive`.
+  - No se agrega a git: nunca `git add -A` mientras exista.
+  - Mientras siga vinculada, no se mueve ni se borra nada de ahí: OneDrive lo
+    tomaría como un borrado en la nube.
+- Lo correcto es desvincular este equipo (Configuración → Cuenta) y volver a
+  vincularlo a `C:\Users\Thiago\OneDriveNube`. Hasta entonces, el cliente
+  queda detenido.
+- La nube está llena (5 GB, "No hay suficiente espacio libre"). Para seguir
+  subiendo backups hay que liberar espacio o ampliar el plan.
+
+| Archivo | Bytes | SHA-256 | En la nube |
+|---|---|---|---|
+| `fuerza-natural-2026-10-03T04-42-53.sql.gpg` | 21144 | `1bcb7ec8979a914f1f668119c18c157d6af061fae98bfb4763a0f68a2443fb3e` | ✓ bajado e igual |
+| `fuerza-natural-2026-10-03T05-00-42.sql.gpg` | 237287 | `03e5e3c782bc6fc192e63c890346ec44faa38241c51d436bf2e3967cd74f8f21` | ✓ bajado e igual |
+| `fuerza-natural-2026-10-22T15-41-24.sql.gpg` | 309607 | `14854249e4b623a339a6fe157c743540d990dd39a001e04137e821d03d3559b0` | ✓ bajado e igual |
+| `fuerza-natural-2026-11-02T02-34-56.sql.gpg` | 318932 | `b47074b2ae4679a6…` | pendiente (nube llena) |
+| `fuerza-natural-2026-11-05T19-31-04.sql.gpg` | 345780 | `540cf0fb92e9e1a172f3fc67c5d1a3cc5f35e3fccce7a836fff7311b8f44e359` | ✓ bajado e igual, simulacro OK |
+
+Los `conteos.json` quedaron pendientes de subir. Son chicos y sin datos
+personales, y el SHA-256 de cada cifrado está en esta tabla.
+
+**Cómo se verifica una copia de OneDrive:**
+1. `attrib -P +U <archivo>` marca el archivo como "liberar espacio".
+   OneDrive solo lo libera cuando ya lo subió completo: el atributo
+   `0x400000` (recall on data access) es la prueba de que está en la nube.
+2. Copiarlo a una carpeta temporal fuera de OneDrive obliga a bajarlo de la
+   nube.
+3. Comparar el SHA-256 de lo bajado y correr el simulacro sobre esa copia.
 
 - **Se copian juntos** `fuerza-natural-<fecha>.sql.gpg` y
   `fuerza-natural-<fecha>.conteos.json` (conteos, huellas y el SHA-256 del
@@ -692,7 +720,20 @@ diferencia y los chequeos de integridad de arriba.
 
 ---
 
-## Migración 0010 + 0011 (opción B decidida el 2026-11-03, SIN ejecutar)
+## Migración 0010 + 0011 (opción B, ejecutada en producción el 2026-11-05)
+
+**Ejecutada el 2026-11-05** con `npm run db:prod:migrate`, después de los
+controles de abajo, con el backup `…2026-11-05T19-31-04` (simulacro OK,
+copia en OneDrive verificada) y su ensayo OK. Quedó así:
+- 12 migraciones aplicadas;
+- `situacion_laboral` y `situacion_laboral_detalle`;
+- `disciplina` con sus 10 valores y el comentario;
+- 489 alumnos y 1591 pagos, sin cambios;
+- RLS en 12/12 tablas;
+- conciliación sin hallazgos de integridad.
+
+El código anterior (`8426c35`) siguió respondiendo ok sobre la base migrada.
+Lo que sigue describe cómo se preparó.
 
 **Estado verificado (solo lectura, 2026-11-02):** producción tiene
 aplicadas 0000–0009, con el mismo hash que los archivos del repositorio;
@@ -957,5 +998,10 @@ expuesto el DoS.
 | 2026-11-02 | Entrega 1 (seguridad), con autorización de Thiago: worktree desde `origin/main` (`b49b712`, sin cambios de terceros), los mismos e2e antes y después, app recorrida contra una copia de producción SIN migrar (esquema y journal idénticos después) → commit `8426c35` (solo `package.json`, `package-lock.json`, `AGENTS.md`) → push → `dpl_4wQ9Q9bk7qKCzEYQuMQQM3M81zP7` | ✓ Build en Vercel con Next.js 16.4.3, sin errores. `/api/salud` ok con `8426c35`; `/login` y `/recuperar` sin errores de consola (escritorio y celular); 9 rutas privadas 307 a `/login`; headers de seguridad completos; 40 registros de runtime sin 4xx/5xx; producción sigue en la 0009 (lectura). Volver atrás: `dpl_3TeaZLyGuh75fTYiZ8DsBDPiYLQK` |
 | 2026-11-02 | `8426c35` traído al árbol local de la entrega 2 (respaldo, stash, `pull --ff-only`, pop, `npm ci`) | ✓ Sin conflictos; los 41 cambios intactos; verify 491/491 y build con Next.js 16.4.3; e2e de pagos 5/5 (alumnos: los 3 tests viejos de siempre) |
 | 2026-11-03 | Opción B de la 0010, con la autorización de Diego: `0010_deep_husk.sql` pasa a ser el `COMMENT ON COLUMN` ensayado (journal y snapshots sin tocar); 3 e2e de alumnos actualizados a la interfaz actual y 1 nuevo (teléfono sin prefijo → +549). Todo local: sin migrar (ni siquiera bases descartables), sin commit ni push | ✓ typecheck, lint y build (Next.js 16.4.3); vitest 408/408 sin base (los 83 de integración no corrieron: necesitan migrar una base); e2e 9/9 (5 de pagos, 4 de alumnos); los 41 cambios anteriores intactos |
+| 2026-11-05 | Commit local `627609a` (entrega 2, 43 archivos); verify y e2e de nuevo | ✓ verify 491/491 (incluye los 83 de integración contra una base descartable) y build; e2e 9/9; sin secretos ni datos personales en lo commiteado |
+| 2026-11-05 | Backup + simulacro (`…2026-11-05T19-31-04`) | ✓ 12/12 tablas, conteo y contenido; 489 alumnos, 1591 pagos; 7 s |
+| 2026-11-05 | Ensayo de la 0010 (B) + 0011 con ese backup y la carpeta del repo | ✓ Estructura igual al repo, todas las tablas con las mismas filas y valores, `disciplina` con sus 10 valores, seguridad idéntica, idempotente. El recorrido de la app con datos reales había pasado entero el 2026-11-03; el del 2026-11-05 se cortó por recargas de `next dev`, que son del modo desarrollo (el repo está en OneDrive) y no de la app |
+| 2026-11-05 | Copia externa de los backups a OneDrive (ver "Copia fuera de la PC") | ✓ 4 `.sql.gpg`, incluido el del 2026-11-05, bajados de la nube con el mismo SHA-256 y simulacro OK sobre lo bajado. Pendientes por nube llena: el del 2026-11-02 y los `conteos.json` |
+| 2026-11-05 | `npm run db:prod:migrate` (0010 B + 0011), con autorización de Thiago | ✓ 12 migraciones; columnas nuevas; `disciplina` con 10 valores y el comentario; 489/1591 sin cambios; RLS 12/12; conciliación de noviembre sin hallazgos de integridad (1 aviso: un alumno con dos cobros el mismo día por meses distintos); `/api/salud` ok con `8426c35` |
 | — | Recuperación de contraseña de punta a punta en producción | Pendiente — requiere configurar URLs y SMTP en Supabase Auth |
 | — | Prueba del dueño (revisión de datos) | Pendiente — presencial con Diego |
