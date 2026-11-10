@@ -119,6 +119,8 @@ const MOTIVOS_BAJA = [
   { codigo: "HORARIOS", etiqueta: "Horarios" },
   { codigo: "MUDANZA", etiqueta: "Mudanza / distancia" },
   { codigo: "DEJO_DE_ASISTIR", etiqueta: "Dejó de asistir" },
+  { codigo: "VIAJE", etiqueta: "Viaje" },
+  { codigo: "ENFERMEDAD", etiqueta: "Enfermedad" },
 ];
 
 /**

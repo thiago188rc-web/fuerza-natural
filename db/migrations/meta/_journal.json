@@ -85,6 +85,13 @@
       "when": 1793572070558,
       "tag": "0011_situacion_laboral",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1794000000000,
+      "tag": "0012_motivos_viaje_y_enfermedad",
+      "breakpoints": true
     }
   ]
 }
