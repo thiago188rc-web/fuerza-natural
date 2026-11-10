@@ -16,6 +16,7 @@ import { BotonWhatsapp } from "@/components/boton-whatsapp";
 import { mensajeConfirmacionDePago } from "@/lib/mensajes-whatsapp";
 import { Importe } from "@/components/importe";
 import { AnularPago } from "@/components/features/pagos/anular-pago";
+import { CambiarDiasDelPago } from "@/components/features/pagos/cambiar-dias-del-pago";
 import { cn } from "@/lib/utils";
 
 /**
@@ -60,6 +61,7 @@ export function TablaDePagos({
   moneda,
   hoy,
   puedeAnular = false,
+  planes = [],
   ordenarPor = "fecha",
   direccion = "asc",
 }: {
@@ -69,6 +71,8 @@ export function TablaDePagos({
   moneda: string;
   hoy: string;
   puedeAnular?: boolean;
+  /** Los planes activos con precio, para "Cambiar días". */
+  planes?: { id: string; nombre: string; precio: number | null }[];
   ordenarPor?: "fecha" | "nombre";
   direccion?: "asc" | "desc";
 }) {
@@ -127,6 +131,7 @@ export function TablaDePagos({
       moneda={moneda}
       hoy={hoy}
       puedeAnular={puedeAnular}
+      planes={planes}
       conFecha={!porDia}
     />
   );
@@ -253,6 +258,7 @@ function FilaDePago({
   moneda,
   hoy,
   puedeAnular,
+  planes,
   conFecha,
 }: {
   pago: PagoDelHistorial;
@@ -263,6 +269,7 @@ function FilaDePago({
   moneda: string;
   hoy: string;
   puedeAnular: boolean;
+  planes: { id: string; nombre: string; precio: number | null }[];
   /** En la vista por día la fecha ya está en la franja del día. */
   conFecha: boolean;
 }) {
@@ -358,7 +365,13 @@ function FilaDePago({
       >
         <Importe valor={pago.monto} moneda={moneda} simboloClassName="text-xs" />
         {puedeAnular && !pago.anulado ? (
-          <div className="mt-1 flex justify-end font-sans">
+          <div className="mt-1 flex flex-wrap justify-end gap-x-1 font-sans">
+            <CambiarDiasDelPago
+              pago={pago}
+              planes={planes}
+              moneda={moneda}
+              alumno={`${pago.nombre} ${pago.apellido}`}
+            />
             <AnularPago pago={pago} moneda={moneda} alumno={`${pago.nombre} ${pago.apellido}`} />
           </div>
         ) : null}

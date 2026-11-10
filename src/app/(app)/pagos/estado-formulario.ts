@@ -33,3 +33,14 @@ export interface EstadoAnulacion {
 }
 
 export const ESTADO_ANULACION_INICIAL: EstadoAnulacion = { ok: false };
+
+/** El contrato entre "Cambiar días" de un pago y su diálogo. */
+export interface EstadoCambioDeDias {
+  ok: boolean;
+  mensaje?: string;
+  errores?: Record<string, string>;
+  /** El pago viejo, ya anulado: el diálogo lo usa para saber que terminó. */
+  anulado?: string;
+}
+
+export const ESTADO_CAMBIO_DE_DIAS_INICIAL: EstadoCambioDeDias = { ok: false };

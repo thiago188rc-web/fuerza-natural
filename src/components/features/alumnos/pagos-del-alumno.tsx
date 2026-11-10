@@ -11,6 +11,7 @@ import { BotonLink } from "@/components/boton-link";
 import { Importe } from "@/components/importe";
 import { IrAPestana } from "@/components/pestanas";
 import { AnularPago } from "@/components/features/pagos/anular-pago";
+import { CambiarDiasDelPago } from "@/components/features/pagos/cambiar-dias-del-pago";
 import { cn } from "@/lib/utils";
 
 const VISIBLES_AL_PRINCIPIO = 6;
@@ -39,6 +40,7 @@ export function PagosDelAlumno({
   alumnoId,
   puedeCobrar,
   puedeAnular = false,
+  planes = [],
   resumen = false,
 }: {
   pagos: PagoDeLaFicha[];
@@ -48,6 +50,8 @@ export function PagosDelAlumno({
   alumnoId: string;
   puedeCobrar: boolean;
   puedeAnular?: boolean;
+  /** Los planes activos con precio, para "Cambiar días". */
+  planes?: { id: string; nombre: string; precio: number | null }[];
   resumen?: boolean;
 }) {
   const quieto = useReducedMotion();
@@ -143,7 +147,10 @@ export function PagosDelAlumno({
                   </span>
 
                   {puedeAnular && !resumen && !pago.anulado ? (
-                    <AnularPago pago={pago} moneda={moneda} />
+                    <>
+                      <CambiarDiasDelPago pago={pago} planes={planes} moneda={moneda} />
+                      <AnularPago pago={pago} moneda={moneda} />
+                    </>
                   ) : null}
                 </motion.li>
               ))}

@@ -369,7 +369,12 @@ export async function listarPlanesActivos(tx: TxClient, ctx: AuthContext) {
  */
 export async function obtenerPlanActivo(tx: TxClient, ctx: AuthContext, planId: string) {
   const [row] = await tx
-    .select({ id: plans.id, nombre: plans.nombre, diasSemana: plans.diasSemana })
+    .select({
+      id: plans.id,
+      nombre: plans.nombre,
+      diasSemana: plans.diasSemana,
+      precioActual: plans.precioActual,
+    })
     .from(plans)
     .where(and(eq(plans.id, planId), eq(plans.gymId, ctx.gymId), eq(plans.activo, true)));
   return row ?? null;

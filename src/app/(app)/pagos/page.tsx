@@ -149,6 +149,7 @@ export default async function PagosPage({
           moneda={datos.moneda}
           hoy={datos.hoy}
           puedeAnular={datos.puedeAnularPagos}
+          planes={datos.planesActivos}
           ordenarPor={datos.ordenarPor}
           direccion={datos.direccion}
         />

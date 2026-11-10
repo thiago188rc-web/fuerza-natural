@@ -265,6 +265,7 @@ export async function listarPagos(tx: TxClient, ctx: AuthContext, filtros: Filtr
       monto: payments.monto,
       metodo: payments.metodo,
       modalidad: payments.modalidad,
+      planId: payments.planId,
       planNombreSnapshot: payments.planNombreSnapshot,
       nota: payments.nota,
       anuladoEn: payments.anuladoEn,
@@ -560,6 +561,7 @@ export async function listarPagosDeAlumno(
       monto: payments.monto,
       metodo: payments.metodo,
       modalidad: payments.modalidad,
+      planId: payments.planId,
       planNombreSnapshot: payments.planNombreSnapshot,
       nota: payments.nota,
       anuladoEn: payments.anuladoEn,
@@ -618,4 +620,43 @@ export async function anularPago(tx: TxClient, ctx: AuthContext, paymentId: stri
     .set({ anuladoEn: sql`now()`, anuladoPor: ctx.userId, anuladoMotivo: motivo })
     .where(and(eq(payments.id, paymentId), eq(payments.gymId, ctx.gymId), isNull(payments.anuladoEn)))
     .returning({ id: payments.id });
+}
+
+/**
+ * El pago que se quiere corregir, con sus tramos de cobertura: lo que hace
+ * falta para anularlo y registrar uno igual con otro plan.
+ */
+export async function obtenerPagoParaCorregir(tx: TxClient, ctx: AuthContext, paymentId: string) {
+  const [fila] = await tx
+    .select({
+      id: payments.id,
+      studentId: payments.studentId,
+      fechaPago: payments.fechaPago,
+      planId: payments.planId,
+      planNombreSnapshot: payments.planNombreSnapshot,
+      modalidad: payments.modalidad,
+      monto: payments.monto,
+      metodo: payments.metodo,
+      nota: payments.nota,
+      anuladoEn: payments.anuladoEn,
+      nombre: students.nombre,
+      apellido: students.apellido,
+      vinculo: students.vinculo,
+    })
+    .from(payments)
+    .innerJoin(students, eq(students.id, payments.studentId))
+    .where(and(eq(payments.id, paymentId), eq(payments.gymId, ctx.gymId)));
+  if (!fila) return null;
+
+  const tramos = await tx
+    .select({
+      periodo: paymentPeriods.periodo,
+      cubreDesde: paymentPeriods.cubreDesde,
+      cubreHasta: paymentPeriods.cubreHasta,
+    })
+    .from(paymentPeriods)
+    .where(and(eq(paymentPeriods.paymentId, paymentId), eq(paymentPeriods.gymId, ctx.gymId)))
+    .orderBy(asc(paymentPeriods.cubreDesde));
+
+  return { ...fila, tramos };
 }

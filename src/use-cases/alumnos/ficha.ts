@@ -3,6 +3,7 @@ import { withTenantTx } from "@/use-cases/_kernel/with-tenant-tx";
 import { conflict, notFound, ok, type Result } from "@/use-cases/_kernel/result";
 import {
   listarEventosDeAlumno,
+  listarPlanesActivos,
   obtenerFichaAlumno,
   type FichaAlumno,
 } from "@/data/repositories/students-repo";
@@ -54,6 +55,7 @@ export interface PagoDeLaFicha {
   monto: number;
   metodo: string;
   modalidad: string;
+  planId: string;
   planNombreSnapshot: string;
   nota: string | null;
   anulado: boolean;
@@ -77,6 +79,8 @@ export interface FichaCompleta {
   eventos: Awaited<ReturnType<typeof listarEventosDeAlumno>>;
   /** Si la sesión puede anular pagos (hoy, solo el DUENO). */
   puedeAnularPagos: boolean;
+  /** Los planes activos con su precio, para "Cambiar días" de un pago. */
+  planesActivos: { id: string; nombre: string; precio: number | null }[];
 }
 
 /** Cuántos meses de historia muestra la tira. */
@@ -97,10 +101,11 @@ export const fichaCompletaQuery = withAuth<string, FichaCompleta>(
       if (!alumno) return notFound();
 
       const hoy = hoyISO(gym.timezone);
-      const [filas, pagos, eventos] = await Promise.all([
+      const [filas, pagos, eventos, planes] = await Promise.all([
         listarTramosDeAlumno(tx, ctx, id),
         listarPagosDeAlumno(tx, ctx, id),
         listarEventosDeAlumno(tx, ctx, id, 30),
+        listarPlanesActivos(tx, ctx),
       ]);
 
       const tramos: TramoCubierto[] = filas.map((f) => ({ desde: f.desde, hasta: f.hasta }));
@@ -155,6 +160,7 @@ export const fichaCompletaQuery = withAuth<string, FichaCompleta>(
           monto: Number(p.monto),
           metodo: p.metodo,
           modalidad: p.modalidad,
+          planId: p.planId,
           planNombreSnapshot: p.planNombreSnapshot,
           nota: p.nota,
           anulado: p.anuladoEn !== null,
@@ -166,6 +172,11 @@ export const fichaCompletaQuery = withAuth<string, FichaCompleta>(
         totalPagado,
         eventos,
         puedeAnularPagos: puedeAnularPagos(ctx.rol),
+        planesActivos: planes.map((p) => ({
+          id: p.id,
+          nombre: p.nombre,
+          precio: p.precioActual === null ? null : Number(p.precioActual),
+        })),
       });
     });
   },

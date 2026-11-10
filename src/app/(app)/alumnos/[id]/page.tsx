@@ -312,6 +312,7 @@ export default async function FichaAlumnoPage({
             alumnoId={alumno.id}
             puedeCobrar={alumno.vinculo !== "BAJA"}
             puedeAnular={datos.puedeAnularPagos}
+            planes={datos.planesActivos}
           />
         </PanelDePestana>
 

@@ -223,6 +223,7 @@ export interface PagoDelHistorial {
   monto: number;
   metodo: string;
   modalidad: string;
+  planId: string;
   planNombreSnapshot: string;
   nota: string | null;
   anulado: boolean;
@@ -290,6 +291,8 @@ export interface HistorialDePagos {
   rango: { desde: string; hasta: string };
   /** Si la sesión puede anular pagos (hoy, solo el DUENO). */
   puedeAnularPagos: boolean;
+  /** Los planes activos con su precio, para "Cambiar días" de un pago. */
+  planesActivos: { id: string; nombre: string; precio: number | null }[];
   ordenarPor: "fecha" | "nombre";
   direccion: "asc" | "desc";
 }
@@ -308,13 +311,14 @@ export const historialDePagosQuery = withAuth<Partial<FiltrosDePagos>, Historial
       // Del día 1 al último del mes, en ese orden, no al revés.
       const direccion = filtros?.direccion ?? "asc";
 
-      const [listado, cobrado, anulado, anulados, marcas, conteo] = await Promise.all([
+      const [listado, cobrado, anulado, anulados, marcas, conteo, planes] = await Promise.all([
         listarPagos(tx, ctx, { desde, hasta, ordenarPor, direccion }),
         totalCobrado(tx, ctx, { desde, hasta }),
         totalAnulado(tx, ctx, { desde, hasta }),
         listarPagosAnulados(tx, ctx, { desde, hasta }),
         marcasDeMovimientoPorAlumno(tx, ctx, { desde, hasta }),
         contarAlumnosPorVinculo(tx, ctx),
+        listarPlanesActivos(tx, ctx),
       ]);
 
       // Pagos vigentes por persona. Sale del mismo listado que se muestra,
@@ -339,6 +343,7 @@ export const historialDePagosQuery = withAuth<Partial<FiltrosDePagos>, Historial
           monto: Number(f.monto),
           metodo: f.metodo,
           modalidad: f.modalidad,
+          planId: f.planId,
           planNombreSnapshot: f.planNombreSnapshot,
           nota: f.nota,
           anulado: f.anuladoEn !== null,
@@ -379,6 +384,11 @@ export const historialDePagosQuery = withAuth<Partial<FiltrosDePagos>, Historial
         })),
         rango: { desde, hasta },
         puedeAnularPagos: puedeAnularPagos(ctx.rol),
+        planesActivos: planes.map((p) => ({
+          id: p.id,
+          nombre: p.nombre,
+          precio: p.precioActual === null ? null : Number(p.precioActual),
+        })),
         ordenarPor,
         direccion,
       });

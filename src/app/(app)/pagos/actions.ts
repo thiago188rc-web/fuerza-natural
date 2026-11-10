@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { registrarPagoAction } from "@/use-cases/pagos/registrar-pago";
 import { anularPagoAction } from "@/use-cases/pagos/anular-pago";
-import type { EstadoAnulacion, EstadoPago } from "./estado-formulario";
+import { cambiarDiasDelPagoAction } from "@/use-cases/pagos/cambiar-dias-del-pago";
+import type { EstadoAnulacion, EstadoCambioDeDias, EstadoPago } from "./estado-formulario";
 
 /**
  * La frontera entre la pantalla de cobro y el caso de uso. Traduce
@@ -108,6 +109,50 @@ export async function anularPagoFormAction(
       return { ok: false, mensaje: "No encontramos ese pago." };
     case "FORBIDDEN":
       return { ok: false, mensaje: "Solo el dueño puede anular pagos, o tu sesión venció." };
+    case "CONFIRMACION_REQUERIDA":
+      return { ok: false, mensaje: "Esta operación necesita una confirmación." };
+  }
+}
+
+/**
+ * Cambiar los días de un pago ya cargado: anula el viejo y registra uno
+ * igual con el plan nuevo, en una sola transacción. La autorización (solo
+ * DUENO) y todas las reglas viven en el caso de uso.
+ */
+export async function cambiarDiasDelPagoFormAction(
+  _prev: EstadoCambioDeDias,
+  formData: FormData,
+): Promise<EstadoCambioDeDias> {
+  const resultado = await cambiarDiasDelPagoAction({
+    paymentId: texto(formData, "paymentId"),
+    planId: texto(formData, "planId"),
+    monto: texto(formData, "monto"),
+  });
+
+  if (resultado.ok) {
+    revalidatePath("/dashboard");
+    revalidatePath("/pagos");
+    revalidatePath("/alumnos");
+    revalidatePath("/metricas");
+    revalidatePath("/actividad");
+    revalidatePath(`/alumnos/${resultado.data.studentId}`);
+    return { ok: true, anulado: resultado.data.anuladoId, mensaje: "Pago actualizado." };
+  }
+
+  switch (resultado.kind) {
+    case "VALIDATION": {
+      const errores: Record<string, string> = {};
+      for (const issue of resultado.issues) {
+        if (!errores[issue.path]) errores[issue.path] = issue.message;
+      }
+      return { ok: false, errores, mensaje: "Revisá los datos marcados." };
+    }
+    case "CONFLICT":
+      return { ok: false, mensaje: resultado.message };
+    case "NOT_FOUND":
+      return { ok: false, mensaje: "No encontramos ese pago." };
+    case "FORBIDDEN":
+      return { ok: false, mensaje: "Solo el dueño puede cambiar un pago, o tu sesión venció." };
     case "CONFIRMACION_REQUERIDA":
       return { ok: false, mensaje: "Esta operación necesita una confirmación." };
   }

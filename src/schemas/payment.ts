@@ -129,3 +129,24 @@ export const anularPagoSchema = z.object({
 });
 
 export type AnularPagoRaw = z.input<typeof anularPagoSchema>;
+
+/**
+ * Cambiar los días de un pago ya cargado (pagó 2 días y quiere 3, o al
+ * revés). El pago no se edita: se anula y se registra uno igual —misma
+ * fecha de cobro, mismo período— con el plan nuevo. `monto` es opcional:
+ * sin él se usa el precio configurado del plan nuevo.
+ */
+export const cambiarDiasDelPagoSchema = z.object({
+  paymentId: z.string().uuid("Pago inválido."),
+  planId: z.string().uuid("Elegí cuántos días por semana paga."),
+  monto: z.preprocess(
+    (v) => (v === "" || v === null ? undefined : v),
+    z.coerce
+      .number({ error: "Ingresá un importe." })
+      .min(0, "El importe no puede ser negativo.")
+      .max(99_999_999, "Importe demasiado alto.")
+      .optional(),
+  ),
+});
+
+export type CambiarDiasDelPagoRaw = z.input<typeof cambiarDiasDelPagoSchema>;
